@@ -1,11 +1,14 @@
 import pytest
 
 from glintory.collectors.base import CollectionContext, CollectionResult
+from glintory.collectors.defaults import build_default_collector_registry
+from glintory.collectors.github import GitHubCollector
 from glintory.collectors.registry import (
     CollectorAlreadyRegisteredError,
     CollectorNotFoundError,
     CollectorRegistry,
 )
+from glintory.config import settings
 
 
 class DummyCollector:
@@ -50,3 +53,12 @@ def test_registry_instances_are_isolated():
 
     with pytest.raises(CollectorNotFoundError):
         registry2.get("test-type")
+
+
+def test_build_default_collector_registry():
+    registry = build_default_collector_registry(settings)
+    assert isinstance(registry, CollectorRegistry)
+
+    collector = registry.get("github")
+    assert isinstance(collector, GitHubCollector)
+    assert collector.settings is settings

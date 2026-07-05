@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str = "sqlite:///./data/glintory.sqlite3"
 
+    github_token: str | None = None
+    github_api_url: str = "https://api.github.com"
+    github_api_version: str = "2026-03-10"
+    github_excerpt_max_chars: int = 2000
+
     http_connect_timeout_seconds: float = 5.0
     http_read_timeout_seconds: float = 20.0
     http_write_timeout_seconds: float = 10.0

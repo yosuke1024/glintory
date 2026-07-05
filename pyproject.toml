@@ -39,3 +39,6 @@ typeCheckingMode = "basic"
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
+filterwarnings = [
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

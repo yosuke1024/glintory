@@ -1,0 +1,34 @@
+{
+  "repository_queries": [
+    {
+      "query": "topic:self-hosted pushed:>2026-04-01",
+      "sort": "updated",
+      "order": "desc",
+      "max_items": 20
+    },
+    {
+      "query": "topic:local-first pushed:>2026-04-01",
+      "sort": "stars",
+      "order": "desc",
+      "max_items": 20
+    }
+  ],
+  "issue_queries": [
+    {
+      "query": "\"too expensive\" is:issue created:>2026-04-01",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 20
+    },
+    {
+      "query": "\"self-hosted alternative\" is:issue created:>2026-04-01",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 20
+    }
+  ],
+  "per_page": 50,
+  "max_pages_per_query": 2,
+  "include_forks": false,
+  "include_archived": false
+}

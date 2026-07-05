@@ -6,6 +6,7 @@ import pytest
 from glintory.infrastructure.http import (
     HttpInvalidJsonError,
     HttpRequestError,
+    HttpResponseError,
     HttpResponseTooLargeError,
     HttpRetryExhaustedError,
     HttpxHttpClient,
@@ -225,3 +226,48 @@ async def test_rate_control_per_host():
 
     assert len(sleeps) == 1
     assert sleeps[0] == 2.0
+
+
+@pytest.mark.asyncio
+async def test_get_json_with_params():
+    def handler(request: httpx.Request):
+        assert request.url.query.decode() == "q=test&sort=stars"
+        return httpx.Response(200, json={"items": []})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    http_client = HttpxHttpClient(client=client)
+    res = await http_client.get_json(
+        "http://example.com", params={"q": "test", "sort": "stars"}
+    )
+    assert res.status_code == 200
+    assert res.json() == {"items": []}
+
+
+@pytest.mark.asyncio
+async def test_http_response_error():
+
+    def handler(request: httpx.Request):
+        return httpx.Response(
+            400, text="Bad Request Body", headers={"X-Error-Reason": "invalid_param"}
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    http_client = HttpxHttpClient(client=client)
+    with pytest.raises(HttpResponseError) as exc_info:
+        await http_client.get_text("http://example.com")
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.headers.get("x-error-reason") == "invalid_param"
+    assert exc_info.value.body == "Bad Request Body"
+
+
+@pytest.mark.asyncio
+async def test_status_304_not_modified():
+    def handler(request: httpx.Request):
+        return httpx.Response(304, text="")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    http_client = HttpxHttpClient(client=client)
+    res = await http_client.get_text("http://example.com")
+    assert res.status_code == 304
+    assert res.text == ""

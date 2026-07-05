@@ -24,6 +24,19 @@ class HttpResponseTooLargeError(HttpRequestError):
     pass
 
 
+class HttpResponseError(HttpRequestError):
+    def __init__(
+        self,
+        message: str,
+        status_code: int,
+        headers: Mapping[str, str],
+        body: str,
+    ):
+        super().__init__(message, status_code=status_code)
+        self.headers = headers
+        self.body = body
+
+
 class HttpInvalidJsonError(HttpRequestError):
     pass
 
@@ -54,6 +67,7 @@ class HttpClientProtocol(Protocol):
         url: str,
         headers: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> HttpTextResponse: ...
 
     async def get_json(
@@ -61,6 +75,7 @@ class HttpClientProtocol(Protocol):
         url: str,
         headers: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> HttpJsonResponse: ...
 
 
@@ -176,16 +191,18 @@ class HttpxHttpClient:
         url: str,
         headers: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> HttpTextResponse:
-        return await self._request("GET", url, headers, timeout)
+        return await self._request("GET", url, headers, timeout, params=params)
 
     async def get_json(
         self,
         url: str,
         headers: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> HttpJsonResponse:
-        res = await self._request("GET", url, headers, timeout)
+        res = await self._request("GET", url, headers, timeout, params=params)
         try:
             json.loads(res.text)
         except json.JSONDecodeError as e:
@@ -206,6 +223,7 @@ class HttpxHttpClient:
         base_url: str,
         headers: Mapping[str, str] | None,
         timeout_sec: float | None,
+        params: Mapping[str, Any] | None = None,
     ) -> HttpTextResponseImpl:
         req_headers = dict(headers or {})
         if "user-agent" not in {k.lower() for k in req_headers}:
@@ -254,7 +272,11 @@ class HttpxHttpClient:
 
                         # Stream the response to apply size limit dynamically
                         async with self._client.stream(
-                            method, url, headers=req_headers, timeout=timeout
+                            method,
+                            url,
+                            headers=req_headers,
+                            timeout=timeout,
+                            params=params,
                         ) as response:
                             # Update rate limit tracking
                             self._host_last_time[host] = self._time_func()
@@ -332,9 +354,11 @@ class HttpxHttpClient:
                                         f"HTTP request failed with status code {response.status_code} after {self._max_retries} retries.",
                                         status_code=response.status_code,
                                     )
-                                raise HttpRequestError(
+                                raise HttpResponseError(
                                     f"HTTP request failed with status code {response.status_code}.",
                                     status_code=response.status_code,
+                                    headers=dict(response.headers),
+                                    body=text_content,
                                 )
 
                             return HttpTextResponseImpl(

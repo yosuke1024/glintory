@@ -61,6 +61,7 @@ class HttpClientProtocol(Protocol):
         url: str,
         headers: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> HttpTextResponse: ...
 
     async def get_json(
@@ -68,6 +69,7 @@ class HttpClientProtocol(Protocol):
         url: str,
         headers: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> HttpJsonResponse: ...
 
 
