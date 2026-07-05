@@ -133,6 +133,63 @@ GLINTORY_HN_TEXT_MAX_CHARS=5000
 uv run python scripts/smoke_hackernews_persistence.py
 ```
 
+## RSS / Atom Collector
+
+Glintory に実装された `RSSCollector` は、RSS 2.0、RSS 1.0、および Atom 1.0 フィードをパースし、シグナルとしてSQLiteデータベースへ永続化します。
+
+### 特徴
+- **セキュアな HTTP クライアント経由の取得**: `feedparser` 自身には外部通信を行わせず、Glintory共通の HTTP クライアントで安全に取得した bytes をパースします。
+- **SSRF（Server Side Request Forgery）対策**: HTTP クライアントは、localhost やプライベートIPアドレスの宛先、credentials を含む URL、および不正なスキームを排除します。リダイレクト発生時にもリダイレクト先を都度検証します。
+- **部分成功 (Graceful Fallback)**:
+  - XML パースエラー（Bozo例外）が発生した場合、非厳密モード（デフォルト）では、抽出できた有効なエントリーのみを部分成功（`PARTIAL`）として保存します。
+  - 一部エントリーの処理（タイトル欠損、不正 URL など）が失敗しても、そのエントリーのみをスキップし、他の正常なエントリーはシグナルとして保存されます。
+- **HTML の安全なテキスト化**: エントリーのタイトルおよび本文内の HTML タグは安全にプレーンテキストへ変換されます。
+- **メタデータホワイトリスト**: 不要なデータがデータベースに混入しないよう、あらかじめ定義された特定のメタデータキー（`feed_format`, `entry_id`, `entry_tags`, `default_tags`, `default_categories` など）のみをホワイトリストでフィルタして保存します。
+- **マルチソース隔離**: GitHub や Hacker News 等と同様、他の Source との URL 重複衝突を防ぐため、Source ごとに独立してシグナルが管理・隔離されます。
+- **ルックバック・フィルタと最大スキャン数**: `lookback_days` による期間フィルタ、および `max_entries_to_scan` によるパース対象数の制限をサポートします。
+
+### 設定方法
+
+#### Source Config の JSON 例
+
+以下は、`RSSCollector` を利用するための Source 設定の記述例です。
+
+```json
+{
+  "feed_url": "https://example.com/feed.xml",
+  "max_items": 20,
+  "max_entries_to_scan": 100,
+  "lookback_days": 90,
+  "include_undated": true,
+  "signal_type": "trend",
+  "use_content_fallback": true,
+  "strict_parsing": false,
+  "default_categories": ["rss"],
+  "default_tags": ["tech"]
+}
+```
+
+#### 設定パラメータの説明
+
+- `feed_url` (必須): 収集対象の RSS/Atom フィードの URL。
+- `max_items`: 今回のランで最大何件の Signal を取り込むか（デフォルト 100）。
+- `max_entries_to_scan`: フィード内のエントリーを先頭から最大何件パースするか（デフォルト 100）。
+- `lookback_days`: 過去何日以内のエントリーを対象とするか。これより古いエントリーはスキップされます。指定しない場合はフィルタしません。
+- `include_undated`: 投稿日時（`published` / `updated`）が取得できないエントリーを含めるか（デフォルト `true`）。
+- `signal_type`: RSS エントリーの `SignalType` （`trend`, `request`, `pain`, `launch`, `job_demand` のいずれか、デフォルト `trend`。`manual` は指定不可）。
+- `use_content_fallback`: `summary`（要約）が空の場合、`content`（本文）の値を fallback として使用するか（デフォルト `true`）。
+- `strict_parsing`: `bozo`（パースエラー等）検出時に、全体を `FAILED` とするか（デフォルト `false`）。
+- `default_categories`: シグナルに自動的に割り当てる追加カテゴリリスト（例: `["rss"]`）。
+- `default_tags`: シグナルに自動的に割り当てる追加タグリスト（例: `["tech"]`）。
+
+### 手動検証（スモークテスト）の実行
+
+実際に外部の RSS / Atom フィード URL へ疎通確認を行う場合、以下のスクリプトを実行できます（一時データベースが自動作成され、テスト後にクリーンアップされます）。
+
+```bash
+uv run python scripts/smoke_rss_persistence.py --feed-url https://hnrss.org/frontpage
+```
+
 ## Signal Normalization & Persistence
 
 Glintory は、収集した `RawItem` を決定論的なルールに基づいて正規化し、SQLite データベースへ永続化します。

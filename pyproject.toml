@@ -12,6 +12,7 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "alembic>=1.13.0",
     "httpx>=0.27.0",
+    "feedparser>=6.0.12,<7",
 ]
 
 [dependency-groups]
@@ -43,4 +44,5 @@ filterwarnings = [
     "error",
     # TODO: Remove this filter once FastAPI/Starlette resolves the internal TestClient deprecation warning upstream.
     "ignore:Using .*httpx.* with .*starlette.testclient.* is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+    "ignore:To avoid breaking existing software.*:DeprecationWarning",
 ]

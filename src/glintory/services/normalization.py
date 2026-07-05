@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from glintory.collectors.base import RawItem
 from glintory.config import settings
+from glintory.domain.enums import SignalType
 from glintory.domain.signals import (
     NormalizedSignal,
     SignalNormalizationError,
@@ -116,58 +117,106 @@ class SignalNormalizer:
                 metrics_raw = item.metadata
                 filtered_metrics = {}
                 raw_metadata_to_sanitize = dict(item.metadata)
+                signal_type = None
+                language = None
 
-                if item_type_lower == "repository":
-                    tags_raw = item.metadata.get("topics") or ()
-                    for k in (
-                        "stargazers_count",
-                        "watchers_count",
-                        "forks_count",
-                        "open_issues_count",
-                        "score",
-                    ):
-                        if k in metrics_raw:
-                            filtered_metrics[k] = metrics_raw[k]
-                    raw_metadata_to_sanitize.pop("topics", None)
+                if source_type == "rss":
+                    if item_type_lower != "feed_entry":
+                        raise ValueError("unsupported_item_type")
 
-                elif item_type_lower == "issue":
-                    tags_raw = item.metadata.get("labels") or ()
-                    for k in ("comments", "reactions_total_count", "score"):
-                        if k in metrics_raw:
-                            filtered_metrics[k] = metrics_raw[k]
-                    raw_metadata_to_sanitize.pop("labels", None)
+                    hint_val = item.metadata.get("signal_type_hint")
+                    if not hint_val:
+                        raise ValueError("missing_signal_type_hint")
 
-                elif item_type_lower in ("hn_ask", "hn_show", "hn_story", "hn_job"):
-                    categories = ("hacker-news",)
-                    if item_type_lower == "hn_ask":
-                        tags_raw = ("ask-hn",)
-                    elif item_type_lower == "hn_show":
-                        tags_raw = ("show-hn",)
-                    elif item_type_lower == "hn_job":
-                        tags_raw = ("hn-job",)
-                    else:
-                        tags_raw = ()
+                    try:
+                        signal_type = SignalType(hint_val)
+                    except ValueError as e:
+                        raise ValueError("invalid_signal_type_hint") from e
 
-                    # TODO: score, descendants, kids_count updates trigger updated_count increment.
-                    # Consider snapshotting or ignoring metrics updates in comparison rules in a future issue.
-                    for k in ("score", "descendants", "kids_count"):
-                        if k in metrics_raw:
-                            filtered_metrics[k] = metrics_raw[k]
+                    if signal_type == SignalType.MANUAL:
+                        raise ValueError("manual_signal_type_not_allowed")
 
-                raw_labels = item.metadata.get("labels") or ()
-                signal_type = classify_signal(
-                    item_type, item.title, item.excerpt, raw_labels
-                )
+                    default_categories = item.metadata.get("default_categories") or ()
+                    default_tags = item.metadata.get("default_tags") or ()
+                    entry_tags = item.metadata.get("entry_tags") or ()
 
-                tags, tag_warnings = normalize_string_list(tags_raw)
-                for tw in tag_warnings:
-                    warnings.append(
-                        SignalNormalizationWarning(
-                            code="invalid_tag",
-                            message=tw,
-                            external_id=ext_id,
+                    categories, cat_warnings = normalize_string_list(default_categories)
+                    all_tags = list(default_tags) + list(entry_tags)
+                    tags, tag_warnings = normalize_string_list(all_tags)
+                    for tw in cat_warnings + tag_warnings:
+                        warnings.append(
+                            SignalNormalizationWarning(
+                                code="invalid_tag",
+                                message=tw,
+                                external_id=ext_id,
+                            )
                         )
+
+                    whitelist = {
+                        "signal_type_hint",
+                        "feed_format",
+                        "entry_id",
+                        "entry_updated_at",
+                        "entry_language",
+                        "entry_tags",
+                        "default_tags",
+                        "default_categories",
+                    }
+                    raw_metadata_to_sanitize = {
+                        k: v for k, v in item.metadata.items() if k in whitelist
+                    }
+                    language = item.metadata.get("entry_language") or None
+
+                else:
+                    if item_type_lower == "repository":
+                        tags_raw = item.metadata.get("topics") or ()
+                        for k in (
+                            "stargazers_count",
+                            "watchers_count",
+                            "forks_count",
+                            "open_issues_count",
+                            "score",
+                        ):
+                            if k in metrics_raw:
+                                filtered_metrics[k] = metrics_raw[k]
+                        raw_metadata_to_sanitize.pop("topics", None)
+
+                    elif item_type_lower == "issue":
+                        tags_raw = item.metadata.get("labels") or ()
+                        for k in ("comments", "reactions_total_count", "score"):
+                            if k in metrics_raw:
+                                filtered_metrics[k] = metrics_raw[k]
+                        raw_metadata_to_sanitize.pop("labels", None)
+
+                    elif item_type_lower in ("hn_ask", "hn_show", "hn_story", "hn_job"):
+                        categories = ("hacker-news",)
+                        if item_type_lower == "hn_ask":
+                            tags_raw = ("ask-hn",)
+                        elif item_type_lower == "hn_show":
+                            tags_raw = ("show-hn",)
+                        elif item_type_lower == "hn_job":
+                            tags_raw = ("hn-job",)
+                        else:
+                            tags_raw = ()
+
+                        for k in ("score", "descendants", "kids_count"):
+                            if k in metrics_raw:
+                                filtered_metrics[k] = metrics_raw[k]
+
+                    raw_labels = item.metadata.get("labels") or ()
+                    signal_type = classify_signal(
+                        item_type, item.title, item.excerpt, raw_labels
                     )
+
+                    tags, tag_warnings = normalize_string_list(tags_raw)
+                    for tw in tag_warnings:
+                        warnings.append(
+                            SignalNormalizationWarning(
+                                code="invalid_tag",
+                                message=tw,
+                                external_id=ext_id,
+                            )
+                        )
 
                 sanitized_metadata = sanitize_metadata(raw_metadata_to_sanitize)
 
@@ -193,7 +242,7 @@ class SignalNormalizer:
                     author=author,
                     published_at=pub_at,
                     collected_at=collected_at,
-                    language=None,
+                    language=language,
                     signal_type=signal_type,
                     categories=categories,
                     tags=tags,

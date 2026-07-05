@@ -1,0 +1,17 @@
+{
+  "feed_url": "https://example.com/feed.xml",
+  "max_items": 50,
+  "max_entries_to_scan": 200,
+  "lookback_days": 180,
+  "include_undated": true,
+  "signal_type": "trend",
+  "default_tags": [
+    "maker"
+  ],
+  "default_categories": [
+    "rss",
+    "indie-development"
+  ],
+  "strict_parsing": false,
+  "use_content_fallback": true
+}

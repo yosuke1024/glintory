@@ -1,5 +1,6 @@
 import asyncio
 import email.utils
+import ipaddress
 import json
 import random
 import time
@@ -45,6 +46,42 @@ class HttpRetryExhaustedError(HttpRequestError):
     pass
 
 
+# URL Safety Verification
+def validate_url_safety(url: str) -> None:
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme not in ("http", "https"):
+        raise HttpRequestError(f"Unsupported URL scheme: {parsed.scheme}")
+    if parsed.username or parsed.password:
+        raise HttpRequestError("URL embedded credentials are not allowed.")
+    host = parsed.hostname
+    if not host:
+        raise HttpRequestError("URL is missing a host.")
+    
+    host_lower = host.lower()
+    if (
+        host_lower in {"localhost", "localhost."} or host_lower.endswith(".localhost") or host_lower.endswith(".local")
+    ):
+        raise HttpRequestError("Access to localhost is not allowed.")
+    
+    ip_str = host_lower.strip("[]")
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        if (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            raise HttpRequestError(
+                f"Access to private/local/reserved IP {ip_str} is not allowed."
+            )
+    except ValueError:
+        pass
+
+
 # Protocols
 class HttpTextResponse(Protocol):
     status_code: int
@@ -59,6 +96,13 @@ class HttpJsonResponse(Protocol):
     url: str
 
     def json(self) -> Any: ...
+
+
+class HttpBytesResponse(Protocol):
+    status_code: int
+    headers: Mapping[str, str]
+    url: str
+    content: bytes
 
 
 class HttpClientProtocol(Protocol):
@@ -77,6 +121,14 @@ class HttpClientProtocol(Protocol):
         timeout: float | None = None,
         params: Mapping[str, Any] | None = None,
     ) -> HttpJsonResponse: ...
+
+    async def get_bytes(
+        self,
+        url: str,
+        headers: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
+    ) -> HttpBytesResponse: ...
 
 
 # Concrete Implementations
@@ -107,6 +159,16 @@ class HttpJsonResponseImpl:
                 f"Failed to parse JSON response: {e}",
                 status_code=self.status_code,
             ) from e
+
+
+class HttpBytesResponseImpl:
+    def __init__(
+        self, status_code: int, headers: Mapping[str, str], url: str, content: bytes
+    ):
+        self.status_code = status_code
+        self.headers = headers
+        self.url = url
+        self.content = content
 
 
 def parse_retry_after(headers: Mapping[str, str]) -> float | None:
@@ -217,6 +279,17 @@ class HttpxHttpClient:
             text=res.text,
         )
 
+    async def get_bytes(
+        self,
+        url: str,
+        headers: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
+    ) -> HttpBytesResponse:
+        return await self._request(
+            "GET", url, headers, timeout, params=params, return_bytes=True
+        )
+
     async def _request(
         self,
         method: str,
@@ -224,7 +297,9 @@ class HttpxHttpClient:
         headers: Mapping[str, str] | None,
         timeout_sec: float | None,
         params: Mapping[str, Any] | None = None,
-    ) -> HttpTextResponseImpl:
+        *,
+        return_bytes: bool = False,
+    ) -> Any:
         req_headers = dict(headers or {})
         if "user-agent" not in {k.lower() for k in req_headers}:
             req_headers["User-Agent"] = self._user_agent
@@ -237,16 +312,8 @@ class HttpxHttpClient:
 
                 while True:
                     # 1. URL Validation
+                    validate_url_safety(url)
                     parsed = urlparse(url)
-                    if parsed.scheme not in ("http", "https"):
-                        raise HttpRequestError(
-                            f"Unsupported URL scheme: {parsed.scheme}"
-                        )
-                    if parsed.username or parsed.password:
-                        raise HttpRequestError(
-                            "URL embedded credentials are not allowed."
-                        )
-
                     host = parsed.netloc or ""
 
                     # 2. Per-host Rate Control
@@ -324,6 +391,52 @@ class HttpxHttpClient:
                                         status_code=response.status_code,
                                     )
 
+                            if return_bytes:
+                                # Ensure we handle errors even for bytes response
+                                if response.status_code >= 400:
+                                    # Fallback to decode error body for HttpRequestError context
+                                    text_content = content.decode(
+                                        response.encoding or "utf-8",
+                                        errors="replace",
+                                    )
+                                    if response.status_code in (
+                                        408,
+                                        429,
+                                        500,
+                                        502,
+                                        503,
+                                        504,
+                                    ):
+                                        if attempt < self._max_retries:
+                                            wait_sec = parse_retry_after(
+                                                response.headers
+                                            )
+                                            if wait_sec is None:
+                                                wait_sec = calculate_backoff(
+                                                    attempt, self._backoff_base
+                                                )
+                                            else:
+                                                wait_sec = min(wait_sec, 60.0)
+
+                                            await self._sleep_func(wait_sec)
+                                            break  # Break inner loop to retry
+                                        raise HttpRetryExhaustedError(
+                                            f"HTTP request failed with status code {response.status_code} after {self._max_retries} retries.",
+                                            status_code=response.status_code,
+                                        )
+                                    raise HttpResponseError(
+                                        f"HTTP request failed with status code {response.status_code}.",
+                                        status_code=response.status_code,
+                                        headers=dict(response.headers),
+                                        body=text_content,
+                                    )
+                                return HttpBytesResponseImpl(
+                                    status_code=response.status_code,
+                                    headers=response.headers,
+                                    url=url,
+                                    content=bytes(content),
+                                )
+
                             text_content = content.decode(
                                 response.encoding or "utf-8", errors="replace"
                             )
@@ -363,7 +476,7 @@ class HttpxHttpClient:
 
                             return HttpTextResponseImpl(
                                 status_code=response.status_code,
-                                headers=response.headers,
+                                  headers=response.headers,
                                 url=url,
                                 text=text_content,
                             )
@@ -385,3 +498,4 @@ class HttpxHttpClient:
                 raise HttpRequestError(f"HTTP transport error: {e}") from e
 
         raise HttpRetryExhaustedError("HTTP request failed (retries exhausted).")
+

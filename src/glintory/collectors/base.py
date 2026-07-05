@@ -55,6 +55,13 @@ class HttpJsonResponse(Protocol):
     def json(self) -> Any: ...
 
 
+class HttpBytesResponse(Protocol):
+    status_code: int
+    headers: Mapping[str, str]
+    url: str
+    content: bytes
+
+
 class HttpClientProtocol(Protocol):
     async def get_text(
         self,
@@ -71,6 +78,14 @@ class HttpClientProtocol(Protocol):
         timeout: float | None = None,
         params: Mapping[str, Any] | None = None,
     ) -> HttpJsonResponse: ...
+
+    async def get_bytes(
+        self,
+        url: str,
+        headers: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+        params: Mapping[str, Any] | None = None,
+    ) -> HttpBytesResponse: ...
 
 
 @dataclass(frozen=True, slots=True)
