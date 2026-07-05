@@ -1,0 +1,55 @@
+{% extends "layout.html" %}
+
+{% block title %}Today - Glintory{% endblock %}
+
+{% block content %}
+<header>
+    <div class="brand">
+        <div>
+            <h1>Glintory</h1>
+            <p class="tagline">Find the signals worth building on.</p>
+        </div>
+        <button type="button" class="btn-collect" id="collect-btn">Collect Now</button>
+    </div>
+</header>
+
+<div class="metadata-panel">
+    <div class="meta-item">Last Collected: <span class="meta-val" id="last-collected-val">{{ last_collected }}</span></div>
+    <div class="meta-item">New Signals: <span class="meta-val" id="new-signals-val">{{ new_signals }}</span></div>
+    <div class="meta-item">Failed Sources: <span class="meta-val" id="failed-sources-val">{{ failed_sources }}</span></div>
+</div>
+
+<main>
+    <h2>Top 3 Opportunities</h2>
+    <div class="opportunities-grid" id="opportunities-list">
+        {% for opp in opportunities %}
+        <section class="card" id="card-{{ opp.id }}">
+            <div>
+                <div class="card-header">
+                    <h3 class="card-title">{{ opp.title }}</h3>
+                    <span class="score-badge">{{ opp.total_score }} / 100</span>
+                </div>
+                <p class="card-desc">{{ opp.description }}</p>
+                <div style="margin-top: 1rem; font-size: 0.875rem;">
+                    <strong>Gap:</strong> {{ opp.gap }}
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem;">
+                    <strong>MVP Scope:</strong> {{ opp.mvp_scope }}
+                </div>
+                <div style="margin-top: 1rem;">
+                    <strong style="font-size: 0.875rem;">Evidence:</strong>
+                    <ul class="evidence-list">
+                        {% for ev in opp.evidence %}
+                        <li class="evidence-item">{{ ev }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="card-meta">
+                <span>Confidence: <span class="confidence-val confidence-{{ opp.confidence.lower() }}">{{ opp.confidence }}</span></span>
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+</main>
+{% endblock %}
