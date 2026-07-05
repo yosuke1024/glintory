@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -198,6 +199,11 @@ class Signal(Base):
             "external_id",
             unique=True,
             sqlite_where=text("external_id IS NOT NULL"),
+        ),
+        UniqueConstraint(
+            "source_id",
+            "canonical_url",
+            name="uq_signals_source_canonical_url",
         ),
         Index("idx_signals_canonical_url", "canonical_url"),
         Index("idx_signals_content_hash", "content_hash"),

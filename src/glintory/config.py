@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,17 @@ class Settings(BaseSettings):
     github_api_url: str = "https://api.github.com"
     github_api_version: str = "2026-03-10"
     github_excerpt_max_chars: int = 2000
+
+    hn_api_url: str = "https://hacker-news.firebaseio.com/v0"
+    hn_web_item_url_template: str = "https://news.ycombinator.com/item?id={item_id}"
+    hn_text_max_chars: int = Field(default=5000, gt=0)
+
+    signal_title_max_chars: int = Field(default=500, gt=0)
+    signal_excerpt_max_chars: int = Field(default=5000, gt=0)
+    signal_url_max_chars: int = Field(default=4096, gt=0)
+    signal_metadata_max_bytes: int = Field(default=65536, gt=0)
+    signal_hash_version: str = Field(default="v1")
+    signal_default_source_quality_score: float = Field(default=0.5, ge=0.0, le=1.0)
 
     http_connect_timeout_seconds: float = 5.0
     http_read_timeout_seconds: float = 20.0

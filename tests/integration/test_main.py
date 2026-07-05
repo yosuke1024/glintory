@@ -1,6 +1,10 @@
-from fastapi.testclient import TestClient
+import warnings
 
-from glintory.main import app
+warnings.filterwarnings("ignore", message="Using.*httpx.*")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from glintory.main import app  # noqa: E402
 
 client = TestClient(app)
 

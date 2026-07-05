@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -16,6 +16,7 @@ from glintory.infrastructure.repositories import (
     CollectionRunRepository,
     SourceRepository,
 )
+from glintory.services.signal_ingestion import SignalIngestionService
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,12 @@ class CollectionExecutionResult:
     run_id: str
     status: CollectionRunStatus
     fetched_count: int
+    inserted_count: int
+    updated_count: int
+    duplicate_count: int
     warning_count: int
     error_count: int
+    signal_ids: Sequence[str]
     error_summary: str | None = None
 
 
@@ -35,10 +40,14 @@ class CollectionService:
         self,
         session_factory: Callable[[], Session],
         registry: CollectorRegistry,
+        ingestion_service: SignalIngestionService | None = None,
         http_client=None,
     ) -> None:
         self.session_factory = session_factory
         self.registry = registry
+        self.ingestion_service = ingestion_service or SignalIngestionService(
+            session_factory
+        )
         self._http_client = http_client or HttpxHttpClient()
 
     async def run_source(
@@ -161,28 +170,50 @@ class CollectionService:
                 run_id=run_id,
                 status=CollectionRunStatus.FAILED,
                 fetched_count=0,
+                inserted_count=0,
+                updated_count=0,
+                duplicate_count=0,
                 warning_count=0,
                 error_count=1,
+                signal_ids=[],
                 error_summary=error_summary,
             )
 
-        # 3. Analyze Results and Update DB State (Separate Transaction)
-        completed_at = datetime.now(UTC)
+        # 3. Ingest signals using SignalIngestionService
+        ingest_result = self.ingestion_service.ingest(
+            source_id=source_id,
+            source_type=source_type,
+            collection_run_id=run_id,
+            raw_items=result.items,
+            collected_at=completed_at,
+        )
+
+        # 4. Integrate Collector results and Ingestion results
         fetched_count = len(result.items)
-        warning_count = len(result.warnings)
-        error_count = len(result.errors)
+        inserted_count = ingest_result.inserted_count
+        updated_count = ingest_result.updated_count
+        duplicate_count = ingest_result.duplicate_count
+        signal_ids = ingest_result.signal_ids
+
+        warning_count = len(result.warnings) + len(ingest_result.warnings)
+        error_count = len(result.errors) + len(ingest_result.errors)
+
+        all_errors = list(result.errors) + list(ingest_result.errors)
+        if all_errors:
+            raw_errors = ", ".join(e.message for e in all_errors)
+            error_summary = sanitize_error(raw_errors)
+        else:
+            error_summary = None
+
+        total_saved = inserted_count + updated_count + duplicate_count
 
         if error_count > 0:
-            if fetched_count >= 1:
+            if total_saved >= 1:
                 status = CollectionRunStatus.PARTIAL
             else:
                 status = CollectionRunStatus.FAILED
-            # Build safe error summary
-            raw_errors = ", ".join(e.message for e in result.errors)
-            error_summary = sanitize_error(raw_errors)
         else:
             status = CollectionRunStatus.SUCCEEDED
-            error_summary = None
 
         session = self.session_factory()
         try:
@@ -191,7 +222,13 @@ class CollectionService:
 
             if status == CollectionRunStatus.SUCCEEDED:
                 run_repo.finish_succeeded(
-                    run_id, completed_at, fetched_count, warning_count
+                    run_id,
+                    completed_at,
+                    fetched_count,
+                    inserted_count,
+                    updated_count,
+                    duplicate_count,
+                    warning_count,
                 )
                 source_repo.record_success(source_id, completed_at)
             elif status == CollectionRunStatus.PARTIAL:
@@ -199,6 +236,9 @@ class CollectionService:
                     run_id,
                     completed_at,
                     fetched_count,
+                    inserted_count,
+                    updated_count,
+                    duplicate_count,
                     warning_count,
                     error_count,
                     error_summary or "",
@@ -210,7 +250,6 @@ class CollectionService:
                     error_msg=error_summary or "",
                 )
             else:
-                # FAILED status from collector result
                 run_repo.finish_failed(run_id, completed_at, error_summary or "")
                 source_repo.record_failure(source_id, completed_at, error_summary or "")
 
@@ -222,10 +261,30 @@ class CollectionService:
             session.close()
 
         duration_ms = int((time.monotonic() - start_time) * 1000)
+
+        # Count normalization vs persistence errors for logging
+        normalization_error_count = 0
+        persistence_error_count = 0
+        normalizer_error_codes = {
+            "invalid_url",
+            "empty_title",
+            "unsupported_item_type",
+            "naive_datetime_not_allowed",
+            "metadata_too_large",
+            "normalization_error",
+        }
+        for err in ingest_result.errors:
+            if err.code in normalizer_error_codes:
+                normalization_error_count += 1
+            else:
+                persistence_error_count += 1
+
         logger.info(
             "Collection finished. source_id=%s source_name=%s source_type=%s "
             "collection_run_id=%s status=%s fetched_count=%d warning_count=%d "
-            "error_count=%d duration_ms=%d",
+            "error_count=%d duration_ms=%d inserted_count=%d updated_count=%d "
+            "duplicate_count=%d normalized_count=%d normalization_error_count=%d "
+            "persistence_error_count=%d",
             source_id,
             source_name,
             source_type,
@@ -235,13 +294,23 @@ class CollectionService:
             warning_count,
             error_count,
             duration_ms,
+            inserted_count,
+            updated_count,
+            duplicate_count,
+            total_saved,
+            normalization_error_count,
+            persistence_error_count,
         )
 
         return CollectionExecutionResult(
             run_id=run_id,
             status=status,
             fetched_count=fetched_count,
+            inserted_count=inserted_count,
+            updated_count=updated_count,
+            duplicate_count=duplicate_count,
             warning_count=warning_count,
             error_count=error_count,
+            signal_ids=signal_ids,
             error_summary=error_summary,
         )

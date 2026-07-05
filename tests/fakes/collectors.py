@@ -31,12 +31,14 @@ class SuccessfulFakeCollector(BaseFakeCollector):
                     url="http://example.com/1",
                     title="Item 1",
                     excerpt="Excerpt 1",
+                    item_type="issue",
                 ),
                 RawItem(
                     external_id="2",
                     url="http://example.com/2",
                     title="Item 2",
                     excerpt="Excerpt 2",
+                    item_type="issue",
                 ),
             ],
             warnings=(),
@@ -63,6 +65,7 @@ class WarningFakeCollector(BaseFakeCollector):
                     external_id="1",
                     url="http://example.com/1",
                     title="Item 1",
+                    item_type="issue",
                 )
             ],
             warnings=[
@@ -85,6 +88,7 @@ class PartialFakeCollector(BaseFakeCollector):
                     external_id="1",
                     url="http://example.com/1",
                     title="Item 1",
+                    item_type="issue",
                 )
             ],
             warnings=(),

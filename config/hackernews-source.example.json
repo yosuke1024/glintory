@@ -1,0 +1,13 @@
+{
+  "feeds": [
+    "ask",
+    "show",
+    "new"
+  ],
+  "max_items_per_feed": 25,
+  "include_jobs": false,
+  "include_dead": false,
+  "include_deleted": false,
+  "minimum_score": 2,
+  "lookback_days": 90
+}

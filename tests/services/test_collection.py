@@ -4,9 +4,15 @@ import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
+from glintory.collectors.base import (
+    CollectionError,
+    CollectionResult,
+    Collector,
+    RawItem,
+)
 from glintory.collectors.registry import CollectorNotFoundError, CollectorRegistry
 from glintory.domain.enums import CollectionRunStatus
-from glintory.domain.models import Base, CollectionRun, Source
+from glintory.domain.models import Base, CollectionRun, Signal, Source
 from glintory.services.collection import CollectionService
 from tests.fakes.collectors import (
     CancelledFakeCollector,
@@ -265,3 +271,208 @@ async def test_collection_transaction_boundary(
     # 1. Create running CollectionRun
     # 2. Update status to failed
     assert spy_factory.sessions_created >= 2
+
+
+@pytest.mark.asyncio
+async def test_collection_persistence_integration(
+    db_session, registry, db_session_factory
+):
+    src = Source(name="GithubPersistence", source_type="success", enabled=True)
+    db_session.add(src)
+    db_session.commit()
+
+    service = CollectionService(db_session_factory, registry)
+
+    # First execution (Ingest / Insert)
+    result = await service.run_source(src.id, max_items=10)
+    assert result.status == CollectionRunStatus.SUCCEEDED
+    assert result.fetched_count == 2
+    assert result.inserted_count == 2
+    assert result.updated_count == 0
+    assert result.duplicate_count == 0
+    assert len(result.signal_ids) == 2
+
+    # Verify DB Signal entries
+    db_session.expire_all()
+    sigs = db_session.query(Signal).filter(Signal.source_id == src.id).all()
+    assert len(sigs) == 2
+    assert {sig.external_id for sig in sigs} == {"1", "2"}
+
+    # Second execution (Duplicates)
+    result2 = await service.run_source(src.id, max_items=10)
+    assert result2.status == CollectionRunStatus.SUCCEEDED
+    assert result2.fetched_count == 2
+    assert result2.inserted_count == 0
+    assert result2.updated_count == 0
+    assert result2.duplicate_count == 2
+
+
+@pytest.mark.asyncio
+async def test_collection_status_duplicate_and_invalid(db_session, db_session_factory):
+    # Setup source
+    src = Source(name="DupInvalid", source_type="dup_invalid", enabled=True)
+    db_session.add(src)
+    db_session.commit()
+
+    # Collector that yields 1 item first, then 1 duplicate and 1 invalid item
+    class DynamicCollector(Collector):
+        source_type = "dup_invalid"
+
+        def __init__(self):
+            self.call_count = 0
+
+        async def collect(self, _context):
+            self.call_count += 1
+            if self.call_count == 1:
+                return CollectionResult(
+                    items=[
+                        RawItem(
+                            external_id="1",
+                            url="http://example.com/1",
+                            title="Item 1",
+                            item_type="repository",
+                        )
+                    ],
+                    warnings=(),
+                    errors=(),
+                )
+            return CollectionResult(
+                items=[
+                    RawItem(
+                        external_id="1",
+                        url="http://example.com/1",
+                        title="Item 1",
+                        item_type="repository",
+                    ),
+                    RawItem(
+                        external_id="2",
+                        url="http://example.com/2",
+                        title="",
+                        item_type="repository",
+                    ),  # invalid title -> normalization error
+                ],
+                warnings=(),
+                errors=(),
+            )
+
+    reg = CollectorRegistry()
+    reg.register(DynamicCollector())
+
+    service = CollectionService(db_session_factory, reg)
+    # Run 1: Ingests item 1 (Inserted)
+    await service.run_source(src.id)
+
+    # Run 2: Item 1 is duplicate, Item 2 is invalid (Normalization error)
+    result = await service.run_source(src.id)
+
+    # Assert status is PARTIAL
+    assert result.status == CollectionRunStatus.PARTIAL
+    assert result.duplicate_count == 1
+    assert result.error_count == 1
+    assert result.inserted_count == 0
+
+
+@pytest.mark.asyncio
+async def test_collection_status_all_invalid(db_session, db_session_factory):
+    src = Source(name="AllInvalid", source_type="all_invalid", enabled=True)
+    db_session.add(src)
+    db_session.commit()
+
+    class InvalidCollector(Collector):
+        source_type = "all_invalid"
+
+        async def collect(self, _context):
+            return CollectionResult(
+                items=[
+                    RawItem(
+                        external_id="1",
+                        url="http://example.com/1",
+                        title="",
+                        item_type="repository",
+                    ),  # invalid title -> normalization error
+                    RawItem(
+                        external_id="2",
+                        url="http://example.com/2",
+                        title="Item 2",
+                        item_type="unsupported",
+                    ),  # invalid type -> unsupported_item_type error
+                ],
+                warnings=(),
+                errors=(),
+            )
+
+    reg = CollectorRegistry()
+    reg.register(InvalidCollector())
+
+    service = CollectionService(db_session_factory, reg)
+    result = await service.run_source(src.id)
+
+    assert result.status == CollectionRunStatus.FAILED
+    assert result.error_count == 2
+    assert result.inserted_count == 0
+    assert result.duplicate_count == 0
+
+
+@pytest.mark.asyncio
+async def test_collection_status_updated_and_collector_error(
+    db_session, db_session_factory
+):
+    src = Source(name="UpdateCollectorError", source_type="update_error", enabled=True)
+    db_session.add(src)
+    db_session.commit()
+
+    # Collector that yields 1 item first, then returns updated title for that item + 1 collector error
+    class DynamicUpdateErrorCollector(Collector):
+        source_type = "update_error"
+
+        def __init__(self):
+            self.call_count = 0
+
+        async def collect(self, _context):
+            self.call_count += 1
+            if self.call_count == 1:
+                return CollectionResult(
+                    items=[
+                        RawItem(
+                            external_id="1",
+                            url="http://example.com/1",
+                            title="Original Title",
+                            item_type="repository",
+                        ),
+                    ],
+                    warnings=(),
+                    errors=(),
+                )
+            return CollectionResult(
+                items=[
+                    RawItem(
+                        external_id="1",
+                        url="http://example.com/1",
+                        title="New Title",
+                        item_type="repository",
+                    ),
+                ],
+                warnings=(),
+                errors=[
+                    CollectionError(
+                        code="fetch_failed",
+                        message="Failed to fetch item 2",
+                        retryable=False,
+                    )
+                ],
+            )
+
+    reg = CollectorRegistry()
+    reg.register(DynamicUpdateErrorCollector())
+
+    service = CollectionService(db_session_factory, reg)
+    # Run 1: Insert item 1
+    await service.run_source(src.id)
+
+    # Run 2: Update item 1 and trigger collector error
+    result = await service.run_source(src.id)
+
+    # Assert status is PARTIAL because 1 update succeeded and 1 collector error occurred
+    assert result.status == CollectionRunStatus.PARTIAL
+    assert result.updated_count == 1
+    assert result.error_count == 1

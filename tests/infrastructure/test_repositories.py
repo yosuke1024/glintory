@@ -137,7 +137,15 @@ def test_collection_run_repository_finish_succeeded(db_session):
     run = repo.create_running(src.id)
 
     completed_at = datetime.now(UTC)
-    repo.finish_succeeded(run.id, completed_at, fetched_count=5, warning_count=2)
+    repo.finish_succeeded(
+        run.id,
+        completed_at,
+        fetched_count=5,
+        inserted_count=2,
+        updated_count=1,
+        duplicate_count=2,
+        warning_count=2,
+    )
     db_session.commit()
     db_session.expire_all()
     updated = db_session.get(CollectionRun, run.id)
@@ -146,6 +154,9 @@ def test_collection_run_repository_finish_succeeded(db_session):
     assert updated.completed_at is not None
     assert updated.completed_at.replace(tzinfo=UTC) == completed_at
     assert updated.fetched_count == 5
+    assert updated.inserted_count == 2
+    assert updated.updated_count == 1
+    assert updated.duplicate_count == 2
     assert updated.warning_count == 2
     assert updated.error_count == 0
 
@@ -163,6 +174,9 @@ def test_collection_run_repository_finish_partial(db_session):
         run.id,
         completed_at,
         fetched_count=10,
+        inserted_count=3,
+        updated_count=2,
+        duplicate_count=5,
         warning_count=1,
         error_count=3,
         error_summary="Minor errors",
@@ -175,6 +189,9 @@ def test_collection_run_repository_finish_partial(db_session):
     assert updated.completed_at is not None
     assert updated.completed_at.replace(tzinfo=UTC) == completed_at
     assert updated.fetched_count == 10
+    assert updated.inserted_count == 3
+    assert updated.updated_count == 2
+    assert updated.duplicate_count == 5
     assert updated.warning_count == 1
     assert updated.error_count == 3
     assert updated.error_summary == "Minor errors"

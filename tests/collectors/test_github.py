@@ -1,4 +1,6 @@
 from datetime import UTC, datetime
+from typing import Any, cast
+
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -31,7 +33,9 @@ def test_github_settings():
 def test_github_source_config_valid():
     config = GitHubSourceConfig(
         repository_queries=[
-            GitHubRepositoryQueryConfig(query="topic:self-hosted", sort="stars", max_items=10)
+            GitHubRepositoryQueryConfig(
+                query="topic:self-hosted", sort="stars", max_items=10
+            )
         ],
         issue_queries=[
             GitHubIssueQueryConfig(query="too expensive", sort="created", max_items=15)
@@ -43,7 +47,7 @@ def test_github_source_config_valid():
     assert config.repository_queries[0].query == "topic:self-hosted"
     assert config.repository_queries[0].sort == "stars"
     assert config.repository_queries[0].max_items == 10
-    
+
     assert len(config.issue_queries) == 1
     assert config.issue_queries[0].query == "too expensive"
     assert config.issue_queries[0].sort == "created"
@@ -70,14 +74,22 @@ def test_github_source_config_invalid_ranges():
         GitHubSourceConfig(repository_queries=[{"query": "test", "max_items": 101}])  # type: ignore
 
     with pytest.raises(ValidationError):
-        GitHubSourceConfig(repository_queries=[{"query": "test"}], per_page=0)  # type: ignore
+        GitHubSourceConfig(
+            repository_queries=cast(Any, [{"query": "test"}]), per_page=0
+        )
     with pytest.raises(ValidationError):
-        GitHubSourceConfig(repository_queries=[{"query": "test"}], per_page=101)  # type: ignore
+        GitHubSourceConfig(
+            repository_queries=cast(Any, [{"query": "test"}]), per_page=101
+        )
 
     with pytest.raises(ValidationError):
-        GitHubSourceConfig(repository_queries=[{"query": "test"}], max_pages_per_query=0)  # type: ignore
+        GitHubSourceConfig(
+            repository_queries=cast(Any, [{"query": "test"}]), max_pages_per_query=0
+        )
     with pytest.raises(ValidationError):
-        GitHubSourceConfig(repository_queries=[{"query": "test"}], max_pages_per_query=11)  # type: ignore
+        GitHubSourceConfig(
+            repository_queries=cast(Any, [{"query": "test"}]), max_pages_per_query=11
+        )
 
 
 def test_github_source_config_forbids_unknown():
@@ -94,24 +106,58 @@ def test_github_query_normalization_repository():
         include_forks=True,
         include_archived=True,
     )
-    assert GitHubCollector.normalize_repository_query("topic:self-hosted", config_include_all) == "topic:self-hosted"
+    assert (
+        GitHubCollector.normalize_repository_query(
+            "topic:self-hosted", config_include_all
+        )
+        == "topic:self-hosted"
+    )
 
     config_exclude_all = GitHubSourceConfig(
         repository_queries=[GitHubRepositoryQueryConfig(query="topic:self-hosted")],
         include_forks=False,
         include_archived=False,
     )
-    assert GitHubCollector.normalize_repository_query("topic:self-hosted", config_exclude_all) == "topic:self-hosted fork:false archived:false"
+    assert (
+        GitHubCollector.normalize_repository_query(
+            "topic:self-hosted", config_exclude_all
+        )
+        == "topic:self-hosted fork:false archived:false"
+    )
 
-    assert GitHubCollector.normalize_repository_query("topic:self-hosted fork:true", config_exclude_all) == "topic:self-hosted fork:true archived:false"
-    assert GitHubCollector.normalize_repository_query("topic:self-hosted archived:true", config_exclude_all) == "topic:self-hosted archived:true fork:false"
-    assert GitHubCollector.normalize_repository_query("topic:self-hosted fork:only archived:only", config_exclude_all) == "topic:self-hosted fork:only archived:only"
+    assert (
+        GitHubCollector.normalize_repository_query(
+            "topic:self-hosted fork:true", config_exclude_all
+        )
+        == "topic:self-hosted fork:true archived:false"
+    )
+    assert (
+        GitHubCollector.normalize_repository_query(
+            "topic:self-hosted archived:true", config_exclude_all
+        )
+        == "topic:self-hosted archived:true fork:false"
+    )
+    assert (
+        GitHubCollector.normalize_repository_query(
+            "topic:self-hosted fork:only archived:only", config_exclude_all
+        )
+        == "topic:self-hosted fork:only archived:only"
+    )
 
 
 def test_github_query_normalization_issue():
-    assert GitHubCollector.normalize_issue_query("too expensive") == "too expensive is:issue"
-    assert GitHubCollector.normalize_issue_query("too expensive is:issue") == "too expensive is:issue"
-    assert GitHubCollector.normalize_issue_query("is:issue too expensive") == "is:issue too expensive"
+    assert (
+        GitHubCollector.normalize_issue_query("too expensive")
+        == "too expensive is:issue"
+    )
+    assert (
+        GitHubCollector.normalize_issue_query("too expensive is:issue")
+        == "too expensive is:issue"
+    )
+    assert (
+        GitHubCollector.normalize_issue_query("is:issue too expensive")
+        == "is:issue too expensive"
+    )
 
 
 def test_github_query_reject_pr():
@@ -125,10 +171,13 @@ def test_github_query_reject_pr():
 @pytest.mark.asyncio
 async def test_github_headers_and_auth():
     request_headers = None
+
     def handler(request: httpx.Request):
         nonlocal request_headers
         request_headers = request.headers
-        return httpx.Response(200, json={"total_count": 0, "incomplete_results": False, "items": []})
+        return httpx.Response(
+            200, json={"total_count": 0, "incomplete_results": False, "items": []}
+        )
 
     settings.github_token = "fake-token"
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -141,10 +190,10 @@ async def test_github_headers_and_auth():
         max_items=100,
         http=http_client,
     )
-    
+
     collector = GitHubCollector(settings)
     await collector.collect(context)
-    
+
     assert request_headers is not None
     assert request_headers.get("Accept") == "application/vnd.github+json"
     assert request_headers.get("X-GitHub-Api-Version") == "2026-03-10"
@@ -186,11 +235,10 @@ async def test_github_repository_mapping():
     }
 
     def handler(request: httpx.Request):
-        return httpx.Response(200, json={
-            "total_count": 1,
-            "incomplete_results": False,
-            "items": [repo_item]
-        })
+        return httpx.Response(
+            200,
+            json={"total_count": 1, "incomplete_results": False, "items": [repo_item]},
+        )
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     http_client = HttpxHttpClient(client=client)
@@ -202,10 +250,10 @@ async def test_github_repository_mapping():
         max_items=100,
         http=http_client,
     )
-    
+
     collector = GitHubCollector(settings)
     result = await collector.collect(context)
-    
+
     assert len(result.items) == 1
     item = result.items[0]
     assert item.external_id == "github:repository:12345"
@@ -215,7 +263,7 @@ async def test_github_repository_mapping():
     assert item.author == "owner"
     assert item.published_at == datetime(2026, 7, 6, 0, 0, 0, tzinfo=UTC)
     assert item.item_type == "repository"
-    
+
     meta = item.metadata
     assert meta["github_id"] == 12345
     assert meta["node_id"] == "node_123"
@@ -251,7 +299,7 @@ async def test_github_issue_mapping():
         "reactions": {"total_count": 10},
         "score": 1.0,
     }
-    
+
     pr_item = {
         "id": 99999,
         "title": "PR to skip",
@@ -262,11 +310,14 @@ async def test_github_issue_mapping():
     }
 
     def handler(request: httpx.Request):
-        return httpx.Response(200, json={
-            "total_count": 2,
-            "incomplete_results": False,
-            "items": [issue_item, pr_item]
-        })
+        return httpx.Response(
+            200,
+            json={
+                "total_count": 2,
+                "incomplete_results": False,
+                "items": [issue_item, pr_item],
+            },
+        )
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     http_client = HttpxHttpClient(client=client)
@@ -278,10 +329,10 @@ async def test_github_issue_mapping():
         max_items=100,
         http=http_client,
     )
-    
+
     collector = GitHubCollector(settings)
     result = await collector.collect(context)
-    
+
     assert len(result.items) == 1
     item = result.items[0]
     assert item.external_id == "github:issue:67890"
@@ -291,7 +342,7 @@ async def test_github_issue_mapping():
     assert item.author == "issue_author"
     assert item.published_at == datetime(2026, 7, 6, 3, 0, 0, tzinfo=UTC)
     assert item.item_type == "issue"
-    
+
     meta = item.metadata
     assert meta["github_id"] == 67890
     assert meta["node_id"] == "node_678"
@@ -311,11 +362,14 @@ async def test_github_deduplication():
     }
 
     def handler(request: httpx.Request):
-        return httpx.Response(200, json={
-            "total_count": 2,
-            "incomplete_results": False,
-            "items": [repo_item, repo_item]
-        })
+        return httpx.Response(
+            200,
+            json={
+                "total_count": 2,
+                "incomplete_results": False,
+                "items": [repo_item, repo_item],
+            },
+        )
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     http_client = HttpxHttpClient(client=client)
@@ -327,10 +381,10 @@ async def test_github_deduplication():
         max_items=100,
         http=http_client,
     )
-    
+
     collector = GitHubCollector(settings)
     result = await collector.collect(context)
-    
+
     assert len(result.items) == 1
     assert len(result.warnings) == 1
     assert result.warnings[0].code == "GITHUB_DUPLICATE_ITEM"
@@ -340,20 +394,43 @@ async def test_github_deduplication():
 @pytest.mark.asyncio
 async def test_github_pagination():
     calls = []
+
     def handler(request: httpx.Request):
         calls.append(str(request.url))
         if "page=2" not in str(request.url):
-            headers = {"Link": '<https://api.github.com/search/repositories?q=test&page=2>; rel="next"'}
-            items = [{"id": 1, "full_name": "repo/1", "html_url": "url/1", "owner": {"login": "owner"}, "created_at": "2026-07-06T00:00:00Z"}]
+            headers = {
+                "Link": '<https://api.github.com/search/repositories?q=test&page=2>; rel="next"'
+            }
+            items = [
+                {
+                    "id": 1,
+                    "full_name": "repo/1",
+                    "html_url": "url/1",
+                    "owner": {"login": "owner"},
+                    "created_at": "2026-07-06T00:00:00Z",
+                }
+            ]
         else:
             headers = {}
-            items = [{"id": 2, "full_name": "repo/2", "html_url": "url/2", "owner": {"login": "owner"}, "created_at": "2026-07-06T00:00:00Z"}]
-            
-        return httpx.Response(200, json={"total_count": 2, "incomplete_results": False, "items": items}, headers=headers)
+            items = [
+                {
+                    "id": 2,
+                    "full_name": "repo/2",
+                    "html_url": "url/2",
+                    "owner": {"login": "owner"},
+                    "created_at": "2026-07-06T00:00:00Z",
+                }
+            ]
+
+        return httpx.Response(
+            200,
+            json={"total_count": 2, "incomplete_results": False, "items": items},
+            headers=headers,
+        )
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     http_client = HttpxHttpClient(client=client)
-    
+
     context = CollectionContext(
         source_id="1",
         source_name="GitHub",
@@ -376,6 +453,7 @@ async def test_github_pagination():
 async def test_github_errors_and_rate_limits():
     def handler_401(request: httpx.Request):
         return httpx.Response(401, text="Unauthorized")
+
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler_401))
     context = CollectionContext(
         source_id="1",
@@ -390,7 +468,12 @@ async def test_github_errors_and_rate_limits():
         await collector.collect(context)
 
     def handler_403_rate(request: httpx.Request):
-        return httpx.Response(403, text="Rate Limit Exceeded", headers={"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1780000000"})
+        return httpx.Response(
+            403,
+            text="Rate Limit Exceeded",
+            headers={"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1780000000"},
+        )
+
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler_403_rate))
     context = CollectionContext(
         source_id="1",
@@ -405,6 +488,7 @@ async def test_github_errors_and_rate_limits():
 
     def handler_403_forbidden(request: httpx.Request):
         return httpx.Response(403, text="Forbidden")
+
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler_403_forbidden))
     context = CollectionContext(
         source_id="1",

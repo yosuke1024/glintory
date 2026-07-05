@@ -1,8 +1,12 @@
-from fastapi.testclient import TestClient
+import warnings
 
-from glintory.config import settings
-from glintory.infrastructure.database import reset_db_connections
-from glintory.main import create_app
+warnings.filterwarnings("ignore", message="Using.*httpx.*")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from glintory.config import settings  # noqa: E402
+from glintory.infrastructure.database import reset_db_connections  # noqa: E402
+from glintory.main import create_app  # noqa: E402
 
 
 def test_readiness_healthy(tmp_path):

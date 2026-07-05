@@ -1,0 +1,255 @@
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
+
+from glintory.collectors.base import RawItem
+from glintory.config import settings
+from glintory.domain.signals import (
+    NormalizedSignal,
+    SignalNormalizationError,
+    SignalNormalizationResult,
+    SignalNormalizationWarning,
+)
+from glintory.services.content_hashing import generate_content_hash
+from glintory.services.json_safety import (
+    SignalMetadataTooLargeError,
+    sanitize_metadata,
+)
+from glintory.services.signal_classification import classify_signal
+from glintory.services.text_normalization import (
+    normalize_excerpt,
+    normalize_optional_text,
+    normalize_string_list,
+    normalize_title,
+)
+from glintory.services.url_normalization import (
+    InvalidSignalUrlError,
+    SignalUrlTooLongError,
+    normalize_url,
+)
+
+
+def calculate_freshness_score(
+    published_at: datetime | None, collected_at: datetime
+) -> float:
+    if published_at is None:
+        return 0.50
+
+    if (
+        published_at.tzinfo is None
+        or published_at.tzinfo.utcoffset(published_at) is None
+    ):
+        raise ValueError("Naive datetime is not allowed for published_at")
+
+    if published_at > collected_at:
+        return 1.00
+
+    diff = collected_at - published_at
+    days = diff.total_seconds() / 86400.0
+
+    if days <= 7.0:
+        return 1.00
+
+    thresholds = [(30.0, 0.85), (90.0, 0.65), (365.0, 0.40)]
+    for limit, score in thresholds:
+        if days <= limit:
+            return score
+    return 0.20
+
+
+class SignalNormalizer:
+    def normalize_batch(
+        self,
+        *,
+        source_id: str,
+        source_type: str,
+        collection_run_id: str,
+        items: Sequence[RawItem],
+        collected_at: datetime,
+    ) -> SignalNormalizationResult:
+        signals: list[NormalizedSignal] = []
+        warnings: list[SignalNormalizationWarning] = []
+        errors: list[SignalNormalizationError] = []
+
+        if (
+            collected_at.tzinfo is None
+            or collected_at.tzinfo.utcoffset(collected_at) is None
+        ):
+            collected_at = collected_at.replace(tzinfo=UTC)
+
+        for item in items:
+            ext_id = item.external_id
+            try:
+                # 1. URL Normalization
+                canonical_url = normalize_url(item.url)
+
+                # 2. Text Normalization
+                title = normalize_title(item.title)
+                excerpt = normalize_excerpt(item.excerpt)
+
+                author = normalize_optional_text(item.author)
+                if author:
+                    author = author[:255]
+
+                pub_at = item.published_at
+                if pub_at is not None:
+                    if pub_at.tzinfo is None or pub_at.tzinfo.utcoffset(pub_at) is None:
+                        raise ValueError(
+                            "Naive datetime is not allowed for published_at"
+                        )
+                    # Warning for future datetime (24+ hours ahead)
+                    if pub_at > collected_at + timedelta(hours=24):
+                        warnings.append(
+                            SignalNormalizationWarning(
+                                code="future_published_at",
+                                message=f"Published date {pub_at.isoformat()} is 24+ hours in the future.",
+                                external_id=ext_id,
+                            )
+                        )
+
+                freshness_score = calculate_freshness_score(pub_at, collected_at)
+
+                item_type = item.item_type or ""
+                item_type_lower = item_type.lower()
+
+                categories = ()
+                tags_raw: Sequence[str] = ()
+                metrics_raw = item.metadata
+                filtered_metrics = {}
+                raw_metadata_to_sanitize = dict(item.metadata)
+
+                if item_type_lower == "repository":
+                    tags_raw = item.metadata.get("topics") or ()
+                    for k in (
+                        "stargazers_count",
+                        "watchers_count",
+                        "forks_count",
+                        "open_issues_count",
+                        "score",
+                    ):
+                        if k in metrics_raw:
+                            filtered_metrics[k] = metrics_raw[k]
+                    raw_metadata_to_sanitize.pop("topics", None)
+
+                elif item_type_lower == "issue":
+                    tags_raw = item.metadata.get("labels") or ()
+                    for k in ("comments", "reactions_total_count", "score"):
+                        if k in metrics_raw:
+                            filtered_metrics[k] = metrics_raw[k]
+                    raw_metadata_to_sanitize.pop("labels", None)
+
+                elif item_type_lower in ("hn_ask", "hn_show", "hn_story", "hn_job"):
+                    categories = ("hacker-news",)
+                    if item_type_lower == "hn_ask":
+                        tags_raw = ("ask-hn",)
+                    elif item_type_lower == "hn_show":
+                        tags_raw = ("show-hn",)
+                    elif item_type_lower == "hn_job":
+                        tags_raw = ("hn-job",)
+                    else:
+                        tags_raw = ()
+
+                    # TODO: score, descendants, kids_count updates trigger updated_count increment.
+                    # Consider snapshotting or ignoring metrics updates in comparison rules in a future issue.
+                    for k in ("score", "descendants", "kids_count"):
+                        if k in metrics_raw:
+                            filtered_metrics[k] = metrics_raw[k]
+
+                raw_labels = item.metadata.get("labels") or ()
+                signal_type = classify_signal(
+                    item_type, item.title, item.excerpt, raw_labels
+                )
+
+                tags, tag_warnings = normalize_string_list(tags_raw)
+                for tw in tag_warnings:
+                    warnings.append(
+                        SignalNormalizationWarning(
+                            code="invalid_tag",
+                            message=tw,
+                            external_id=ext_id,
+                        )
+                    )
+
+                sanitized_metadata = sanitize_metadata(raw_metadata_to_sanitize)
+
+                content_hash = generate_content_hash(
+                    hash_version=settings.signal_hash_version,
+                    source_type=source_type,
+                    item_type=item_type,
+                    canonical_url=canonical_url,
+                    title=title,
+                    excerpt=excerpt,
+                    author=author,
+                    published_at=pub_at,
+                    metadata=sanitized_metadata,
+                )
+
+                normalized_signal = NormalizedSignal(
+                    source_id=source_id,
+                    collection_run_id=collection_run_id,
+                    external_id=ext_id,
+                    canonical_url=canonical_url,
+                    title=title,
+                    excerpt=excerpt,
+                    author=author,
+                    published_at=pub_at,
+                    collected_at=collected_at,
+                    language=None,
+                    signal_type=signal_type,
+                    categories=categories,
+                    tags=tags,
+                    metrics=filtered_metrics,
+                    raw_metadata=sanitized_metadata,
+                    content_hash=content_hash,
+                    freshness_score=freshness_score,
+                    source_quality_score=settings.signal_default_source_quality_score,
+                )
+
+                signals.append(normalized_signal)
+
+            except (InvalidSignalUrlError, SignalUrlTooLongError) as e:
+                errors.append(
+                    SignalNormalizationError(
+                        code="invalid_url",
+                        message=str(e),
+                        external_id=ext_id,
+                    )
+                )
+            except SignalMetadataTooLargeError as e:
+                errors.append(
+                    SignalNormalizationError(
+                        code="metadata_too_large",
+                        message=str(e),
+                        external_id=ext_id,
+                    )
+                )
+            except ValueError as e:
+                msg = str(e)
+                code = "normalization_error"
+                if msg == "unsupported_item_type":
+                    code = "unsupported_item_type"
+                elif "naive datetime" in msg.lower():
+                    code = "naive_datetime_not_allowed"
+                elif "title cannot be empty" in msg.lower():
+                    code = "empty_title"
+
+                errors.append(
+                    SignalNormalizationError(
+                        code=code,
+                        message=msg,
+                        external_id=ext_id,
+                    )
+                )
+            except Exception as e:
+                errors.append(
+                    SignalNormalizationError(
+                        code="normalization_error",
+                        message=str(e),
+                        external_id=ext_id,
+                    )
+                )
+
+        return SignalNormalizationResult(
+            signals=signals,
+            warnings=warnings,
+            errors=errors,
+        )
