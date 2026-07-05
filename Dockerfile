@@ -17,6 +17,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy application source
 COPY src/ /app/src/
+COPY migrations/ /app/migrations/
+COPY alembic.ini /app/alembic.ini
 COPY pyproject.toml uv.lock /app/
 
 # Sync the project
@@ -28,8 +30,8 @@ FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# Create a non-root user
-RUN groupadd -r glintory && useradd -r -g glintory glintory
+# Create a non-root user and setup database volume directory
+RUN groupadd -r glintory && useradd -r -g glintory glintory && mkdir /data && chown -R glintory:glintory /data
 
 # Copy virtual environment and app source from builder
 COPY --from=builder --chown=glintory:glintory /app /app

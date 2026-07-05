@@ -1,6 +1,6 @@
 # compose.yaml
 services:
-  web:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
@@ -8,4 +8,10 @@ services:
       - "8000:8000"
     environment:
       - PORT=8000
+      - GLINTORY_DATABASE_URL=sqlite:////data/glintory.sqlite3
+    volumes:
+      - glintory-data:/data
     restart: unless-stopped
+
+volumes:
+  glintory-data:

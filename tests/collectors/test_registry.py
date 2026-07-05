@@ -1,0 +1,52 @@
+import pytest
+
+from glintory.collectors.base import CollectionContext, CollectionResult
+from glintory.collectors.registry import (
+    CollectorAlreadyRegisteredError,
+    CollectorNotFoundError,
+    CollectorRegistry,
+)
+
+
+class DummyCollector:
+    def __init__(self, source_type: str):
+        self.source_type = source_type
+
+    async def collect(self, context: CollectionContext) -> CollectionResult:
+        raise NotImplementedError()
+
+
+def test_registry_register_and_get():
+    registry = CollectorRegistry()
+    collector = DummyCollector("test-type")
+
+    registry.register(collector)
+    assert registry.get("test-type") is collector
+
+
+def test_registry_duplicate_registration_fails():
+    registry = CollectorRegistry()
+    collector1 = DummyCollector("test-type")
+    collector2 = DummyCollector("test-type")
+
+    registry.register(collector1)
+    with pytest.raises(CollectorAlreadyRegisteredError):
+        registry.register(collector2)
+
+
+def test_registry_get_not_found_fails():
+    registry = CollectorRegistry()
+    with pytest.raises(CollectorNotFoundError):
+        registry.get("unknown-type")
+
+
+def test_registry_instances_are_isolated():
+    registry1 = CollectorRegistry()
+    registry2 = CollectorRegistry()
+    collector = DummyCollector("test-type")
+
+    registry1.register(collector)
+    assert registry1.get("test-type") is collector
+
+    with pytest.raises(CollectorNotFoundError):
+        registry2.get("test-type")

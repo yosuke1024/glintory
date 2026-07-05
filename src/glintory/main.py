@@ -3,7 +3,7 @@ import pathlib
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from glintory.web.routes import health, today
+from glintory.web.routes import health, readiness, today
 
 
 def create_app() -> FastAPI:
@@ -11,6 +11,7 @@ def create_app() -> FastAPI:
 
     # Include routes
     app.include_router(health.router)
+    app.include_router(readiness.router)
     app.include_router(today.router)
 
     # Mount static files
