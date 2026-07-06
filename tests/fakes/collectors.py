@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import Mapping
+from typing import Any
 
 from glintory.collectors.base import (
     CollectionContext,
@@ -19,6 +21,19 @@ class BaseFakeCollector(Collector):
     def _record_call(self, context: CollectionContext) -> None:
         self.call_count += 1
         self.last_context = context
+
+    def validate_config(
+        self,
+        config: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        return dict(config)
+
+    def get_config_summary(
+        self,
+        config: Mapping[str, Any],
+    ) -> str:
+        _ = config
+        return "Fake config summary"
 
 
 class SuccessfulFakeCollector(BaseFakeCollector):

@@ -14,42 +14,63 @@
 </header>
 
 <div class="metadata-panel">
-    <div class="meta-item">Last Collected: <span class="meta-val" id="last-collected-val">{{ last_collected }}</span></div>
-    <div class="meta-item">New Signals: <span class="meta-val" id="new-signals-val">{{ new_signals }}</span></div>
-    <div class="meta-item">Failed Sources: <span class="meta-val" id="failed-sources-val">{{ failed_sources }}</span></div>
+    <div class="meta-item">Total Signals: <span class="meta-val" id="total-signals-val">{{ total_signals }}</span></div>
+    <div class="meta-item">Sources with Signals: <span class="meta-val" id="total-sources-val">{{ total_sources }}</span></div>
+    <div class="meta-item">Last Success: <span class="meta-val" id="last-collected-val">{{ last_collected }}</span></div>
+    <div class="meta-item">Last Status: <span class="meta-val" id="last-status-val">{{ last_status }}</span></div>
 </div>
 
-<main>
-    <h2>Top 3 Opportunities</h2>
-    <div class="opportunities-grid" id="opportunities-list">
-        {% for opp in opportunities %}
-        <section class="card" id="card-{{ opp.id }}">
-            <div>
-                <div class="card-header">
-                    <h3 class="card-title">{{ opp.title }}</h3>
-                    <span class="score-badge">{{ opp.total_score }} / 100</span>
-                </div>
-                <p class="card-desc">{{ opp.description }}</p>
-                <div style="margin-top: 1rem; font-size: 0.875rem;">
-                    <strong>Gap:</strong> {{ opp.gap }}
-                </div>
-                <div style="margin-top: 0.5rem; font-size: 0.875rem;">
-                    <strong>MVP Scope:</strong> {{ opp.mvp_scope }}
-                </div>
-                <div style="margin-top: 1rem;">
-                    <strong style="font-size: 0.875rem;">Evidence:</strong>
-                    <ul class="evidence-list">
-                        {% for ev in opp.evidence %}
-                        <li class="evidence-item">{{ ev }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
+<main class="dashboard-grid">
+    <div class="dashboard-col">
+        <section class="dashboard-card recent-signals-card">
+            <h2>Recent Signals</h2>
+            {% if recent_signals %}
+            <div class="recent-signals-list">
+                {% for sig in recent_signals %}
+                <article class="recent-signal-item">
+                    <div class="recent-signal-meta">
+                        <span class="badge badge-{{ sig.signal_type }}">{{ sig.signal_type }}</span>
+                        <span class="recent-signal-source">{{ sig.source_name }}</span>
+                        <span class="recent-signal-date">
+                            {% if sig.published_at %}
+                            {{ sig.published_at.strftime('%Y-%m-%d') }}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </span>
+                    </div>
+                    <h3 class="recent-signal-title">
+                        <a href="/signals/{{ sig.id }}">{{ sig.title }}</a>
+                    </h3>
+                </article>
+                {% endfor %}
             </div>
-            <div class="card-meta">
-                <span>Confidence: <span class="confidence-val confidence-{{ opp.confidence.lower() }}">{{ opp.confidence }}</span></span>
+            <div class="view-all-link">
+                <a href="/signals" class="text-link">View All Signals &rarr;</a>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No signals found.</p>
+                <p class="cli-instructions">Please collect signals using the CLI command below:</p>
+                <pre><code>uv run glintory collect --all</code></pre>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="dashboard-col">
+        <section class="dashboard-card opportunity-card">
+            <h2>Top Opportunities</h2>
+            <div class="placeholder-card">
+                <div class="placeholder-icon">💡</div>
+                <h3 class="placeholder-title">Analysis Not Available</h3>
+                <p class="placeholder-text">
+                    Opportunity analysis is not available yet.<br>
+                    Collected signals will be clustered and scored in a later milestone.
+                </p>
             </div>
         </section>
-        {% endfor %}
     </div>
 </main>
 {% endblock %}
+

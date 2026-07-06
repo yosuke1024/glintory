@@ -57,13 +57,15 @@ def validate_url_safety(url: str) -> None:
     host = parsed.hostname
     if not host:
         raise HttpRequestError("URL is missing a host.")
-    
+
     host_lower = host.lower()
     if (
-        host_lower in {"localhost", "localhost."} or host_lower.endswith(".localhost") or host_lower.endswith(".local")
+        host_lower in {"localhost", "localhost."}
+        or host_lower.endswith(".localhost")
+        or host_lower.endswith(".local")
     ):
         raise HttpRequestError("Access to localhost is not allowed.")
-    
+
     ip_str = host_lower.strip("[]")
     try:
         ip = ipaddress.ip_address(ip_str)
@@ -241,6 +243,9 @@ class HttpxHttpClient:
         )
         self._backoff_base = settings.http_backoff_base_seconds
         self._user_agent = settings.http_user_agent
+
+    async def close(self) -> None:
+        await self._client.aclose()
 
     async def _get_lock_for_host(self, host: str) -> asyncio.Lock:
         async with self._locks_lock:
@@ -476,7 +481,7 @@ class HttpxHttpClient:
 
                             return HttpTextResponseImpl(
                                 status_code=response.status_code,
-                                  headers=response.headers,
+                                headers=response.headers,
                                 url=url,
                                 text=text_content,
                             )
@@ -498,4 +503,3 @@ class HttpxHttpClient:
                 raise HttpRequestError(f"HTTP transport error: {e}") from e
 
         raise HttpRetryExhaustedError("HTTP request failed (retries exhausted).")
-

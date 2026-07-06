@@ -23,27 +23,26 @@ DB_URL = f"sqlite:///{DB_FILE}"
 def clean_url_for_display(url: str) -> str:
     # Remove query and fragment for safe logging
     parsed = urlparse(url)
-    return urlunparse((
-        parsed.scheme,
-        parsed.netloc,
-        parsed.path,
-        "",
-        "",
-        ""
-    ))
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Smoke test for RSS collector persistence")
+    parser = argparse.ArgumentParser(
+        description="Smoke test for RSS collector persistence"
+    )
     parser.add_argument("--feed-url", required=True, help="The RSS / Atom feed URL")
     args = parser.parse_args()
 
     feed_url = args.feed_url
     display_url = clean_url_for_display(feed_url)
 
-    print("WARNING: This script will initiate real network communication to the specified feed URL.")
+    print(
+        "WARNING: This script will initiate real network communication to the specified feed URL."
+    )
     print(f"Target Feed: {display_url}")
-    print("It sets up a temporary SQLite database, runs migrations, and verifies signal persistence.")
+    print(
+        "It sets up a temporary SQLite database, runs migrations, and verifies signal persistence."
+    )
     print("-" * 50)
 
     # Set temporary DB URL in settings and environment

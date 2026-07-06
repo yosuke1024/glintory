@@ -321,6 +321,13 @@ async def test_collection_status_duplicate_and_invalid(db_session, db_session_fa
         def __init__(self):
             self.call_count = 0
 
+        def validate_config(self, config):
+            return config
+
+        def get_config_summary(self, config):
+            _ = config
+            return "Dynamic config summary"
+
         async def collect(self, _context):
             self.call_count += 1
             if self.call_count == 1:
@@ -381,6 +388,13 @@ async def test_collection_status_all_invalid(db_session, db_session_factory):
     class InvalidCollector(Collector):
         source_type = "all_invalid"
 
+        def validate_config(self, config):
+            return config
+
+        def get_config_summary(self, config):
+            _ = config
+            return "Invalid config summary"
+
         async def collect(self, _context):
             return CollectionResult(
                 items=[
@@ -427,6 +441,13 @@ async def test_collection_status_updated_and_collector_error(
 
         def __init__(self):
             self.call_count = 0
+
+        def validate_config(self, config):
+            return config
+
+        def get_config_summary(self, config):
+            _ = config
+            return "Update error config summary"
 
         async def collect(self, _context):
             self.call_count += 1

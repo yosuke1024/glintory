@@ -1,3 +1,6 @@
+from collections.abc import Mapping
+from typing import Any
+
 import pytest
 
 from glintory.collectors.base import CollectionContext, CollectionResult
@@ -14,6 +17,19 @@ from glintory.config import settings
 class DummyCollector:
     def __init__(self, source_type: str):
         self.source_type = source_type
+
+    def validate_config(
+        self,
+        config: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        return config
+
+    def get_config_summary(
+        self,
+        config: Mapping[str, Any],
+    ) -> str:
+        _ = config
+        return "Dummy config summary"
 
     async def collect(self, context: CollectionContext) -> CollectionResult:
         raise NotImplementedError()

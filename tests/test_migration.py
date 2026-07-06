@@ -56,6 +56,7 @@ def test_alembic_migrations(test_db_path):
         "decisions",
         "notes",
         "alembic_version",
+        "signals_fts",
     }
 
     for table in expected_tables:

@@ -25,10 +25,8 @@ def test_today_page():
     assert "Find the signals worth building on." in html_content
     # Verify button
     assert "Collect Now" in html_content
-    # Verify demo opportunities
-    assert "Local-First Markdown Note Sync Tool" in html_content
-    assert "Zero-Config DB Backup Agent for Railway" in html_content
-    assert "Ad-supported Multi-platform Recipe Planner" in html_content
+    # Verify placeholder is shown instead of demo opportunities
+    assert "Opportunity analysis is not available yet." in html_content
 
 
 def test_static_css():

@@ -1,0 +1,185 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ signal.title }} - Details - Glintory{% endblock %}
+
+{% block content %}
+<header class="detail-header">
+    <div class="back-link">
+        <a href="/signals" class="text-link">&larr; Back to Signals</a>
+    </div>
+    <div class="title-bar">
+        <h1>{{ signal.title }}</h1>
+    </div>
+</header>
+
+<main class="detail-container">
+    <section class="detail-card primary-info">
+        <h2>Primary Information</h2>
+        
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="detail-label">Signal Type</span>
+                <span class="badge badge-{{ signal.signal_type }}">{{ signal.signal_type }}</span>
+            </div>
+            
+            <div class="detail-item">
+                <span class="detail-label">Source</span>
+                <span class="meta-val">{{ signal.source_name }} ({{ signal.source_type }})</span>
+            </div>
+
+            <div class="detail-item">
+                <span class="detail-label">Author</span>
+                <span class="meta-val">{{ signal.author or '—' }}</span>
+            </div>
+
+            <div class="detail-item">
+                <span class="detail-label">Language</span>
+                <span class="meta-val">{{ signal.language or '—' }}</span>
+            </div>
+
+            <div class="detail-item">
+                <span class="detail-label">Published At</span>
+                <span class="meta-val">{% if signal.published_at %}{{ signal.published_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC{% else %}—{% endif %}</span>
+            </div>
+
+            <div class="detail-item">
+                <span class="detail-label">Collected At</span>
+                <span class="meta-val">{{ signal.collected_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</span>
+            </div>
+        </div>
+
+        <div class="detail-excerpt-full">
+            <h3>Excerpt</h3>
+            <div class="excerpt-box">
+                {{ signal.excerpt or '—' }}
+            </div>
+        </div>
+    </section>
+
+    <div class="detail-two-col">
+        <section class="detail-card classification-info">
+            <h2>Classification</h2>
+            
+            <div class="classification-item">
+                <span class="detail-label">Freshness Score</span>
+                <div class="score-row">
+                    <div class="score-bar-bg">
+                        <div class="score-bar-fill" style="width: {{ signal.freshness_score * 100 }}%"></div>
+                    </div>
+                    <span class="score-text">{{ signal.freshness_score }}</span>
+                </div>
+            </div>
+
+            <div class="classification-item">
+                <span class="detail-label">Source Quality Score</span>
+                <div class="score-row">
+                    <div class="score-bar-bg">
+                        <div class="score-bar-fill" style="width: {{ signal.source_quality_score * 100 }}%"></div>
+                    </div>
+                    <span class="score-text">{{ signal.source_quality_score }}</span>
+                </div>
+            </div>
+
+            <div class="tag-section">
+                <h3>Categories</h3>
+                {% if signal.categories %}
+                <div class="tags-list">
+                    {% for cat in signal.categories %}
+                    <span class="tag-badge category-tag">{{ cat }}</span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">—</p>
+                {% endif %}
+            </div>
+
+            <div class="tag-section">
+                <h3>Tags</h3>
+                {% if signal.tags %}
+                <div class="tags-list">
+                    {% for tag in signal.tags %}
+                    <span class="tag-badge general-tag">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">—</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="detail-card metrics-info">
+            <h2>Metrics</h2>
+            {% if signal.metrics %}
+            <table class="kv-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key, val in signal.metrics.items() %}
+                    <tr>
+                        <td class="kv-key">{{ key }}</td>
+                        <td class="kv-val">{{ val }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">No metrics</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <section class="detail-card metadata-info">
+        <details class="collapsible-details">
+            <summary class="details-summary"><h2>Raw Metadata</h2></summary>
+            <div class="details-content">
+                <pre class="json-code"><code>{{ signal.raw_metadata | tojson(indent=2) }}</code></pre>
+            </div>
+        </details>
+    </section>
+
+    <section class="detail-card technical-info">
+        <details class="collapsible-details">
+            <summary class="details-summary"><h2>Technical Information</h2></summary>
+            <div class="details-content">
+                <table class="kv-table">
+                    <tbody>
+                        <tr>
+                            <td class="kv-key">Signal ID</td>
+                            <td class="kv-val">{{ signal.id }}</td>
+                        </tr>
+                        <tr>
+                            <td class="kv-key">External ID</td>
+                            <td class="kv-val">{{ signal.external_id or '—' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="kv-key">Collection Run ID</td>
+                            <td class="kv-val">{{ signal.collection_run_id or '—' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="kv-key">Content Hash</td>
+                            <td class="kv-val"><code>{{ signal.content_hash }}</code></td>
+                        </tr>
+                        <tr>
+                            <td class="kv-key">Created At</td>
+                            <td class="kv-val">{{ signal.created_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</td>
+                        </tr>
+                        <tr>
+                            <td class="kv-key">Updated At</td>
+                            <td class="kv-val">{{ signal.updated_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+
+    <div class="detail-actions">
+        <a href="/signals" class="btn-secondary">Back to Signals</a>
+        <a href="{{ signal.canonical_url }}" target="_blank" rel="noopener noreferrer" class="btn-primary external-link">Open Original Source &rarr;</a>
+    </div>
+</main>
+{% endblock %}

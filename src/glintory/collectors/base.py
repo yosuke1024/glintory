@@ -87,6 +87,8 @@ class HttpClientProtocol(Protocol):
         params: Mapping[str, Any] | None = None,
     ) -> HttpBytesResponse: ...
 
+    async def close(self) -> None: ...
+
 
 @dataclass(frozen=True, slots=True)
 class CollectionContext:
@@ -100,6 +102,16 @@ class CollectionContext:
 
 class Collector(Protocol):
     source_type: str
+
+    def validate_config(
+        self,
+        config: Mapping[str, object],
+    ) -> Mapping[str, object]: ...
+
+    def get_config_summary(
+        self,
+        config: Mapping[str, Any],
+    ) -> str: ...
 
     async def collect(
         self,

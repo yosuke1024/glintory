@@ -1,6 +1,7 @@
 import calendar
 import hashlib
 import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
@@ -67,9 +68,7 @@ class RSSSourceConfig(BaseModel):
 
     signal_type: SignalType = SignalType.TREND
     default_tags: list[str] = Field(default_factory=list)
-    default_categories: list[str] = Field(
-        default_factory=lambda: ["rss"]
-    )
+    default_categories: list[str] = Field(default_factory=lambda: ["rss"])
 
     strict_parsing: bool = False
     use_content_fallback: bool = True
@@ -86,14 +85,9 @@ class RSSSourceConfig(BaseModel):
 
         parsed = urlparse(v)
         # Re-build URL without fragment to reject or strip it
-        cleaned_url = urlunparse((
-            parsed.scheme,
-            parsed.netloc,
-            parsed.path,
-            parsed.params,
-            parsed.query,
-            ""
-        ))
+        cleaned_url = urlunparse(
+            (parsed.scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, "")
+        )
 
         try:
             validate_url_safety(cleaned_url)
@@ -154,7 +148,9 @@ class RSSSourceConfig(BaseModel):
     @model_validator(mode="after")
     def validate_scan_gte_items(self) -> "RSSSourceConfig":
         if self.max_entries_to_scan < self.max_items:
-            raise ValueError("max_entries_to_scan must be greater than or equal to max_items")
+            raise ValueError(
+                "max_entries_to_scan must be greater than or equal to max_items"
+            )
         return self
 
 
@@ -176,6 +172,22 @@ class RSSCollector(Collector):
     def __init__(self, settings: Any, time_func=None) -> None:
         self.settings = settings
         self._time_func = time_func or (lambda: datetime.now(UTC))
+
+    def validate_config(
+        self,
+        config: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        validated = RSSSourceConfig.model_validate(config)
+        return validated.model_dump(mode="json")
+
+    def get_config_summary(
+        self,
+        config: Mapping[str, Any],
+    ) -> str:
+        cfg = RSSSourceConfig.model_validate(config)
+        parsed = urlparse(cfg.feed_url)
+        host = parsed.netloc or "unknown"
+        return f"Feed host: {host}\nMax items: {cfg.max_items}\nSignal type: {cfg.signal_type.value}"
 
     async def collect(self, context: CollectionContext) -> CollectionResult:
         # 1. Parse and Validate Configuration
@@ -211,7 +223,12 @@ class RSSCollector(Collector):
 
         # Check content type
         content_type = response.headers.get("content-type", "").lower()
-        allowed_types = {"application/rss+xml", "application/atom+xml", "application/xml", "text/xml"}
+        allowed_types = {
+            "application/rss+xml",
+            "application/atom+xml",
+            "application/xml",
+            "text/xml",
+        }
         if not any(allowed in content_type for allowed in allowed_types):
             warnings.append(
                 CollectionWarning(
@@ -235,7 +252,9 @@ class RSSCollector(Collector):
         except Exception as e:
             if isinstance(e, Warning):
                 raise e
-            raise RSSParseError(f"rss_parse_failed: Failed to parse feed content: {e}") from e
+            raise RSSParseError(
+                f"rss_parse_failed: Failed to parse feed content: {e}"
+            ) from e
 
         # Handle version / format
         version = parsed.version or ""
@@ -284,7 +303,11 @@ class RSSCollector(Collector):
             )
 
         # 5. Extract Feed Metadata
-        feed_title = html_to_plain_text(parsed.feed.get("title"), max_chars=500) if parsed.feed.get("title") else ""
+        feed_title = (
+            html_to_plain_text(parsed.feed.get("title"), max_chars=500)
+            if parsed.feed.get("title")
+            else ""
+        )
         feed_home_url = parsed.feed.get("link") or ""
         # Validate feed_home_url scheme
         if feed_home_url:
@@ -296,7 +319,7 @@ class RSSCollector(Collector):
 
         # 6. Process entries
         raw_items = []
-        
+
         # Statistics
         fetched_entry_count = len(parsed.entries)
         scanned_entry_count = 0
@@ -309,7 +332,7 @@ class RSSCollector(Collector):
         invalid_entry_count = 0
 
         # Maintain order of elements in feed
-        entries_to_process = parsed.entries[:config.max_entries_to_scan]
+        entries_to_process = parsed.entries[: config.max_entries_to_scan]
         scanned_entry_count = len(entries_to_process)
 
         # Deduplication helpers
@@ -356,7 +379,7 @@ class RSSCollector(Collector):
                         if link.get("rel") == "alternate" and link.get("href"):
                             canonical_entry_url = link.get("href")
                             break
-                    
+
                     # Priority 3: entry.id if valid http/https URL
                     if not canonical_entry_url:
                         entry_id_candidate = entry.get("id")
@@ -378,10 +401,13 @@ class RSSCollector(Collector):
 
                 # Resolve relative URL using response.url
                 canonical_entry_url = urljoin(response.url, canonical_entry_url)
-                
+
                 # Check Scheme/Host validation
                 p_entry_url = urlparse(canonical_entry_url)
-                if p_entry_url.scheme not in ("http", "https") or not p_entry_url.hostname:
+                if (
+                    p_entry_url.scheme not in ("http", "https")
+                    or not p_entry_url.hostname
+                ):
                     errors.append(
                         CollectionError(
                             code="rss_invalid_entry",
@@ -418,7 +444,11 @@ class RSSCollector(Collector):
                 # D. Author
                 author_detail = entry.get("author_detail") or {}
                 raw_author = author_detail.get("name") or entry.get("author") or ""
-                author = html_to_plain_text(raw_author, max_chars=255) if raw_author else None
+                author = (
+                    html_to_plain_text(raw_author, max_chars=255)
+                    if raw_author
+                    else None
+                )
 
                 # E. Excerpt / Summary / Content Fallback
                 excerpt_raw = entry.get("summary") or ""
@@ -452,7 +482,7 @@ class RSSCollector(Collector):
                         if published_at < threshold:
                             skipped_old_count += 1
                             continue
-                    
+
                     # Future date warning
                     if published_at > collected_at + timedelta(hours=24):
                         warnings.append(
@@ -478,7 +508,11 @@ class RSSCollector(Collector):
 
                 # I. In-run Deduplication
                 is_duplicate = False
-                if external_id and external_id in seen_ids or canonical_entry_url in seen_urls:
+                if (
+                    external_id
+                    and external_id in seen_ids
+                    or canonical_entry_url in seen_urls
+                ):
                     is_duplicate = True
 
                 if is_duplicate:

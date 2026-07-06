@@ -1,4 +1,5 @@
 import re
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -170,6 +171,22 @@ class GitHubCollector(Collector):
 
     def __init__(self, settings: Any) -> None:
         self.settings = settings
+
+    def validate_config(
+        self,
+        config: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        validated = GitHubSourceConfig.model_validate(config)
+        return validated.model_dump(mode="json")
+
+    def get_config_summary(
+        self,
+        config: Mapping[str, Any],
+    ) -> str:
+        cfg = GitHubSourceConfig.model_validate(config)
+        rep_queries = len(cfg.repository_queries)
+        is_queries = len(cfg.issue_queries)
+        return f"Repository queries: {rep_queries}\nIssue queries: {is_queries}\nPer page: {cfg.per_page}"
 
     @classmethod
     def normalize_repository_query(cls, query: str, config: GitHubSourceConfig) -> str:

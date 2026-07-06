@@ -1,6 +1,6 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
@@ -145,6 +145,21 @@ class HackerNewsCollector(Collector):
     ) -> None:
         self.settings = settings
         self.clock = clock or (lambda: datetime.now(UTC))
+
+    def validate_config(
+        self,
+        config: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        validated = HackerNewsSourceConfig.model_validate(config)
+        return validated.model_dump(mode="json")
+
+    def get_config_summary(
+        self,
+        config: Mapping[str, Any],
+    ) -> str:
+        cfg = HackerNewsSourceConfig.model_validate(config)
+        feeds = ", ".join(cfg.feeds)
+        return f"Feeds: {feeds}\nMax items per feed: {cfg.max_items_per_feed}\nLookback days: {cfg.lookback_days}"
 
     async def collect(self, context: CollectionContext) -> CollectionResult:
         collected_at = self.clock()

@@ -1,0 +1,2 @@
+[console_scripts]
+glintory = glintory.cli:main

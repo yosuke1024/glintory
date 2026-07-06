@@ -74,7 +74,9 @@ def test_config_validation_rules():
 
     # 7. manual SignalType rejection
     with pytest.raises(ValidationError):
-        RSSSourceConfig(feed_url="https://example.com/feed", signal_type=SignalType.MANUAL)
+        RSSSourceConfig(
+            feed_url="https://example.com/feed", signal_type=SignalType.MANUAL
+        )
 
     # 8. unknown key forbidden
     with pytest.raises(ValidationError):
@@ -251,7 +253,9 @@ async def test_atom_10_success():
 async def test_bozo_error_handling():
     # Strict validation fails on bozo = true
     # We construct a malformed XML to trigger bozo
-    malformed_xml = b"<rss><channel><title>Malformed Feed<item><title>Item without tag closing"
+    malformed_xml = (
+        b"<rss><channel><title>Malformed Feed<item><title>Item without tag closing"
+    )
 
     def handler(request: httpx.Request):
         return httpx.Response(200, content=malformed_xml)

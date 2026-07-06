@@ -1,5 +1,8 @@
-from datetime import datetime
+import uuid
+from datetime import UTC, datetime
+from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from glintory.domain.enums import CollectionRunStatus
@@ -49,6 +52,79 @@ class SourceRepository:
             source.last_failure_at = failure_at
             source.consecutive_failures += 1
             source.last_error = error_msg
+
+    def create(
+        self,
+        name: str,
+        source_type: str,
+        config: dict[str, Any],
+        enabled: bool = True,
+        auth_required: bool = False,
+    ) -> Source:
+        name = name.strip()
+        if not name:
+            raise ValueError("Source name cannot be empty.")
+        if len(name) > 100:
+            raise ValueError("Source name cannot exceed 100 characters.")
+
+        if self.get_by_name(name) is not None:
+            raise ValueError(f"Source with name '{name}' already exists.")
+
+        source = Source(
+            name=name,
+            source_type=source_type,
+            config=config,
+            enabled=enabled,
+            auth_required=auth_required,
+        )
+        self.session.add(source)
+        try:
+            self.session.flush()
+        except IntegrityError as e:
+            raise ValueError(f"Database constraint violated: {e.orig}") from e
+        return source
+
+    def list_all(self) -> list[Source]:
+        return self.session.query(Source).order_by(Source.name.asc()).all()
+
+    def list_enabled(self) -> list[Source]:
+        return (
+            self.session.query(Source)
+            .filter(Source.enabled)
+            .order_by(Source.name.asc())
+            .all()
+        )
+
+    def get_by_name(self, name: str) -> Source | None:
+        return self.session.query(Source).filter(Source.name == name).first()
+
+    def get_by_identifier(self, identifier: str) -> Source | None:
+        source = self.get_by_name(identifier)
+        if source:
+            return source
+        try:
+            uuid.UUID(identifier)
+            return self.get_by_id(identifier)
+        except ValueError:
+            return None
+
+    def update_config(self, source_id: str, config: dict[str, Any]) -> Source:
+        source = self.get_by_id(source_id)
+        if not source:
+            raise ValueError(f"Source with ID {source_id} not found.")
+        source.config = config
+        source.updated_at = datetime.now(UTC)
+        self.session.flush()
+        return source
+
+    def set_enabled(self, source_id: str, enabled: bool) -> Source:
+        source = self.get_by_id(source_id)
+        if not source:
+            raise ValueError(f"Source with ID {source_id} not found.")
+        source.enabled = enabled
+        source.updated_at = datetime.now(UTC)
+        self.session.flush()
+        return source
 
 
 class CollectionRunRepository:

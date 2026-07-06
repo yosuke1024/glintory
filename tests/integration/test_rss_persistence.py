@@ -147,9 +147,7 @@ async def test_rss_persistence_lifecycle(db_session, db_session_factory):
     fixed_now = datetime(2026, 7, 6, 12, 0, 0, tzinfo=UTC)
     reg.register(RSSCollector(settings=None, time_func=lambda: fixed_now))
 
-    service = CollectionService(
-        db_session_factory, reg, http_client=http_client
-    )
+    service = CollectionService(db_session_factory, reg, http_client=http_client)
 
     # Setup Source
     src = Source(
@@ -207,7 +205,14 @@ async def test_rss_persistence_lifecycle(db_session, db_session_factory):
     assert res3.inserted_count == 0
 
     db_session.expire_all()
-    sig_a = db_session.query(Signal).filter_by(source_id=src.id, external_id="feed:entry:74ab07339b1597928cc353388c393593eff18b68739ad38fd558dd349f2faf59").first() # hash of "id-a"
+    sig_a = (
+        db_session.query(Signal)
+        .filter_by(
+            source_id=src.id,
+            external_id="feed:entry:74ab07339b1597928cc353388c393593eff18b68739ad38fd558dd349f2faf59",
+        )
+        .first()
+    )  # hash of "id-a"
     assert sig_a is not None
     assert sig_a.title == "Item A New Title"
     assert sig_a.excerpt == "Excerpt A New"
@@ -220,7 +225,14 @@ async def test_rss_persistence_lifecycle(db_session, db_session_factory):
     assert res4.duplicate_count == 2
 
     db_session.expire_all()
-    sig_a_url = db_session.query(Signal).filter_by(source_id=src.id, external_id="feed:entry:74ab07339b1597928cc353388c393593eff18b68739ad38fd558dd349f2faf59").first()
+    sig_a_url = (
+        db_session.query(Signal)
+        .filter_by(
+            source_id=src.id,
+            external_id="feed:entry:74ab07339b1597928cc353388c393593eff18b68739ad38fd558dd349f2faf59",
+        )
+        .first()
+    )
     assert sig_a_url is not None
     assert sig_a_url.canonical_url == "http://example.com/a-new-url"
 

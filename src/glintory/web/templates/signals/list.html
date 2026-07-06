@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+
+{% block title %}Signals - Glintory{% endblock %}
+
+{% block content %}
+<header class="signals-header">
+    <div class="title-bar">
+        <h1>Signals</h1>
+    </div>
+    {% if error_messages %}
+    <div class="alert alert-danger" role="alert">
+        <strong class="alert-title">Validation Error:</strong>
+        <ul class="alert-list">
+            {% for msg in error_messages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</header>
+
+<section class="search-panel">
+    <form action="/signals" method="get" class="search-form">
+        <div class="form-row">
+            <div class="form-group flex-2">
+                <label for="q">Keyword</label>
+                <input type="text" name="q" id="q" value="{{ q or '' }}" placeholder="Search title, excerpt, author...">
+            </div>
+            
+            <div class="form-group flex-1">
+                <label for="source">Source</label>
+                <select name="source" id="source">
+                    <option value="">All Sources</option>
+                    {% for src in sources %}
+                    <option value="{{ src.id }}" {% if selected_source == src.id %}selected{% endif %}>
+                        {{ src.name }} ({{ src.type }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group flex-1">
+                <label for="type">Signal Type</label>
+                <select name="type" id="type">
+                    <option value="">All Types</option>
+                    {% for t in signal_types %}
+                    <option value="{{ t.value }}" {% if selected_type == t.value %}selected{% endif %}>
+                        {{ t.value }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group flex-1">
+                <label for="from">Published From</label>
+                <input type="date" name="from" id="from" value="{{ published_from or '' }}">
+            </div>
+
+            <div class="form-group flex-1">
+                <label for="to">Published To</label>
+                <input type="date" name="to" id="to" value="{{ published_to or '' }}">
+            </div>
+
+            <div class="form-group flex-1">
+                <label for="per_page">Per Page</label>
+                <select name="per_page" id="per_page">
+                    {% for limit in [10, 25, 50, 100] %}
+                    <option value="{{ limit }}" {% if per_page == limit %}selected{% endif %}>{{ limit }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Search</button>
+            {% if q or selected_source or selected_type or published_from or published_to %}
+            <a href="/signals" class="btn-link-clear">Clear Filters</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+
+<main>
+    <div class="results-meta">
+        <p class="results-count">
+            Found <strong>{{ total_count }}</strong> signals
+            {% if total_count > 0 %}
+            <span class="page-indicator">(Page {{ page }} of {{ total_pages }})</span>
+            {% endif %}
+        </p>
+    </div>
+
+    {% if signals %}
+    <div class="signals-grid">
+        {% for signal in signals %}
+        <article class="signal-card" id="signal-{{ signal.id }}">
+            <div class="signal-card-header">
+                <div class="signal-badges">
+                    <span class="badge badge-{{ signal.signal_type }}">{{ signal.signal_type }}</span>
+                    <span class="source-badge">{{ signal.source_name }}</span>
+                    <span class="source-type-badge">{{ signal.source_type }}</span>
+                </div>
+                <div class="signal-dates">
+                    <span class="date-item">Published: {% if signal.published_at %}{{ signal.published_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC{% else %}—{% endif %}</span>
+                    <span class="date-item">Collected: {{ signal.collected_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</span>
+                </div>
+            </div>
+
+            <h2 class="signal-card-title">
+                <a href="/signals/{{ signal.id }}">{{ signal.title }}</a>
+            </h2>
+
+            <div class="signal-card-body">
+                {% if signal.author %}
+                <p class="signal-author">By <span class="author-name">{{ signal.author }}</span></p>
+                {% endif %}
+                <p class="signal-excerpt">{{ signal.excerpt or '—' }}</p>
+            </div>
+
+            <div class="signal-card-footer">
+                <a href="/signals/{{ signal.id }}" class="btn-secondary">View Details</a>
+                <a href="{{ signal.canonical_url }}" target="_blank" rel="noopener noreferrer" class="btn-external">Open Original Source &rarr;</a>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="Pagination">
+        {% if page > 1 %}
+        <a href="{{ request.url.include_query_params(page=page - 1) }}" class="pagination-btn">Previous</a>
+        {% else %}
+        <span class="pagination-btn disabled">Previous</span>
+        {% endif %}
+
+        <span class="pagination-info">Page {{ page }} of {{ total_pages }}</span>
+
+        {% if page < total_pages %}
+        <a href="{{ request.url.include_query_params(page=page + 1) }}" class="pagination-btn">Next</a>
+        {% else %}
+        <span class="pagination-btn disabled">Next</span>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📂</div>
+        <p class="empty-text">No signals found.</p>
+        {% if q or selected_source or selected_type or published_from or published_to %}
+        <p><a href="/signals" class="btn-primary">Clear all filters</a></p>
+        {% else %}
+        <p class="cli-hint">The database is currently empty. Run the CLI collect command to fetch data:</p>
+        <pre><code>uv run glintory collect --all</code></pre>
+        {% endif %}
+    </div>
+    {% endif %}
+</main>
+{% endblock %}

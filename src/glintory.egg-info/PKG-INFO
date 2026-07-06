@@ -1,3 +1,18 @@
+Metadata-Version: 2.4
+Name: glintory
+Version: 0.1.0
+Summary: Find the signals worth building on.
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.111.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: jinja2>=3.1.4
+Requires-Dist: pydantic-settings>=2.3.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: alembic>=1.13.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: feedparser<7,>=6.0.12
+
 # Glintory
 
 Find the signals worth building on.
@@ -348,44 +363,3 @@ docker compose run --rm \
 > * データベースはNamed Volume上のSQLiteを利用します。
 > * Web UIからのSource管理、Scheduler（自動定期実行）はまだ未実装です。
 > * 外部AIは使用せず、決定論的な正規化・フィルタリングのみを行います。
-
-## Web Interface & FTS5 Search
-
-SQLite の FTS5 全文検索エンジンを活用し、収集した Signal の閲覧・検索・絞り込みをブラウザおよび JSON API から行うことができます。
-
-### ローカルでの起動方法
-
-```bash
-# データベースの FTS5 マイグレーション（必須）
-uv run alembic upgrade head
-
-# サーバーの起動
-uv run uvicorn glintory.main:app --reload
-```
-
-サーバー起動後、ブラウザで以下の URL にアクセスできます。
-* UI 画面: `http://localhost:8000/signals`
-* Today ダッシュボード: `http://localhost:8000/`
-
-### 検索機能
-
-#### 検索対象
-* `title` (タイトル) - BM25重み: 8.0
-* `excerpt` (要約) - BM25重み: 2.0
-* `author` (著者) - BM25重み: 1.0
-
-#### 絞り込み条件 (Filters)
-* **Source**: データソースごと
-* **Signal Type**: シグナルの種類
-* **Published Date**: 公開日の範囲（From / To）
-
-#### 制限事項・仕様
-* ユーザー入力は安全にサニタイズ（ダブルクォートでエスケープされ、複数単語は `AND` で結合）されます。
-* Raw FTS5 構文は利用できません。
-* `OR` / `NOT` / `NEAR` やワイルドカード `*` などの演算子検索は未対応です。
-* `tags` および `categories` は全文検索の対象外です（フィルタリングのみ）。
-* 日本語の形態素解析（Mecab等のトークナイザー）は導入していません。
-* Opportunity分析（クラスタリングやスコアリング等）は未実装のため、ダッシュボードではプレースホルダーが表示されます。
-* 収集処理（Collect）は Web UI から実行できません（CLI から実行してください）。
-* 外部 AI は使用せず、ローカルの SQLite データベース内のみで検索処理を完結させています。
-
