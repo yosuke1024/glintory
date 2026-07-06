@@ -389,3 +389,57 @@ uv run uvicorn glintory.main:app --reload
 * 収集処理（Collect）は Web UI から実行できません（CLI から実行してください）。
 * 外部 AI は使用せず、ローカルの SQLite データベース内のみで検索処理を完結させています。
 
+
+## Opportunity Analysis & Deterministic Scoring
+
+Glintory は、収集した Signal を類似度に基づき決定論的にクラスタリングし、Opportunity（開発・事業の機会候補）を抽出した上で、公開情報に基づく客観的なルール（バージョン管理された決定論的アルゴリズム）でスコアリング（評価）します。
+
+### CLI コマンド
+
+#### 1. 候補の分析・抽出 (Analyze)
+未紐付けの Signal を TF-IDF とコサイン類似度を用いて自動的にクラスタリングし、同一課題ごとに Opportunity をマージまたは新規作成します。
+
+```bash
+uv run glintory analyze
+```
+オプション：
+- `--dry-run`: データベースに書き込まず、分析結果のみをシミュレート表示します。
+- `--cluster-version <str>`: アルゴリズムのバージョン（デフォルト: `v1`）。
+- `--json`: 結果を JSON フォーマットで標準出力します。
+
+#### 2. スコアリングの実行 (Score)
+抽出された Opportunity に対し、定義されたスコア算出ルール（V1）を用いてスコアの算出と評価を行います。
+
+```bash
+uv run glintory score
+```
+オプション：
+- `--opportunity <uuid>`: 指定した単一の Opportunity のみスコアを計算・更新します。
+- `--as-of <YYYY-MM-DD>`: 基準日を明示的に指定して実行します（過去データ評価用）。
+- `--max-opportunities <int>`: 最大処理件数（1〜10000）。
+- `--dry-run`: データベースを更新せず、スコア計算結果のみを表示します。
+- `--json`: スコア結果を JSON 形式で標準出力します。
+
+#### スコア評価システム (V1 Rules)
+- **Evidence Score (0〜50点)**: 証拠ボリューム、起原の多様性、カテゴリ網羅性（Demand / Build / Market）、新鮮さ、関連度の加重平均の合計。
+- **Feasibility Score (0〜50点)**: 実装前例の多さ、明確な需要、技術的記述の具体性、検証チャネル数などの合計。
+- **Penalty Score (-30〜0点)**: 対立する証拠、起原の過度な集中、陳腐化、競合飽和度に基づく減点。
+- **Total Score (0〜100点)**: Evidence + Feasibility + Penalty。
+- **Confidence (HIGH / MEDIUM / LOW)**: 証拠数と多様性の閾値クリア度で判定する客観的な信頼度。
+
+> [!NOTE]
+> スコアリングは冪等に実行されます。同じインプット状態（関連シグナルや評価日が変わらない場合）であればハッシュ値を比較し、無駄な `ScoreSnapshot` レコードは作成されません。
+
+### Web UI & JSON API
+
+ブラウザおよび API から Opportunity の情報を確認できます。
+
+* **一覧画面 (`/opportunities`)**: 候補を Total Score の高い順（同一の場合は Evidence Score、Confidence 順など）で一覧表示します。各種フィルター（Status, Confidence, Generation, Min Score）に対応しています。
+* **詳細画面 (`/opportunities/{id}`)**: 各候補のステータス、計算された各スコアの内訳（Explanation）、根拠となった Evidence シグナルの一覧、および履歴となる過去のスコア推移をグラフィカルに確認できます。
+* **JSON API**: 
+  - `GET /api/v1/opportunities`: 候補一覧の JSON 取得
+  - `GET /api/v1/opportunities/{id}`: 候補詳細、スコア内訳（Raw Explanation JSON含む）、スコア履歴の JSON 取得
+* **Today 画面**:
+  - ダッシュボードの `Top Opportunities` に、計算された実データの上位3件がスコア順で自動的にレンダリングされます。
+
+

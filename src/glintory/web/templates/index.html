@@ -61,14 +61,43 @@
     <div class="dashboard-col">
         <section class="dashboard-card opportunity-card">
             <h2>Top Opportunities</h2>
-            <div class="placeholder-card">
-                <div class="placeholder-icon">💡</div>
-                <h3 class="placeholder-title">Analysis Not Available</h3>
-                <p class="placeholder-text">
-                    Opportunity analysis is not available yet.<br>
-                    Collected signals will be clustered and scored in a later milestone.
-                </p>
+            {% if top_opportunities %}
+            <div class="recent-signals-list">
+                {% for opp in top_opportunities %}
+                <article class="recent-signal-item" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="recent-signal-meta" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <span class="badge badge-conf badge-conf-{{ opp.confidence.value }}">
+                            {{ opp.confidence.value }}
+                        </span>
+                        <span class="badge badge-status badge-status-{{ opp.status.value }}">
+                            {{ opp.status.value }}
+                        </span>
+                        <span style="font-size: 0.85em; color: var(--text-muted); font-weight: bold; margin-left: auto;">
+                            Score: {{ opp.total_score }}
+                        </span>
+                    </div>
+                    <h3 class="recent-signal-title">
+                        <a href="/opportunities/{{ opp.id }}">{{ opp.title }}</a>
+                    </h3>
+                    <div style="font-size: 0.8em; color: var(--text-muted); display: flex; gap: 10px;">
+                        <span>Evidence: <strong>{{ opp.evidence_count }}</strong></span>
+                        <span>Sources: <strong>{{ opp.source_type_count }}</strong></span>
+                    </div>
+                </article>
+                {% endfor %}
             </div>
+            <div class="view-all-link" style="margin-top: 15px;">
+                <a href="/opportunities" class="text-link">View All Opportunities &rarr;</a>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No scored opportunities yet.</p>
+                <p class="cli-instructions">Please analyze and score opportunities using CLI:</p>
+                <pre><code>uv run glintory collect --all
+uv run glintory analyze
+uv run glintory score</code></pre>
+            </div>
+            {% endif %}
         </section>
     </div>
 </main>

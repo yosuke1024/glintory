@@ -1,0 +1,295 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ opportunity.title }} - Opportunities - Glintory{% endblock %}
+
+{% block content %}
+<header class="signals-header">
+    <a href="/opportunities" class="back-link">&larr; Back to Opportunities</a>
+    <h1 style="margin-top: 15px;">{{ opportunity.title }}</h1>
+</header>
+
+<main class="opportunity-detail-container">
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+        
+        <!-- Left Column: Details, Hypotheses and Evidence -->
+        <div>
+            <!-- Candidate Hypothesis Fields -->
+            <section class="detail-section">
+                <h2>Opportunity Analysis</h2>
+                <div class="fields-grid" style="display: grid; grid-template-columns: 1fr; gap: 15px; background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border);">
+                    <div>
+                        <strong class="field-label">Problem Statement</strong>
+                        <div class="field-value">
+                            {{ opportunity.problem_statement or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">Target User</strong>
+                        <div class="field-value">
+                            {{ opportunity.target_user or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">Proposed Solution</strong>
+                        <div class="field-value">
+                            {{ opportunity.proposed_solution or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">Existing Projects</strong>
+                        <div class="field-value">
+                            {% if opportunity.existing_projects %}
+                                <ul style="margin: 0; padding-left: 20px;">
+                                {% for p in opportunity.existing_projects %}
+                                    <li>{{ p }}</li>
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                Not analyzed yet.
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">Remaining Gap</strong>
+                        <div class="field-value">
+                            {{ opportunity.remaining_gap or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">MVP Scope</strong>
+                        <div class="field-value">
+                            {{ opportunity.mvp_scope or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">Monetization Hypothesis</strong>
+                        <div class="field-value">
+                            {{ opportunity.monetization_hypothesis or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">Distribution Hypothesis</strong>
+                        <div class="field-value">
+                            {{ opportunity.distribution_hypothesis or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                    <div>
+                        <strong class="field-label">Validation Method</strong>
+                        <div class="field-value">
+                            {{ opportunity.validation_method or "Not analyzed yet." }}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Evidence Signals -->
+            <section class="detail-section" style="margin-top: 30px;">
+                <h2>Evidence Signals ({{ opportunity.evidence|length }})</h2>
+                {% if opportunity.evidence %}
+                <div class="evidence-list" style="display: flex; flex-direction: column; gap: 15px;">
+                    {% for sig in opportunity.evidence %}
+                    <article class="signal-card" style="background: var(--color-bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--color-border);">
+                        <div class="signal-badges" style="margin-bottom: 8px;">
+                            <span class="badge badge-source-type">{{ sig.source_type }}</span>
+                            <span class="badge badge-signal-type">{{ sig.signal_type.value }}</span>
+                            <span class="badge badge-relation-type badge-relation-{{ sig.relation_type.value }}">
+                                Relation: {{ sig.relation_type.value }}
+                            </span>
+                            <span class="badge badge-relevance">
+                                Relevance: {{ '{:.2f}'.format(sig.relevance_score) }}
+                            </span>
+                        </div>
+                        <h3 style="margin: 0 0 10px 0; font-size: 1.1em;">
+                            <a href="/signals/{{ sig.signal_id }}">{{ sig.title }}</a>
+                        </h3>
+                        <p style="font-size: 0.9em; line-height: 1.4; color: var(--color-text-muted); margin: 0 0 10px 0;">
+                            {% if sig.excerpt|length > 500 %}
+                                {{ sig.excerpt[:500] }}...
+                            {% else %}
+                                {{ sig.excerpt }}
+                            {% endif %}
+                        </p>
+                        <div style="font-size: 0.8em; color: var(--color-text-muted); display: flex; gap: 15px;">
+                            <span>Source: <strong>{{ sig.source_name }}</strong></span>
+                            {% if sig.published_at %}
+                            <span>Published: {{ sig.published_at.strftime('%Y-%m-%d') }}</span>
+                            {% endif %}
+                            <span>Collected: {{ sig.collected_at.strftime('%Y-%m-%d') }}</span>
+                            <a href="{{ sig.canonical_url }}" target="_blank" rel="noopener noreferrer" style="margin-left: auto; text-decoration: underline;">
+                                External Source &nearrow;
+                            </a>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p>No associated evidence signals.</p>
+                {% endif %}
+            </section>
+        </div>
+
+        <!-- Right Column: Scores, History & Metadata -->
+        <div>
+            <!-- Score Overview -->
+            <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 20px;">
+                <h2 style="margin-top: 0;">Scores</h2>
+                
+                {% if opportunity.last_scored_at %}
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 3em; font-weight: bold; line-height: 1;">{{ opportunity.total_score }}</div>
+                    <div style="font-size: 0.9em; color: var(--color-text-muted); margin-top: 5px;">Total Score</div>
+                    <div style="margin-top: 10px;">
+                        <span class="badge badge-conf badge-conf-{{ opportunity.confidence.value }}" style="font-size: 0.9em; padding: 4px 8px;">
+                            {{ opportunity.confidence.value }}
+                        </span>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.95em;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Evidence Score:</span>
+                        <strong>{{ opportunity.evidence_score }}/50</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Feasibility Score:</span>
+                        <strong>{{ opportunity.feasibility_score }}/50</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Penalty Score:</span>
+                        <strong style="color: var(--color-danger, #d32f2f);">{{ opportunity.penalty_score }}</strong>
+                    </div>
+                </div>
+                {% else %}
+                <p style="font-style: italic; color: var(--color-text-muted);">Not scored yet.</p>
+                {% endif %}
+
+                <p style="font-size: 0.75em; color: var(--color-text-muted); margin-top: 20px; line-height: 1.4; border-top: 1px solid var(--color-border); padding-top: 10px;">
+                    Scores are deterministic heuristics based on collected public evidence.
+                    They are not market forecasts or implementation estimates.
+                </p>
+            </section>
+
+            <!-- Score Breakdown -->
+            <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 20px;">
+                <h3 style="margin-top: 0;">Score Breakdown</h3>
+                {% if opportunity.latest_snapshot %}
+                    {% set exp = opportunity.latest_snapshot.explanation %}
+                    
+                    <!-- Evidence Components -->
+                    <h4 style="margin: 15px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px;">Evidence</h4>
+                    {% if exp.evidence and exp.evidence.components %}
+                        {% for comp in exp.evidence.components %}
+                        <div style="margin-bottom: 8px; font-size: 0.9em;">
+                            <div style="display: flex; justify-content: space-between; font-weight: 500;">
+                                <span>{{ comp.name }}</span>
+                                <span>{{ comp.score }}/{{ comp.maximum }}</span>
+                            </div>
+                            <div style="font-size: 0.8em; color: var(--color-text-muted);">{{ comp.explanation }}</div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Feasibility Components -->
+                    <h4 style="margin: 20px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px;">Feasibility</h4>
+                    {% if exp.feasibility and exp.feasibility.components %}
+                        {% for comp in exp.feasibility.components %}
+                        <div style="margin-bottom: 8px; font-size: 0.9em;">
+                            <div style="display: flex; justify-content: space-between; font-weight: 500;">
+                                <span>{{ comp.name }}</span>
+                                <span>{{ comp.score }}/{{ comp.maximum }}</span>
+                            </div>
+                            <div style="font-size: 0.8em; color: var(--color-text-muted);">{{ comp.explanation }}</div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Penalty Components -->
+                    <h4 style="margin: 20px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px;">Penalties</h4>
+                    {% if exp.penalties and exp.penalties.components %}
+                        {% for comp in exp.penalties.components %}
+                        <div style="margin-bottom: 8px; font-size: 0.9em;">
+                            <div style="display: flex; justify-content: space-between; font-weight: 500; color: var(--color-danger, #d32f2f);">
+                                <span>{{ comp.name }}</span>
+                                <span>{{ comp.score }}</span>
+                            </div>
+                            <div style="font-size: 0.8em; color: var(--color-text-muted);">{{ comp.explanation }}</div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <details style="margin-top: 15px; font-size: 0.8em;">
+                        <summary style="cursor: pointer; color: var(--color-text-muted);">View Raw JSON Explanation</summary>
+                        <pre style="background: var(--color-bg-body); padding: 10px; border-radius: 4px; overflow-x: auto; margin-top: 5px;">{{ exp | tojson(indent=2) }}</pre>
+                    </details>
+                {% else %}
+                    <p style="font-style: italic; color: var(--color-text-muted);">Breakdown unavailable. Not scored yet.</p>
+                {% endif %}
+            </section>
+
+            <!-- Metadata Summary -->
+            <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 20px; font-size: 0.9em;">
+                <h3 style="margin-top: 0; font-size: 1.1em;">Metadata</h3>
+                <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px;">
+                    <li>Status: <strong>{{ opportunity.status.value }}</strong></li>
+                    <li>Confidence: <strong>{{ opportunity.confidence.value }}</strong></li>
+                    <li>Generation Method: <strong>{{ opportunity.generation_method }}</strong></li>
+                    {% if opportunity.cluster_version %}
+                    <li>Cluster Version: <strong>{{ opportunity.cluster_version }}</strong></li>
+                    {% endif %}
+                    {% if opportunity.current_scoring_version %}
+                    <li>Scoring Version: <strong>{{ opportunity.current_scoring_version }}</strong></li>
+                    {% endif %}
+                    {% if opportunity.last_clustered_at %}
+                    <li>Last Clustered: <strong>{{ opportunity.last_clustered_at.strftime('%Y-%m-%d %H:%M') }} UTC</strong></li>
+                    {% endif %}
+                    {% if opportunity.last_scored_at %}
+                    <li>Last Scored: <strong>{{ opportunity.last_scored_at.strftime('%Y-%m-%d %H:%M') }} UTC</strong></li>
+                    {% endif %}
+                </ul>
+            </section>
+
+            <!-- Score History -->
+            {% if opportunity.score_history %}
+            <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); font-size: 0.9em;">
+                <h3 style="margin-top: 0; font-size: 1.1em;">Score History</h3>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--color-border);">
+                                <th style="padding: 6px 0;">Date</th>
+                                <th>Version</th>
+                                <th>Total</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for hist in opportunity.score_history %}
+                            <tr style="border-bottom: 1px solid var(--color-border);">
+                                <td style="padding: 6px 0;">
+                                    {% if hist.as_of_date %}
+                                        {{ hist.as_of_date.isoformat() }}
+                                    {% else %}
+                                        {{ hist.created_at.strftime('%Y-%m-%d') }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ hist.scoring_version }}</td>
+                                <td><strong>{{ hist.total_score }}</strong></td>
+                                <td>{{ hist.confidence.value }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if opportunity.latest_snapshot and opportunity.latest_snapshot.input_hash %}
+                <div style="font-size: 0.75em; color: var(--color-text-muted); margin-top: 15px; word-break: break-all; border-top: 1px solid var(--color-border); padding-top: 10px;">
+                    <strong>Latest Input Hash:</strong><br>
+                    {{ opportunity.latest_snapshot.input_hash }}
+                </div>
+                {% endif %}
+            </section>
+            {% endif %}
+        </div>
+    </div>
+</main>
+{% endblock %}

@@ -1,11 +1,12 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -252,6 +253,21 @@ class Opportunity(Base):
         default=OpportunityStatus.INBOX,
         nullable=False,
     )
+    generation_method: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+    cluster_version: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+    last_clustered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    current_scoring_version: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+    last_scored_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
@@ -282,6 +298,7 @@ class Opportunity(Base):
         Index("idx_opportunities_total_score", "total_score"),
         Index("idx_opportunities_confidence", "confidence"),
         Index("idx_opportunities_created_at", "created_at"),
+        Index("idx_opportunities_last_scored_at", "last_scored_at"),
     )
 
 
@@ -343,12 +360,22 @@ class ScoreSnapshot(Base):
     explanation: Mapped[dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False
     )
+    input_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    as_of_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     __table_args__ = (
         Index("idx_score_snapshots_opp_created", "opportunity_id", "created_at"),
+        Index(
+            "uq_score_snapshots_opp_version_input",
+            "opportunity_id",
+            "scoring_version",
+            "input_hash",
+            unique=True,
+            sqlite_where=text("input_hash IS NOT NULL"),
+        ),
     )
 
 

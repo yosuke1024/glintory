@@ -1,0 +1,188 @@
+{% extends "layout.html" %}
+
+{% block title %}Opportunities - Glintory{% endblock %}
+
+{% block content %}
+<header class="signals-header">
+    <div class="title-bar">
+        <h1>Opportunities</h1>
+    </div>
+    {% if error_messages %}
+    <div class="alert alert-danger" role="alert">
+        <strong class="alert-title">Validation Error:</strong>
+        <ul class="alert-list">
+            {% for msg in error_messages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</header>
+
+<section class="search-panel">
+    <form action="/opportunities" method="get" class="search-form">
+        <div class="form-row">
+            <div class="form-group flex-1">
+                <label for="status">Status</label>
+                <select name="status" id="status">
+                    <option value="">All Statuses</option>
+                    {% for s in status_list %}
+                    <option value="{{ s.value }}" {% if selected_status == s.value %}selected{% endif %}>
+                        {{ s.value }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group flex-1">
+                <label for="confidence">Confidence</label>
+                <select name="confidence" id="confidence">
+                    <option value="">All Confidences</option>
+                    {% for c in confidence_list %}
+                    <option value="{{ c.value }}" {% if selected_confidence == c.value %}selected{% endif %}>
+                        {{ c.value }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group flex-1">
+                <label for="generation">Generation Method</label>
+                <select name="generation" id="generation">
+                    <option value="">All Methods</option>
+                    <option value="deterministic_cluster" {% if selected_generation == "deterministic_cluster" %}selected{% endif %}>
+                        deterministic_cluster
+                    </option>
+                    <option value="manual" {% if selected_generation == "manual" %}selected{% endif %}>
+                        manual
+                    </option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group flex-1">
+                <label for="min_score">Minimum Total Score</label>
+                <input type="number" name="min_score" id="min_score" min="0" max="100" value="{{ selected_min_score or '' }}" placeholder="0-100">
+            </div>
+
+            <div class="form-group flex-1">
+                <label for="per_page">Per Page</label>
+                <select name="per_page" id="per_page">
+                    {% for limit in [10, 25, 50, 100] %}
+                    <option value="{{ limit }}" {% if per_page == limit %}selected{% endif %}>{{ limit }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Apply Filters</button>
+            {% if selected_status or selected_confidence or selected_generation or selected_min_score %}
+            <a href="/opportunities" class="btn-link-clear">Clear Filters</a>
+            {% endif %}
+        </div>
+    </form>
+</section>
+
+<main>
+    <div class="results-meta">
+        <p class="results-count">
+            Found <strong>{{ total_count }}</strong> opportunities
+            {% if total_count > 0 %}
+            <span class="page-indicator">(Page {{ page }} of {{ total_pages }})</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Explanatory note for users -->
+    <div class="alert alert-info" role="alert" style="margin-bottom: 20px;">
+        <strong>Scoring &amp; Confidence Note:</strong>
+        <p style="margin: 5px 0 0 0; font-size: 0.9em; line-height: 1.4;">
+            * <strong>Confidence</strong> is a rule-based metric indicating the volume and diversity of collected evidence. It is NOT human confidence or market success rate.<br>
+            * <strong>Feasibility Score</strong> is a heuristic proxy for MVP validation viability based on open implementation patterns, not direct engineering cost estimation.<br>
+            * These candidates are generated deterministically via text clustering without LLMs. No marketing data or plans are fabricated.
+        </p>
+    </div>
+
+    {% if opportunities %}
+    <div class="signals-grid">
+        {% for opp in opportunities %}
+        <article class="signal-card" id="opportunity-{{ opp.id }}">
+            <div class="signal-card-header">
+                <div class="signal-badges">
+                    <span class="badge badge-status badge-status-{{ opp.status.value }}">
+                        Status: {{ opp.status.value }}
+                    </span>
+                    <span class="badge badge-conf badge-conf-{{ opp.confidence.value }}">
+                        Confidence: {{ opp.confidence.value }}
+                    </span>
+                    <span class="badge badge-source-type">
+                        {{ opp.generation_method }}
+                    </span>
+                </div>
+                <h2 class="signal-title">
+                    <a href="/opportunities/{{ opp.id }}">{{ opp.title }}</a>
+                </h2>
+            </div>
+            
+            <div class="signal-card-body" style="margin-top: 15px;">
+                <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+                    <div>
+                        <strong>Total Score:</strong> 
+                        {% if opp.last_scored_at %}
+                            <span style="font-size: 1.2em; font-weight: bold; color: var(--color-text-primary);">{{ opp.total_score }}</span>/100
+                        {% else %}
+                            <span style="color: var(--color-text-muted); font-style: italic;">Not scored</span>
+                        {% endif %}
+                    </div>
+                    {% if opp.last_scored_at %}
+                    <div style="font-size: 0.9em; color: var(--color-text-muted); display: flex; gap: 10px; align-items: center;">
+                        <span>(Evidence: {{ opp.evidence_score }})</span>
+                        <span>(Feasibility: {{ opp.feasibility_score }})</span>
+                        <span>(Penalty: {{ opp.penalty_score }})</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="signal-meta" style="font-size: 0.85em; color: var(--color-text-muted); margin-top: 10px;">
+                    <span>Evidence Count: <strong>{{ opp.evidence_count }}</strong></span> &bull; 
+                    <span>Source Types: <strong>{{ opp.source_type_count }}</strong></span> &bull;
+                    {% if opp.last_scored_at %}
+                    <span>Last Scored: {{ opp.last_scored_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+                    {% else %}
+                    <span>Unscored</span>
+                    {% endif %}
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="Pagination">
+        {% if page > 1 %}
+        <a href="/opportunities?page={{ page - 1 }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_confidence %}&confidence={{ selected_confidence }}{% endif %}{% if selected_generation %}&generation={{ selected_generation }}{% endif %}{% if selected_min_score %}&min_score={{ selected_min_score }}{% endif %}" class="pagination-link">&laquo; Prev</a>
+        {% endif %}
+        
+        <span class="pagination-current">Page {{ page }} of {{ total_pages }}</span>
+        
+        {% if page < total_pages %}
+        <a href="/opportunities?page={{ page + 1 }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_confidence %}&confidence={{ selected_confidence }}{% endif %}{% if selected_generation %}&generation={{ selected_generation }}{% endif %}{% if selected_min_score %}&min_score={{ selected_min_score }}{% endif %}" class="pagination-link">Next &raquo;</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <p>No opportunity candidates are available yet.</p>
+        <p>Run collection and deterministic analysis first.</p>
+        <div style="background-color: var(--color-bg-card); padding: 15px; border-radius: 6px; font-family: monospace; display: inline-block; text-align: left; margin-top: 15px;">
+            uv run glintory collect --all<br>
+            uv run glintory analyze<br>
+            uv run glintory score
+        </div>
+    </div>
+    {% endif %}
+</main>
+{% endblock %}

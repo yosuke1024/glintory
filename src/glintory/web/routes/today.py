@@ -35,6 +35,14 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
 
     last_status = summary["last_collection_status"] or "—"
 
+    # Fetch top 3 opportunities
+    from glintory.infrastructure.opportunity_query import OpportunityQueryRepository
+    from glintory.services.opportunity_query import OpportunityQueryService
+
+    query_repo = OpportunityQueryRepository(db)
+    query_service = OpportunityQueryService(query_repo)
+    top_opps = query_service.get_top_opportunities(limit=3)
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -44,5 +52,6 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
             "last_collected": last_collected_str,
             "last_status": last_status,
             "recent_signals": recent,
+            "top_opportunities": top_opps,
         },
     )

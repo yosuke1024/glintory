@@ -25,8 +25,8 @@ def test_today_page():
     assert "Find the signals worth building on." in html_content
     # Verify button
     assert "Collect Now" in html_content
-    # Verify placeholder is shown instead of demo opportunities
-    assert "Opportunity analysis is not available yet." in html_content
+    # Verify opportunities empty state is shown
+    assert "No scored opportunities yet." in html_content
 
 
 def test_static_css():

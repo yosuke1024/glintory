@@ -13,6 +13,7 @@
             <div class="nav-links">
                 <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Today</a>
                 <a href="/signals" class="nav-link {% if request.url.path.startswith('/signals') %}active{% endif %}">Signals</a>
+                <a href="/opportunities" class="nav-link {% if request.url.path.startswith('/opportunities') %}active{% endif %}">Opportunities</a>
             </div>
         </div>
     </nav>

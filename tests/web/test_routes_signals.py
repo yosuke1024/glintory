@@ -151,9 +151,7 @@ def test_web_today_dashboard_real_data(test_web_db) -> None:
     assert response.status_code == 200
     # No demo data should be displayed
     assert "Local-First Markdown Note Sync Tool" not in response.text
-    # Expected placeholder text
-    assert "Opportunity analysis is not available yet" in response.text
-    assert (
-        "Collected signals will be clustered and scored in a later milestone"
-        in response.text
-    )
+    # Expected empty state text
+    assert "No scored opportunities yet." in response.text
+    assert "Please analyze and score opportunities using CLI:" in response.text
+

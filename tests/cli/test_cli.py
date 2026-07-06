@@ -543,3 +543,65 @@ async def test_collect_all_succeeded(mock_settings, tmp_path, capsys):
         captured = capsys.readouterr()
         assert "Sources: 2" in captured.out
         assert "Succeeded: 2" in captured.out
+
+
+# --- 7. Analyze Command CLI Tests ---
+def test_parser_analyze():
+    parser = build_parser()
+    args = parser.parse_args(["analyze", "--dry-run", "--cluster-version", "v2"])
+    assert args.command == "analyze"
+    assert args.dry_run is True
+    assert args.cluster_version == "v2"
+    assert args.json is False
+
+
+@pytest.mark.anyio
+async def test_analyze_command_execution(mock_settings, capsys):
+    with patch("glintory.cli.Settings", return_value=mock_settings):
+        parser = build_parser()
+        args = parser.parse_args(["analyze", "--dry-run"])
+        code = await run_cli(args)
+        assert code == 0
+        captured = capsys.readouterr()
+        assert "Opportunity analysis completed." in captured.out
+        assert "Signals analyzed: 0" in captured.out
+        assert "Dry run: yes" in captured.out
+
+
+# --- 8. Score Command CLI Tests ---
+def test_parser_score():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "score",
+            "--opportunity",
+            "12345678-1234-5678-1234-567812345678",
+            "--as-of",
+            "2026-07-01",
+            "--max-opportunities",
+            "50",
+            "--dry-run",
+            "--json",
+        ]
+    )
+    assert args.command == "score"
+    assert args.opportunity == "12345678-1234-5678-1234-567812345678"
+    assert args.as_of == "2026-07-01"
+    assert args.max_opportunities == 50
+    assert args.dry_run is True
+    assert args.json is True
+
+
+@pytest.mark.anyio
+async def test_score_command_execution(mock_settings, capsys):
+    with patch("glintory.cli.Settings", return_value=mock_settings):
+        parser = build_parser()
+        args = parser.parse_args(["score", "--dry-run"])
+        code = await run_cli(args)
+        assert code == 0
+        captured = capsys.readouterr()
+        assert "Opportunity scoring completed." in captured.out
+        assert "Opportunities analyzed: 0" in captured.out
+        assert "Dry run: yes" in captured.out
+
+

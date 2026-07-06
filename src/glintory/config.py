@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     signal_hash_version: str = Field(default="v1")
     signal_default_source_quality_score: float = Field(default=0.5, ge=0.0, le=1.0)
 
+    scoring_version: str = Field(default="v1", min_length=1, max_length=50)
+    scoring_default_top_limit: int = Field(default=3, ge=1, le=20)
+    scoring_max_opportunities: int = Field(default=1000, ge=1, le=10000)
+    scoring_snapshot_history_limit: int = Field(default=20, ge=1, le=100)
+
     http_connect_timeout_seconds: float = 5.0
     http_read_timeout_seconds: float = 20.0
     http_write_timeout_seconds: float = 10.0

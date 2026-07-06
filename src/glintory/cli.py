@@ -127,7 +127,54 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="Output in JSON format"
     )
 
+    # Setup analyze command
+    analyze_parser = subparsers.add_parser(
+        "analyze", help="Perform opportunity clustering analysis"
+    )
+    analyze_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform analysis without writing to the database",
+    )
+    analyze_parser.add_argument(
+        "--cluster-version",
+        default="v1",
+        help="Clustering algorithm version",
+    )
+    analyze_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
+    )
+
+    # Setup score command
+    score_parser = subparsers.add_parser(
+        "score", help="Perform opportunity scoring"
+    )
+    score_parser.add_argument(
+        "--opportunity",
+        help="UUID of a single opportunity to score",
+    )
+    score_parser.add_argument(
+        "--as-of",
+        help="Target date for evaluation (YYYY-MM-DD)",
+    )
+    score_parser.add_argument(
+        "--max-opportunities",
+        type=int,
+        help="Maximum opportunities to process",
+    )
+    score_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Score without saving to the database",
+    )
+    score_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output in JSON format",
+    )
+
     return parser
+
 
 
 async def run_cli(args: argparse.Namespace) -> int:
@@ -149,8 +196,13 @@ async def run_cli(args: argparse.Namespace) -> int:
             return await run_source_command(args, runtime)
         if args.command == "collect":
             return await run_collect_command(args, runtime)
+        if args.command == "analyze":
+            return await run_analyze_command(args, runtime)
+        if args.command == "score":
+            return await run_score_command(args, runtime)
 
     return 0
+
 
 
 async def _run_source_add(args: argparse.Namespace, runtime: Any) -> int:
@@ -640,6 +692,133 @@ async def run_collect_command(args: argparse.Namespace, runtime: Any) -> int:
         return await _run_collect_all(args, runtime)
 
     return 2
+
+
+async def run_analyze_command(args: argparse.Namespace, runtime: Any) -> int:
+    session = runtime.session_factory()
+    try:
+        from glintory.domain.clustering import OpportunityClusteringConfig
+        from glintory.services.opportunity_clustering import (
+            OpportunityClusteringEngine,
+        )
+        from glintory.infrastructure.opportunity_clustering_repository import (
+            OpportunityClusteringRepository,
+        )
+        from glintory.services.opportunity_analysis import OpportunityAnalysisService
+
+        config = OpportunityClusteringConfig(cluster_version=args.cluster_version)
+        repo = OpportunityClusteringRepository(session)
+        engine = OpportunityClusteringEngine(config)
+        service = OpportunityAnalysisService(session, repo, engine, config)
+
+        res = service.analyze_and_cluster(dry_run=args.dry_run)
+
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "analyzed_signals_count": res.analyzed_signals_count,
+                        "created_opportunities_count": res.created_opportunities_count,
+                        "linked_signals_count": res.linked_signals_count,
+                        "dry_run": res.dry_run,
+                    }
+                )
+            )
+        else:
+            print("Opportunity analysis completed.")
+            print(f"Signals analyzed: {res.analyzed_signals_count}")
+            print(f"Opportunities created: {res.created_opportunities_count}")
+            print(f"Signals linked: {res.linked_signals_count}")
+            print(f"Dry run: {'yes' if res.dry_run else 'no'}")
+        return 0
+    except Exception as e:
+        session.rollback()
+        sys.stderr.write(f"Error during analysis: {e}\n")
+        return 1
+    finally:
+        session.close()
+
+
+async def run_score_command(args: argparse.Namespace, runtime: Any) -> int:
+    target_date = None
+    if args.as_of:
+        try:
+            target_date = datetime.strptime(args.as_of, "%Y-%m-%d").date()
+        except ValueError:
+            sys.stderr.write("Invalid date format for --as-of. Use YYYY-MM-DD.\n")
+            return 2
+
+    max_opps = None
+    if args.max_opportunities is not None:
+        if not (1 <= args.max_opportunities <= 10000):
+            sys.stderr.write("max-opportunities must be between 1 and 10000.\n")
+            return 2
+        max_opps = args.max_opportunities
+
+    from glintory.infrastructure.opportunity_scoring_repository import (
+        OpportunityScoringRepository,
+    )
+    from glintory.services.opportunity_scoring import OpportunityScoringEngine
+    from glintory.services.opportunity_scoring_service import OpportunityScoringService
+
+    scoring_version = runtime.settings.scoring_version
+
+    try:
+        engine = OpportunityScoringEngine(scoring_version=scoring_version)
+    except ValueError as e:
+        sys.stderr.write(f"Scoring configuration error: {e}\n")
+        return 1
+
+    service = OpportunityScoringService(
+        session_factory=runtime.session_factory,
+        repository_factory=OpportunityScoringRepository,
+        engine=engine,
+        scoring_version=scoring_version,
+    )
+
+    try:
+        res = service.score_opportunities(
+            opportunity_id=args.opportunity,
+            as_of_date=target_date,
+            max_opportunities=max_opps,
+            dry_run=args.dry_run,
+        )
+
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "scoring_version": res.scoring_version,
+                        "as_of_date": res.as_of_date.isoformat(),
+                        "dry_run": res.dry_run,
+                        "analyzed_opportunity_count": res.analyzed_opportunity_count,
+                        "scored_opportunity_count": res.scored_opportunity_count,
+                        "unchanged_opportunity_count": res.unchanged_opportunity_count,
+                        "skipped_opportunity_count": res.skipped_opportunity_count,
+                        "created_snapshot_count": res.created_snapshot_count,
+                        "updated_opportunity_count": res.updated_opportunity_count,
+                        "scored_opportunity_ids": res.scored_opportunity_ids,
+                    }
+                )
+            )
+        else:
+            print("Opportunity scoring completed.")
+            print(f"Scoring version: {res.scoring_version}")
+            print(f"As of: {res.as_of_date.isoformat()}")
+            print(f"Dry run: {'yes' if res.dry_run else 'no'}")
+            print(f"Opportunities analyzed: {res.analyzed_opportunity_count}")
+            print(f"Opportunities scored: {res.scored_opportunity_count}")
+            print(f"Unchanged: {res.unchanged_opportunity_count}")
+            print(f"Skipped: {res.skipped_opportunity_count}")
+            print(f"Score snapshots created: {res.created_snapshot_count}")
+            print(f"Opportunities updated: {res.updated_opportunity_count}")
+        return 0
+    except ValueError as e:
+        sys.stderr.write(f"Argument Error: {e}\n")
+        return 2
+    except Exception as e:
+        sys.stderr.write(f"Unexpected internal error during scoring: {e}\n")
+        return 1
 
 
 def main(argv: Sequence[str] | None = None) -> int:
