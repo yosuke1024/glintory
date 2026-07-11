@@ -117,11 +117,19 @@ class LlamaServerContext:
         log_path = os.path.join(build_dir, "llama_server.log")
         log_file = open(log_path, "w", encoding="utf-8")
         
+        env = os.environ.copy()
+        ld_path = env.get("LD_LIBRARY_PATH", "")
+        if ld_path:
+            env["LD_LIBRARY_PATH"] = f"{log_dir}:{ld_path}"
+        else:
+            env["LD_LIBRARY_PATH"] = log_dir
+
         self.process = subprocess.Popen(
             cmd,
             stdout=log_file,
             stderr=log_file,
             text=True,
+            env=env,
         )
 
         start_time = time.perf_counter()
@@ -264,6 +272,14 @@ class LocalLlmProvider:
             raise ValueError("LLM_RUNTIME_START_FAILED")
 
         try:
+            binary_dir = os.path.dirname(os.path.abspath(self.binary_path))
+            env = os.environ.copy()
+            ld_path = env.get("LD_LIBRARY_PATH", "")
+            if ld_path:
+                env["LD_LIBRARY_PATH"] = f"{binary_dir}:{ld_path}"
+            else:
+                env["LD_LIBRARY_PATH"] = binary_dir
+
             res = subprocess.run(
                 [self.binary_path, "--version"],
                 stdout=subprocess.PIPE,
@@ -271,6 +287,7 @@ class LocalLlmProvider:
                 text=True,
                 timeout=5,
                 check=False,
+                env=env,
             )
             version_str = "unknown"
             commit_str = None
