@@ -1,15 +1,13 @@
 import math
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import (
     case,
-    column,
     func,
     literal,
-    literal_column,
     select,
-    table,
     text,
 )
 from sqlalchemy.orm import Session
@@ -56,40 +54,119 @@ class SignalSearchRepository:
             .join(Source, Signal.source_id == Source.id)
         )
 
-        # 2. Join FTS table if search query exists
-        # Declare FTS5 virtual table without mapping it as ORM model
-        signals_fts = table(
-            "signals_fts",
-            column("rowid"),
-            column("title"),
-            column("excerpt"),
-            column("author"),
-        )
-
         if match_expression:
-            stmt = stmt.join(
-                signals_fts, signals_fts.c.rowid == literal_column("signals.rowid")
-            )
-            stmt = stmt.where(text("signals_fts MATCH :match_expr")).params(
-                match_expr=match_expression
+            where_clauses = []
+            sql_params: dict[str, Any] = {"match_expr": match_expression}
+
+            if filters.source_id:
+                where_clauses.append("signals.source_id = :source_id")
+                sql_params["source_id"] = filters.source_id
+
+            if filters.signal_type:
+                sig_type_val = (
+                    filters.signal_type.value
+                    if hasattr(filters.signal_type, "value")
+                    else filters.signal_type
+                )
+                where_clauses.append("signals.signal_type = :signal_type")
+                sql_params["signal_type"] = sig_type_val
+
+            if filters.published_from:
+                from_dt = datetime.combine(filters.published_from, datetime.min.time())
+                where_clauses.append("signals.published_at >= :published_from")
+                sql_params["published_from"] = from_dt
+
+            if filters.published_to:
+                to_dt = datetime.combine(
+                    filters.published_to + timedelta(days=1), datetime.min.time()
+                )
+                where_clauses.append("signals.published_at < :published_to")
+                sql_params["published_to"] = to_dt
+
+            where_sql = " AND ".join(where_clauses)
+            where_clause_str = f"AND {where_sql}" if where_sql else ""
+
+            # Count query using CTE matches
+            count_sql = text(f"""
+                WITH matches AS (
+                    SELECT rowid
+                    FROM signals_fts
+                    WHERE signals_fts MATCH :match_expr
+                )
+                SELECT count(*) 
+                FROM signals 
+                JOIN matches ON signals.rowid = matches.rowid
+                JOIN sources ON signals.source_id = sources.id 
+                WHERE 1=1 {where_clause_str}
+            """)
+            total_count = self.session.execute(count_sql, sql_params).scalar() or 0
+
+            # Validate per_page
+            per_page = filters.per_page if filters.per_page in (10, 25, 50, 100) else 25
+            total_pages = math.ceil(total_count / per_page) if total_count > 0 else 0
+            page = max(1, filters.page)
+            offset = (page - 1) * per_page
+
+            items = []
+            if total_count > 0 and (offset < total_count):
+                # Retrieve query with rank ordering in the CTE
+                retrieve_sql = text(f"""
+                    WITH matches AS (
+                        SELECT rowid, bm25(signals_fts, 8.0, 2.0, 1.0) AS rank
+                        FROM signals_fts
+                        WHERE signals_fts MATCH :match_expr
+                    )
+                    SELECT signals.id, signals.source_id, signals.canonical_url, 
+                           signals.title, signals.excerpt, signals.author, 
+                           signals.collected_at, signals.signal_type, 
+                           signals.freshness_score, signals.source_quality_score, 
+                           sources.name AS source_name, sources.source_type AS source_type,
+                           signals.published_at,
+                           matches.rank AS rank
+                    FROM matches
+                    JOIN signals ON signals.rowid = matches.rowid 
+                    JOIN sources ON sources.id = signals.source_id 
+                    WHERE 1=1 {where_clause_str}
+                    ORDER BY rank ASC, 
+                             (case when signals.published_at is NULL then 1 else 0 end) ASC,
+                             signals.published_at DESC, 
+                             signals.collected_at DESC, 
+                             signals.id ASC
+                    LIMIT :limit OFFSET :offset
+                """)
+                sql_params["limit"] = per_page
+                sql_params["offset"] = offset
+
+                results = self.session.execute(retrieve_sql, sql_params).all()
+                for row in results:
+                    items.append(
+                        SignalSearchItem(
+                            id=row.id,
+                            title=row.title,
+                            excerpt=row.excerpt or "",
+                            author=row.author,
+                            canonical_url=row.canonical_url,
+                            source_id=row.source_id,
+                            source_name=row.source_name,
+                            source_type=row.source_type,
+                            signal_type=row.signal_type,
+                            published_at=row.published_at,
+                            collected_at=row.collected_at,
+                            freshness_score=row.freshness_score,
+                            rank=float(row.rank) if row.rank is not None else None,
+                        )
+                    )
+
+            return SignalSearchPage(
+                items=items,
+                total_count=total_count,
+                page=page,
+                per_page=per_page,
+                total_pages=total_pages,
             )
 
-            count_stmt = count_stmt.join(
-                signals_fts, signals_fts.c.rowid == literal_column("signals.rowid")
-            )
-            count_stmt = count_stmt.where(text("signals_fts MATCH :match_expr")).params(
-                match_expr=match_expression
-            )
-
-            # Rank column using BM25
-            rank_col = func.bm25(literal_column("signals_fts"), 8.0, 2.0, 1.0).label(
-                "rank"
-            )
-            stmt = stmt.add_columns(rank_col)
-
-        else:
-            # Query has no match expression, rank is None
-            stmt = stmt.add_columns(literal(None).label("rank"))
+        # Fallback to SQLAlchemy query expression when match_expression is NOT provided
+        stmt = stmt.add_columns(literal(None).label("rank"))
 
         # 3. Apply Filters
         # Source ID filter
@@ -125,21 +202,12 @@ class SignalSearchRepository:
         # SQLite NULLS LAST simulation: case when published_at is NULL then 1 else 0
         published_null_sort = case((Signal.published_at.is_(None), 1), else_=0)
 
-        if match_expression:
-            stmt = stmt.order_by(
-                text("rank ASC"),  # bm25 rank (smaller is more relevant)
-                published_null_sort.asc(),
-                Signal.published_at.desc(),
-                Signal.collected_at.desc(),
-                Signal.id.asc(),
-            )
-        else:
-            stmt = stmt.order_by(
-                published_null_sort.asc(),
-                Signal.published_at.desc(),
-                Signal.collected_at.desc(),
-                Signal.id.asc(),
-            )
+        stmt = stmt.order_by(
+            published_null_sort.asc(),
+            Signal.published_at.desc(),
+            Signal.collected_at.desc(),
+            Signal.id.asc(),
+        )
 
         # 5. Execute count to calculate pagination
         total_count = self.session.execute(count_stmt).scalar() or 0
@@ -155,17 +223,12 @@ class SignalSearchRepository:
         page = max(1, filters.page)
         offset = (page - 1) * per_page
 
-        items: list[SignalSearchItem] = []
+        items = []
         if total_count > 0 and (offset < total_count):
             stmt = stmt.offset(offset).limit(per_page)
             results = self.session.execute(stmt).all()
 
             for row in results:
-                # Retrieve rank if available (rank exists when match_expression is passed)
-                rank_val = getattr(row, "rank", None)
-                if rank_val is not None:
-                    rank_val = float(rank_val)
-
                 items.append(
                     SignalSearchItem(
                         id=row.id,
@@ -180,7 +243,7 @@ class SignalSearchRepository:
                         published_at=row.published_at,
                         collected_at=row.collected_at,
                         freshness_score=row.freshness_score,
-                        rank=rank_val,
+                        rank=None,
                     )
                 )
 

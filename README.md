@@ -443,3 +443,41 @@ uv run glintory score
   - ダッシュボードの `Top Opportunities` に、計算された実データの上位3件がスコア順で自動的にレンダリングされます。
 
 
+## Opportunity Review Workflow
+
+人間が抽出された開発機会（Opportunity）をレビューし、意思決定と証拠の手動調整を行うためのワークフローです。
+
+### 主な機能
+
+1. **ステータス遷移と決定履歴 (Status Transition & Decision Log)**
+   - `inbox` から `watch` (Watchlist), `validate`, `rejected`, `archived` など、定義された状態遷移ルールのみを実行できます。
+   - `rejected`, `archived` への遷移、またはこれらからの復元（reopen）の際は、3文字以上の理由（Reason）入力が必須です。
+   - ステータス遷移時には自動的に決定履歴（Decision Log）が保存され、詳細画面からタイムラインで確認できます。
+
+2. **レビューノート (Review Notes)**
+   - Opportunity に対して、任意のメモやレビュー内容をノートとして追加・編集・削除できます。
+   - ノートは1件最大500文字のサイズ制限が適用されます。
+
+3. **エビデンス（証拠）の調整と除外・復元 (Evidence Management)**
+   - 各証拠シグナルとの関係性（Relation Type: `supporting`, `related`, `contradicting`）や適合度（Relevance Score: 0.0〜1.0）を手動で更新できます（`contradicting` への変更時は3文字以上のレビューノート記述が必須）。
+   - 不適切な証拠は削除せず、`Excluded`（除外状態）としてデータベースに保持できます。除外された証拠はクラスタリングやスコアリングの対象から自動で外されます。
+   - 除外された証拠は、いつでも `Restore`（復元）してアクティブな証拠に戻せます。
+
+4. **手動エビデンス検索・追加 (Evidence Search & Manual Link)**
+   - FTS5 全文検索エンジンを用いて蓄積された Signal から任意のシグナルを検索し、手動で Opportunity のエビデンスとして紐付けることができます（`/opportunities/{id}/evidence/search`）。
+   - 同じシグナルが他の Opportunity に紐付いている場合は、件数として表示されます。
+
+5. **スコアの鮮度管理 (Score Staleness)**
+   - 人手によるエビデンスの追加・更新・除外・復元が発生した際、Opportunity のスコアが古くなった（`score_is_stale = true`）ことが検知され、詳細画面や一覧で警告が表示されます。
+   - スコアが古くなった Opportunity は、Today ダッシュボードの `Top Opportunities` (Top 3) から自動的に除外されます。
+   - スコアの再計算（CLI: `uv run glintory score`）を実行することで、警告は消え、最新のスコアで再び Top 3 に入るようになります。
+
+6. **監査ログ (Audit Trail)**
+   - 人間によるすべての書き込み操作（ステータス変更、ノート追加・編集・削除、エビデンス追加・更新・除外・復元）は、監査証跡として一貫したフォーマットで標準ログ（`logger.info`）へ出力されます。
+
+7. **セキュリティと保護 (CSRF & Form Limits)**
+   - すべての Web 書き込み操作は、Origin / Referer および Cookie トークンを用いた暗号学的に安全な CSRF 検証が行われます。
+   - 悪意ある大量データの送信を防ぐため、フォーム送信ボディサイズは最大 50KB に制限されています。
+
+
+

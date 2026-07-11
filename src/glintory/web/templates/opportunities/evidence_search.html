@@ -1,0 +1,180 @@
+{% extends "layout.html" %}
+
+{% block title %}Search Evidence - Glintory{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 20px;">
+    <a href="/opportunities/{{ opportunity.id }}" class="text-link">&larr; Back to Opportunity Detail</a>
+    <h1 style="margin-top: 10px;">Link Evidence to: {{ opportunity.title }}</h1>
+</header>
+
+{% if error_messages %}
+<div class="alert alert-danger" role="alert" style="margin-bottom: 20px; background-color: #f2dede; border-color: #ebccd1; color: #a94442; padding: 15px; border-radius: 4px;">
+    <strong>Error:</strong>
+    <ul style="margin: 5px 0 0 0; padding-left: 20px;">
+        {% for msg in error_messages %}
+        <li>{{ msg }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<section class="search-panel" style="background-color: var(--color-bg-card); padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid var(--color-border);">
+    <form action="/opportunities/{{ opportunity.id }}/evidence/search" method="get" class="search-form">
+        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 2; min-width: 250px;">
+                <label for="q" style="display: block; font-weight: bold; margin-bottom: 5px;">Search Keywords</label>
+                <input type="text" name="q" id="q" value="{{ q or '' }}" placeholder="Search title, excerpt, or author..." style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+            </div>
+            
+            <div class="form-group" style="flex: 1; min-width: 150px;">
+                <label for="source" style="display: block; font-weight: bold; margin-bottom: 5px;">Source</label>
+                <select name="source" id="source" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                    <option value="">All Sources</option>
+                    {% for src in sources %}
+                    <option value="{{ src.id }}" {% if selected_source == src.id %}selected{% endif %}>{{ src.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="flex: 1; min-width: 150px;">
+                <label for="type" style="display: block; font-weight: bold; margin-bottom: 5px;">Type</label>
+                <select name="type" id="type" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                    <option value="">All Types</option>
+                    {% for t in signal_types %}
+                    <option value="{{ t.value }}" {% if selected_type == t.value %}selected{% endif %}>{{ t.value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button type="submit" class="btn-primary" style="padding: 8px 16px; border-radius: 4px; font-weight: bold;">Search Signals</button>
+            <a href="/opportunities/{{ opportunity.id }}/evidence/search" class="btn-link-clear" style="padding: 8px 16px; display: inline-block;">Clear Filters</a>
+        </div>
+    </form>
+</section>
+
+<main>
+    <div class="results-meta" style="margin-bottom: 15px;">
+        <p class="results-count">
+            Found <strong>{{ total_count }}</strong> matching signals
+            {% if total_count > 0 %}
+            <span class="page-indicator">(Page {{ page }} of {{ total_pages }})</span>
+            {% endif %}
+        </p>
+    </div>
+
+    {% if signals %}
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        {% for item in signals %}
+        <article class="signal-card" style="background-color: var(--color-bg-card); border: 1px solid var(--color-border); padding: 20px; border-radius: 8px; display: flex; flex-direction: column; gap: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center;">
+                        <span class="badge badge-{{ item.signal.signal_type.value }}">{{ item.signal.signal_type.value }}</span>
+                        <span style="font-size: 0.85em; color: var(--color-text-muted);">Source: {{ item.signal.source_name }}</span>
+                        {% if item.signal.published_at %}
+                        <span style="font-size: 0.85em; color: var(--color-text-muted);">&bull; {{ item.signal.published_at.strftime('%Y-%m-%d') }}</span>
+                        {% endif %}
+                        {% if item.other_link_count > 0 %}
+                        <span style="font-size: 0.85em; color: #f0ad4e; font-weight: bold; background-color: #fcf8e3; padding: 2px 6px; border-radius: 4px; border: 1px solid #faebcc;">
+                            Linked to {{ item.other_link_count }} other opportunity
+                        </span>
+                        {% endif %}
+                    </div>
+                    <h3 style="margin: 0; font-size: 1.25em;">
+                        <a href="{{ item.signal.canonical_url }}" target="_blank" rel="noopener noreferrer" style="color: var(--color-text-primary); text-decoration: none;">
+                            {{ item.signal.title }}
+                        </a>
+                    </h3>
+                </div>
+                
+                <div style="text-align: right;">
+                    <span style="font-size: 0.85em; color: var(--color-text-muted); display: block;">Link State:</span>
+                    {% if item.state == "active" %}
+                    <span class="badge" style="background-color: #5cb85c; color: white; display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em;">Active</span>
+                    {% elif item.state == "excluded" %}
+                    <span class="badge" style="background-color: #d9534f; color: white; display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em;">Excluded</span>
+                    {% else %}
+                    <span class="badge" style="background-color: #777; color: white; display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em;">Unlinked</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <p style="margin: 0; font-size: 0.95em; color: var(--color-text-secondary); line-height: 1.5;">
+                {{ item.signal.excerpt }}
+            </p>
+
+            <div style="border-top: 1px solid var(--color-border); padding-top: 15px; margin-top: 5px;">
+                {% if item.state == "active" %}
+                <p style="margin: 0; color: var(--color-text-muted); font-size: 0.9em; font-style: italic;">
+                    Already linked to this opportunity. <a href="/opportunities/{{ opportunity.id }}#evidence-{{ item.signal.id }}" style="font-weight: bold;">View/Update Link Details</a>
+                </p>
+                {% else %}
+                
+                <!-- Link / Restore Form -->
+                <form action="/opportunities/{{ opportunity.id }}/evidence" method="post" style="display: flex; flex-direction: column; gap: 12px; background-color: var(--color-bg-page); padding: 15px; border-radius: 6px; border: 1px solid var(--color-border);">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="signal_id" value="{{ item.signal.id }}">
+                    
+                    <h4 style="margin: 0; font-size: 0.95em; font-weight: bold; color: var(--color-text-primary);">
+                        {% if item.state == "excluded" %}Restore and update link details{% else %}Link this signal as evidence{% endif %}
+                    </h4>
+                    
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Relation Type</label>
+                            <select name="relation_type" required style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                                <option value="supporting" {% if item.relation_type and item.relation_type.value == "supporting" %}selected{% endif %}>Supporting (Direct support / validation)</option>
+                                <option value="related" {% if item.relation_type and item.relation_type.value == "related" or not item.relation_type %}selected{% endif %}>Related (Contextual relevance)</option>
+                                <option value="contradicting" {% if item.relation_type and item.relation_type.value == "contradicting" %}selected{% endif %}>Contradicting (Negates hypothesis)</option>
+                            </select>
+                        </div>
+                        
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Relevance Score (0.00 to 1.00)</label>
+                            <input type="number" name="relevance_score" step="0.05" min="0.0" max="1.0" value="{% if item.relevance_score is defined and item.relevance_score > 0 %}{{ item.relevance_score }}{% else %}0.80{% endif %}" required style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">
+                            Review Note (Required if Contradicting)
+                        </label>
+                        <textarea name="review_note" placeholder="Write the reason why you are linking/restoring this signal..." rows="2" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary); resize: vertical;">{{ item.review_note or '' }}</textarea>
+                    </div>
+                    
+                    <div>
+                        <button type="submit" class="btn-primary" style="padding: 6px 12px; border-radius: 4px; font-size: 0.9em; font-weight: bold;">
+                            {% if item.state == "excluded" %}Restore Link{% else %}Add to Evidence{% endif %}
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="Pagination" style="margin-top: 25px;">
+        {% if page > 1 %}
+        <a href="/opportunities/{{ opportunity.id }}/evidence/search?page={{ page - 1 }}{% if q %}&q={{ q }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}" class="pagination-link">&laquo; Prev</a>
+        {% endif %}
+        
+        <span class="pagination-current">Page {{ page }} of {{ total_pages }}</span>
+        
+        {% if page < total_pages %}
+        <a href="/opportunities/{{ opportunity.id }}/evidence/search?page={{ page + 1 }}{% if q %}&q={{ q }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}" class="pagination-link">Next &raquo;</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state" style="padding: 40px; text-align: center; border: 1px dashed var(--color-border); border-radius: 8px; margin-top: 15px;">
+        <p style="font-size: 1.1em; color: var(--color-text-secondary);">No signals found matching the filters.</p>
+    </div>
+    {% endif %}
+</main>
+{% endblock %}

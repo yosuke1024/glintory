@@ -1,0 +1,69 @@
+{% extends "layout.html" %}
+
+{% block title %}Sources - Glintory{% endblock %}
+
+{% block content %}
+<header class="page-header" style="margin-bottom: 20px;">
+    <h1>Sources Console</h1>
+    <p class="tagline">Manage external data ingestion pipelines.</p>
+</header>
+
+<div class="sources-grid">
+    {% if sources %}
+        {% for source in sources %}
+        <div class="source-card">
+            <div class="source-card-header">
+                <h2><a href="/sources/{{ source.id }}">{{ source.name }}</a></h2>
+                <div class="source-badges">
+                    <span class="badge {% if source.enabled %}badge-status-enabled{% else %}badge-status-disabled{% endif %}">
+                        {% if source.enabled %}Enabled{% else %}Disabled{% endif %}
+                    </span>
+                    {% if source.is_running %}
+                    <span class="badge badge-status-running animate-pulse">Running</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="source-card-body">
+                <div class="source-meta-row">
+                    <span class="meta-label">Type:</span>
+                    <span class="meta-value">{{ source.source_type }}</span>
+                </div>
+                <div class="source-meta-row">
+                    <span class="meta-label">Latest Run:</span>
+                    <span class="meta-value">
+                        {% if source.latest_run_status %}
+                            <span class="badge badge-status-{{ source.latest_run_status }}">
+                                {{ source.latest_run_status.value }}
+                            </span>
+                        {% else %}
+                            <span class="text-muted">Never Run</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% if source.latest_run_started_at %}
+                <div class="source-meta-row">
+                    <span class="meta-label">Started:</span>
+                    <span class="meta-value">{{ source.latest_run_started_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="source-card-footer">
+                <div class="footer-metrics">
+                    <span class="metric-item" title="Consecutive Failures">
+                        Failures: <strong class="{% if source.consecutive_failures > 0 %}text-error{% endif %}">{{ source.consecutive_failures }}</strong>
+                    </span>
+                </div>
+                <a href="/sources/{{ source.id }}" class="btn-secondary btn-sm">Manage</a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state" style="grid-column: 1 / -1;">
+            <p>No sources are configured.</p>
+            <p class="cli-instructions">Please configure sources using the CLI command.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

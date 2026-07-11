@@ -154,4 +154,3 @@ def test_web_today_dashboard_real_data(test_web_db) -> None:
     # Expected empty state text
     assert "No scored opportunities yet." in response.text
     assert "Please analyze and score opportunities using CLI:" in response.text
-

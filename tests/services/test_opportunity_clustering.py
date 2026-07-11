@@ -1,24 +1,22 @@
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
 
 from glintory.domain.clustering import (
     OpportunityClusteringConfig,
     calculate_evidence_origin,
 )
-from glintory.domain.enums import EvidenceRelationType, OpportunityStatus, SignalType
-from glintory.domain.models import Opportunity, OpportunitySignal, Signal, Source
+from glintory.domain.enums import OpportunityStatus, SignalType
+from glintory.domain.models import Base, Opportunity, OpportunitySignal, Signal, Source
 from glintory.infrastructure.opportunity_clustering_repository import (
     OpportunityClusteringRepository,
 )
 from glintory.services.opportunity_analysis import (
-    OpportunityAnalysisResult,
     OpportunityAnalysisService,
 )
 from glintory.services.opportunity_clustering import OpportunityClusteringEngine
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from glintory.domain.models import Base
 
 
 @pytest.fixture
@@ -57,7 +55,9 @@ def test_calculate_evidence_origin():
 
     # Hacker News test
     assert (
-        calculate_evidence_origin("hackernews", "https://news.ycombinator.com/item?id=1")
+        calculate_evidence_origin(
+            "hackernews", "https://news.ycombinator.com/item?id=1"
+        )
         == "hackernews"
     )
 
@@ -73,7 +73,9 @@ def test_calculate_evidence_origin():
 
 
 def test_clustering_engine_basic():
-    engine = OpportunityClusteringEngine(OpportunityClusteringConfig(similarity_threshold=0.35))
+    engine = OpportunityClusteringEngine(
+        OpportunityClusteringConfig(similarity_threshold=0.35)
+    )
 
     now = datetime.now(UTC)
     s1 = Signal(
@@ -118,7 +120,9 @@ def test_clustering_engine_basic():
     assert len(clusters) == 2
 
     # Check representative signal logic
-    db_cluster = [c for c in clusters if "sourdough" not in c["representative_signal"].title][0]
+    db_cluster = [
+        c for c in clusters if "sourdough" not in c["representative_signal"].title
+    ][0]
     assert db_cluster["representative_signal"].id == "s1"
     assert len(db_cluster["signals"]) == 2
 
@@ -185,7 +189,7 @@ async def test_analysis_service_flow(db_session, db_session_factory):
 
     links = db_session.query(OpportunitySignal).all()
     assert len(links) == 2
-    assert {l.signal_id for l in links} == {"sig1", "sig2"}
+    assert {link.signal_id for link in links} == {"sig1", "sig2"}
 
     # 2. Second run: identical run, should do nothing (idempotency)
     result2 = service.analyze_and_cluster(dry_run=False)
@@ -217,7 +221,7 @@ async def test_analysis_service_flow(db_session, db_session_factory):
     db_session.expire_all()
     links = db_session.query(OpportunitySignal).all()
     assert len(links) == 3
-    assert {l.signal_id for l in links} == {"sig1", "sig2", "sig3"}
+    assert {link.signal_id for link in links} == {"sig1", "sig2", "sig3"}
 
 
 @pytest.mark.asyncio

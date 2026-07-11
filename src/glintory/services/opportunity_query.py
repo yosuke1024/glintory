@@ -1,13 +1,13 @@
 import json
 import logging
 import uuid
-from typing import Sequence
+from collections.abc import Sequence
 
 from glintory.domain.opportunities import (
     OpportunityDetail,
     OpportunityListFilters,
-    OpportunityListPage,
     OpportunityListItem,
+    OpportunityListPage,
 )
 from glintory.infrastructure.opportunity_query import OpportunityQueryRepository
 
@@ -48,9 +48,7 @@ class OpportunityQueryService:
         try:
             uuid.UUID(opportunity_id)
         except ValueError:
-            logger.warning(
-                "Invalid UUID format for opportunity_id: %s", opportunity_id
-            )
+            logger.warning("Invalid UUID format for opportunity_id: %s", opportunity_id)
             return None
 
         # 2. Retrieve detail from repository
@@ -99,6 +97,12 @@ class OpportunityQueryService:
             score_history=detail.score_history,
             created_at=detail.created_at,
             updated_at=detail.updated_at,
+            score_is_stale=detail.score_is_stale,
+            evidence_updated_at=detail.evidence_updated_at,
+            decisions=detail.decisions,
+            notes=detail.notes,
+            active_evidence=detail.active_evidence,
+            excluded_evidence=detail.excluded_evidence,
         )
 
     def get_top_opportunities(self, limit: int = 3) -> Sequence[OpportunityListItem]:
@@ -131,8 +135,6 @@ class OpportunityQueryService:
                     "Failed to parse existing_projects JSON. Error: %s", str(e)
                 )
         else:
-            logger.warning(
-                "existing_projects field format is invalid (not JSON list)."
-            )
+            logger.warning("existing_projects field format is invalid (not JSON list).")
 
         return []

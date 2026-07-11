@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,26 @@ class Settings(BaseSettings):
     scoring_default_top_limit: int = Field(default=3, ge=1, le=20)
     scoring_max_opportunities: int = Field(default=1000, ge=1, le=10000)
     scoring_snapshot_history_limit: int = Field(default=20, ge=1, le=100)
+
+    web_max_form_bytes: int = Field(default=65536, ge=1024, le=1048576)
+    web_csrf_cookie_name: str = Field(default="glintory_csrf", min_length=1)
+    web_csrf_token_bytes: int = Field(default=32, ge=16, le=64)
+    review_note_max_chars: int = Field(default=5000, ge=100, le=50000)
+    review_reason_max_chars: int = Field(default=1000, ge=50, le=10000)
+    evidence_search_per_page: int = Field(default=25, ge=10, le=100)
+
+    collection_stale_after_minutes: int = Field(default=60, ge=5, le=1440)
+    collection_history_per_page: int = Field(default=25, ge=10, le=100)
+    collection_error_display_max_chars: int = Field(default=2000, ge=200, le=10000)
+    collection_web_max_items: int = Field(default=500, ge=1, le=1000)
+
+    @field_validator("collection_history_per_page")
+    @classmethod
+    def validate_history_per_page(cls, v: int) -> int:
+        if v not in (10, 25, 50, 100):
+            raise ValueError("history per page must be 10, 25, 50, or 100")
+        return v
+
 
     http_connect_timeout_seconds: float = 5.0
     http_read_timeout_seconds: float = 20.0

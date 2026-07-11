@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+
+{% block title %}Watchlist - Glintory{% endblock %}
+
+{% block content %}
+<header class="signals-header">
+    <div class="title-bar">
+        <h1>Watchlist</h1>
+    </div>
+</header>
+
+<main style="margin-top: 20px;">
+    {% if opportunities %}
+    <div class="results-meta" style="margin-bottom: 15px;">
+        <p class="results-count">
+            Currently watching <strong>{{ total_count }}</strong> opportunities
+        </p>
+    </div>
+
+    <div class="signals-grid">
+        {% for opp in opportunities %}
+        <article class="signal-card" id="opportunity-{{ opp.id }}">
+            <div class="signal-card-header">
+                <div class="signal-badges">
+                    <span class="badge badge-conf badge-conf-{{ opp.confidence.value }}">
+                        Confidence: {{ opp.confidence.value }}
+                    </span>
+                    <span class="badge badge-source-type">
+                        {{ opp.generation_method }}
+                    </span>
+                </div>
+                <h2 class="signal-title">
+                    <a href="/opportunities/{{ opp.id }}">{{ opp.title }}</a>
+                </h2>
+            </div>
+            
+            <div class="signal-card-body" style="margin-top: 15px;">
+                <div style="display: flex; gap: 15px; margin-bottom: 10px; flex-wrap: wrap;">
+                    <div>
+                        <strong>Total Score:</strong> 
+                        {% if opp.last_scored_at %}
+                            <span style="font-size: 1.2em; font-weight: bold; color: var(--color-text-primary);">{{ opp.total_score }}</span>/100
+                        {% else %}
+                            <span style="color: var(--color-text-muted); font-style: italic;">Not scored</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <strong>Score Status:</strong>
+                        {% if not opp.last_scored_at %}
+                            <span class="badge badge-score-unscored" style="background-color: #777; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">Not scored</span>
+                        {% elif opp.score_is_stale %}
+                            <span class="badge badge-score-stale" style="background-color: #d9534f; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">Score outdated</span>
+                        {% else %}
+                            <span class="badge badge-score-current" style="background-color: #5cb85c; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">Score current</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="signal-meta" style="font-size: 0.85em; color: var(--color-text-muted); margin-top: 10px;">
+                    <span>Evidence Count: <strong>{{ opp.evidence_count }}</strong></span> &bull; 
+                    <span>Source Types: <strong>{{ opp.source_type_count }}</strong></span> &bull;
+                    {% if opp.last_scored_at %}
+                    <span>Last Scored: {{ opp.last_scored_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+                    {% else %}
+                    <span>Unscored</span>
+                    {% endif %}
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <a href="/opportunities/{{ opp.id }}" class="text-link" style="font-size: 0.9em; font-weight: bold;">View Details &amp; Review &rarr;</a>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="empty-state" style="padding: 40px; text-align: center; border: 1px dashed var(--color-border); border-radius: 8px;">
+        <p style="font-size: 1.2em; color: var(--color-text-secondary); margin: 0 0 10px 0;">No opportunities are on the watchlist.</p>
+        <p style="font-size: 0.95em; color: var(--color-text-muted);">Change an opportunity status to <strong>watch</strong> to add it here.</p>
+    </div>
+    {% endif %}
+</main>
+{% endblock %}

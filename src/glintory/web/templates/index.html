@@ -20,6 +20,13 @@
     <div class="meta-item">Last Status: <span class="meta-val" id="last-status-val">{{ last_status }}</span></div>
 </div>
 
+<div class="metadata-panel source-ops-panel" style="margin-top: 15px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03);">
+    <div class="meta-item">Enabled Sources: <span class="meta-val" style="color: #34d399;">{{ enabled_sources_count }}</span></div>
+    <div class="meta-item">Sources Running: <span class="meta-val" style="color: #38bdf8;">{{ running_sources_count }}</span></div>
+    <div class="meta-item">Failed Runs (24h): <span class="meta-val" style="color: #f87171;">{{ failed_runs_24h_count }}</span></div>
+    <div class="meta-item">Last Ingestion Run: <span class="meta-val" style="font-size: 0.85em;">{{ last_success_run_str }}</span></div>
+</div>
+
 <main class="dashboard-grid">
     <div class="dashboard-col">
         <section class="dashboard-card recent-signals-card">
@@ -91,11 +98,17 @@
             </div>
             {% else %}
             <div class="empty-state">
+                {% if has_any_opportunity %}
+                <p>Opportunity scores are outdated.</p>
+                <p>Run scoring again after reviewing evidence.</p>
+                <pre><code>uv run glintory score</code></pre>
+                {% else %}
                 <p>No scored opportunities yet.</p>
                 <p class="cli-instructions">Please analyze and score opportunities using CLI:</p>
                 <pre><code>uv run glintory collect --all
 uv run glintory analyze
 uv run glintory score</code></pre>
+                {% endif %}
             </div>
             {% endif %}
         </section>

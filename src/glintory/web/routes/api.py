@@ -1,3 +1,4 @@
+import math
 import uuid
 from datetime import UTC, date, datetime
 from typing import Annotated
@@ -209,4 +210,163 @@ async def get_signal_detail_api(
         "source_quality_score": detail.source_quality_score,
         "created_at": format_iso_utc(detail.created_at),
         "updated_at": format_iso_utc(detail.updated_at),
+    }
+
+
+sources_router = APIRouter(prefix="/api/v1/sources")
+runs_router = APIRouter(prefix="/api/v1/collection-runs")
+
+from glintory.services.source_operations import SourceOperationsService
+from glintory.web.routes.sources import get_source_ops_service
+
+
+@sources_router.get("")
+async def list_sources_api(
+    service: SourceOperationsService = Depends(get_source_ops_service),
+):
+    sources = service.list_sources()
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "source_type": s.source_type,
+            "enabled": s.enabled,
+            "auth_required": s.auth_required,
+            "config_summary": s.config_summary,
+            "latest_run_id": s.latest_run_id,
+            "latest_run_status": s.latest_run_status.value if s.latest_run_status else None,
+            "latest_run_started_at": format_iso_utc(s.latest_run_started_at),
+            "latest_run_finished_at": format_iso_utc(s.latest_run_finished_at),
+            "last_success_at": format_iso_utc(s.last_success_at),
+            "last_failure_at": format_iso_utc(s.last_failure_at),
+            "consecutive_failures": s.consecutive_failures,
+            "is_running": s.is_running,
+        }
+        for s in sources
+    ]
+
+
+@sources_router.get("/{source_id}")
+async def get_source_detail_api(
+    source_id: str,
+    service: SourceOperationsService = Depends(get_source_ops_service),
+):
+    try:
+        s = service.get_source_detail(source_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source not found",
+        ) from None
+
+    return {
+        "id": s.id,
+        "name": s.name,
+        "source_type": s.source_type,
+        "enabled": s.enabled,
+        "auth_required": s.auth_required,
+        "config_summary": s.config_summary,
+        "latest_run_id": s.latest_run_id,
+        "latest_run_status": s.latest_run_status.value if s.latest_run_status else None,
+        "latest_run_started_at": format_iso_utc(s.latest_run_started_at),
+        "latest_run_finished_at": format_iso_utc(s.latest_run_finished_at),
+        "last_success_at": format_iso_utc(s.last_success_at),
+        "last_failure_at": format_iso_utc(s.last_failure_at),
+        "consecutive_failures": s.consecutive_failures,
+        "is_running": s.is_running,
+    }
+
+
+@runs_router.get("")
+async def list_collection_runs_api(
+    source: str | None = None,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    trigger: str | None = None,
+    page: int = 1,
+    per_page: int = 25,
+    service: SourceOperationsService = Depends(get_source_ops_service),
+):
+    if per_page not in (10, 25, 50, 100):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="per_page must be one of 10, 25, 50, or 100.",
+        )
+    if page < 1:
+        page = 1
+
+    try:
+        runs, total = service.list_collection_runs(
+            source_id=source,
+            status=status_filter,
+            trigger_type=trigger,
+            page=page,
+            per_page=per_page,
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request parameters",
+        )
+
+    total_pages = math.ceil(total / per_page) if total > 0 else 1
+
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "source_id": r.source_id,
+                "source_name": r.source_name,
+                "source_type": r.source_type,
+                "trigger_type": r.trigger_type.value,
+                "status": r.status.value,
+                "started_at": format_iso_utc(r.started_at),
+                "finished_at": format_iso_utc(r.finished_at),
+                "fetched_count": r.fetched_count,
+                "inserted_count": r.inserted_count,
+                "updated_count": r.updated_count,
+                "duplicate_count": r.duplicate_count,
+                "warning_count": r.warning_count,
+                "error_count": r.error_count,
+            }
+            for r in runs
+        ],
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_count": total,
+            "total_pages": total_pages,
+        },
+    }
+
+
+@runs_router.get("/{run_id}")
+async def get_collection_run_detail_api(
+    run_id: str,
+    service: SourceOperationsService = Depends(get_source_ops_service),
+):
+    try:
+        r = service.get_collection_run_detail(run_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Collection run not found",
+        )
+
+    return {
+        "id": r.id,
+        "source_id": r.source_id,
+        "source_name": r.source_name,
+        "source_type": r.source_type,
+        "trigger_type": r.trigger_type.value,
+        "status": r.status.value,
+        "started_at": format_iso_utc(r.started_at),
+        "finished_at": format_iso_utc(r.finished_at),
+        "fetched_count": r.fetched_count,
+        "inserted_count": r.inserted_count,
+        "updated_count": r.updated_count,
+        "duplicate_count": r.duplicate_count,
+        "warning_count": r.warning_count,
+        "error_count": r.error_count,
+        "safe_error_summary": r.safe_error_summary,
+        "metadata": r.metadata,
     }

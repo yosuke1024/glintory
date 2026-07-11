@@ -1,0 +1,170 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ source.name }} - Sources - Glintory{% endblock %}
+
+{% block content %}
+<div class="back-link-container" style="margin-bottom: 20px;">
+    <a href="/sources" class="back-link" style="color: var(--text-muted); text-decoration: none;">&larr; Back to Sources</a>
+</div>
+
+{% if request.query_params.get('notice') %}
+<div class="alert alert-success" style="padding: 12px; background-color: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; color: #34d399; margin-bottom: 20px;">
+    {% if request.query_params.get('notice') == 'source_enabled' %}
+        Source was successfully enabled.
+    {% elif request.query_params.get('notice') == 'source_disabled' %}
+        Source was successfully disabled.
+    {% elif request.query_params.get('notice') == 'collection_succeeded' %}
+        Collection completed successfully.
+    {% elif request.query_params.get('notice') == 'collection_partial' %}
+        Collection completed with some warnings/errors.
+    {% elif request.query_params.get('notice') == 'collection_failed' %}
+        Collection failed. Check logs for details.
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="source-detail-container">
+    <section class="source-detail-main card" style="padding: 20px; margin-bottom: 30px;">
+        <header class="source-detail-header" style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px;">
+            <div>
+                <h1 style="margin: 0; font-size: 1.8rem;">{{ source.name }}</h1>
+                <p class="source-type-subtitle" style="margin: 5px 0 0 0; color: var(--text-muted);">Type: <strong>{{ source.source_type }}</strong></p>
+            </div>
+            <div class="source-badges" style="display: flex; gap: 8px;">
+                <span class="badge {% if source.enabled %}badge-status-enabled{% else %}badge-status-disabled{% endif %}">
+                    {% if source.enabled %}Enabled{% else %}Disabled{% endif %}
+                </span>
+                {% if source.is_running %}
+                <span class="badge badge-status-running animate-pulse">Running</span>
+                {% endif %}
+            </div>
+        </header>
+
+        <div class="card-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div class="info-card card" style="padding: 15px; background: rgba(255, 255, 255, 0.02);">
+                <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1.1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">Safe Config Summary</h3>
+                <div class="config-summary-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    {% if source.config_summary %}
+                        <p style="margin: 0; font-family: monospace; white-space: pre-wrap; word-break: break-all;">{{ source.config_summary }}</p>
+                    {% else %}
+                        <p class="text-muted" style="margin: 0;">No configuration summary available.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="info-card card" style="padding: 15px; background: rgba(255, 255, 255, 0.02);">
+                <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1.1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">Ingestion Stats</h3>
+                <div class="stats-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem;">
+                    <div class="stat-item" style="display: flex; justify-content: space-between;">
+                        <span class="stat-label" style="color: var(--text-muted);">Consecutive Failures:</span>
+                        <span class="stat-val {% if source.consecutive_failures > 0 %}text-error{% endif %}" style="font-weight: bold;">
+                            {{ source.consecutive_failures }}
+                        </span>
+                    </div>
+                    <div class="stat-item" style="display: flex; justify-content: space-between;">
+                        <span class="stat-label" style="color: var(--text-muted);">Last Success:</span>
+                        <span class="stat-val" style="font-weight: bold;">
+                            {% if source.last_success_at %}
+                                {{ source.last_success_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="stat-item" style="display: flex; justify-content: space-between;">
+                        <span class="stat-label" style="color: var(--text-muted);">Last Failure:</span>
+                        <span class="stat-val" style="font-weight: bold;">
+                            {% if source.last_failure_at %}
+                                {{ source.last_failure_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-panel" style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 15px;">
+            <div class="action-buttons" style="display: flex; gap: 12px;">
+                {% if source.enabled %}
+                    <form action="/sources/{{ source.id }}/disable" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-secondary">Disable Source</button>
+                    </form>
+                    
+                    {% if source.is_running %}
+                        <button type="button" class="btn btn-primary" disabled>Collecting...</button>
+                    {% else %}
+                        <form action="/sources/{{ source.id }}/collect" method="POST" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-primary">Collect Now</button>
+                        </form>
+                    {% endif %}
+                {% else %}
+                    <form action="/sources/{{ source.id }}/enable" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-primary">Enable Source</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <section class="source-history-section" style="margin-top: 40px;">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin: 0; font-size: 1.4rem;">Recent Collection Runs</h2>
+            <a href="/collection-runs?source={{ source.id }}" class="text-link" style="font-size: 0.9rem;">View All Runs &rarr;</a>
+        </div>
+
+        {% if runs %}
+        <div class="table-responsive card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Trigger</th>
+                        <th>Started At</th>
+                        <th>Duration</th>
+                        <th>Fetched</th>
+                        <th>Inserted</th>
+                        <th>Errors</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in runs %}
+                    <tr>
+                        <td>
+                            <span class="badge badge-status-{{ run.status }}">
+                                {{ run.status.value }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-trigger-{{ run.trigger_type.value }}">
+                                {{ run.trigger_type.value }}
+                            </span>
+                        </td>
+                        <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td>
+                        <td>{{ run.finished_at | format_duration(run.started_at) }}</td>
+                        <td>{{ run.fetched_count }}</td>
+                        <td>{{ run.inserted_count }}</td>
+                        <td>
+                            <span class="{% if run.error_count > 0 %}text-error{% endif %}">
+                                {{ run.error_count }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/collection-runs/{{ run.id }}" class="text-link">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted" style="margin-top: 10px;">No runs recorded for this source.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

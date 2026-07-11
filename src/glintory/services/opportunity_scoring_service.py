@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
 from typing import Any
 
 from glintory.domain.enums import OpportunityStatus
@@ -61,25 +61,39 @@ class OpportunityScoringService:
                 if not opp_input:
                     # Perform detailed checks to raise precise errors
                     from glintory.domain.models import Opportunity
+
                     opp = session.get(Opportunity, opportunity_id)
                     if not opp:
-                        raise ValueError(f"Opportunity with ID {opportunity_id} not found.")
-                    if opp.status in (OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED):
-                        raise ValueError(f"Opportunity with ID {opportunity_id} is rejected or archived.")
+                        raise ValueError(
+                            f"Opportunity with ID {opportunity_id} not found."
+                        )
+                    if opp.status in (
+                        OpportunityStatus.REJECTED,
+                        OpportunityStatus.ARCHIVED,
+                    ):
+                        raise ValueError(
+                            f"Opportunity with ID {opportunity_id} is rejected or archived."
+                        )
                     # Opportunity exists but has no signals, so it's skipped
-                    raise ValueError(f"Opportunity with ID {opportunity_id} has no associated signals and cannot be scored.")
-                
+                    raise ValueError(
+                        f"Opportunity with ID {opportunity_id} has no associated signals and cannot be scored."
+                    )
+
                 scoring_inputs = [opp_input]
             else:
                 limit = max_opportunities or 1000
-                scoring_inputs = repo.load_scoring_inputs(active_only=True, max_opportunities=limit)
+                scoring_inputs = repo.load_scoring_inputs(
+                    active_only=True, max_opportunities=limit
+                )
 
             # Retrieve latest snapshot hashes to determine what has changed
             for opp_input in scoring_inputs:
                 snap = repo.load_latest_snapshot(
                     opp_input.opportunity_id, self.scoring_version
                 )
-                latest_hashes[opp_input.opportunity_id] = snap.input_hash if snap else None
+                latest_hashes[opp_input.opportunity_id] = (
+                    snap.input_hash if snap else None
+                )
         finally:
             session.close()  # Read transaction closed
 
@@ -153,7 +167,9 @@ class OpportunityScoringService:
             write_session.commit()
         except Exception as e:
             write_session.rollback()
-            logger.error(f"Transaction failed during opportunity score persistence: {e}")
+            logger.error(
+                f"Transaction failed during opportunity score persistence: {e}"
+            )
             raise
         finally:
             write_session.close()
@@ -188,6 +204,7 @@ class OpportunityScoringService:
 
     def _build_explanation(self, score: OpportunityScore) -> dict[str, Any]:
         """Convert ScoreComponent list to JSON serializable dictionary."""
+
         def comp_to_dict(c: ScoreComponent) -> dict[str, Any]:
             return {
                 "name": c.name,

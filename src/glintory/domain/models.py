@@ -27,6 +27,7 @@ from glintory.domain.enums import (
     OpportunityStatus,
     SignalType,
 )
+from glintory.domain.operations import CollectionTriggerType
 
 
 class Base(DeclarativeBase):
@@ -82,6 +83,15 @@ class CollectionRun(Base):
     source_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("sources.id", ondelete="SET NULL"), nullable=True
     )
+    trigger_type: Mapped[CollectionTriggerType] = mapped_column(
+        Enum(
+            CollectionTriggerType,
+            native_enum=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=CollectionTriggerType.CLI,
+    )
     status: Mapped[CollectionRunStatus] = mapped_column(
         Enum(
             CollectionRunStatus,
@@ -113,6 +123,15 @@ class CollectionRun(Base):
     )
 
     __table_args__ = (
+        Index(
+            "uq_collection_runs_source_running",
+            "source_id",
+            unique=True,
+            sqlite_where=text("status = 'running'"),
+        ),
+        Index("idx_collection_runs_source_started", "source_id", "started_at"),
+        Index("idx_collection_runs_status_started", "status", "started_at"),
+        Index("idx_collection_runs_trigger_started", "trigger_type", "started_at"),
         CheckConstraint(
             "fetched_count >= 0", name="chk_runs_fetched_count_nonnegative"
         ),
@@ -253,12 +272,8 @@ class Opportunity(Base):
         default=OpportunityStatus.INBOX,
         nullable=False,
     )
-    generation_method: Mapped[str | None] = mapped_column(
-        String(50), nullable=True
-    )
-    cluster_version: Mapped[str | None] = mapped_column(
-        String(50), nullable=True
-    )
+    generation_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cluster_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     last_clustered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -276,6 +291,9 @@ class Opportunity(Base):
         default=utc_now,
         onupdate=utc_now,
         nullable=False,
+    )
+    evidence_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     __table_args__ = (
@@ -299,6 +317,7 @@ class Opportunity(Base):
         Index("idx_opportunities_confidence", "confidence"),
         Index("idx_opportunities_created_at", "created_at"),
         Index("idx_opportunities_last_scored_at", "last_scored_at"),
+        Index("idx_opportunities_evidence_updated_at", "evidence_updated_at"),
     )
 
 
@@ -326,12 +345,32 @@ class OpportunitySignal(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+    association_source: Mapped[str] = mapped_column(
+        String(20), default="clustering", nullable=False
+    )
+    is_excluded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
 
     __table_args__ = (
         CheckConstraint(
             "relevance_score >= 0.0 AND relevance_score <= 1.0",
             name="chk_opp_signals_relevance_score_range",
         ),
+        CheckConstraint(
+            "association_source IN ('clustering', 'manual')",
+            name="chk_opp_signals_assoc_source",
+        ),
+        Index("idx_opp_signals_opp_id_is_excluded", "opportunity_id", "is_excluded"),
+        Index("idx_opp_signals_sig_id_is_excluded", "signal_id", "is_excluded"),
     )
 
 

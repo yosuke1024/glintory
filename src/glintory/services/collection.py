@@ -5,11 +5,19 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from glintory.collectors.base import CollectionContext
 from glintory.collectors.registry import CollectorRegistry
+from glintory.config import settings
 from glintory.domain.enums import CollectionRunStatus
+from glintory.domain.operations import (
+    CollectionTriggerType,
+    SourceAlreadyRunningError,
+    SourceDisabledError,
+    SourceNotFoundError,
+)
 from glintory.infrastructure.error_sanitizer import sanitize_error
 from glintory.infrastructure.http import HttpxHttpClient
 from glintory.infrastructure.repositories import (
@@ -42,6 +50,7 @@ class CollectionService:
         registry: CollectorRegistry,
         ingestion_service: SignalIngestionService | None = None,
         http_client=None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.registry = registry
@@ -49,11 +58,13 @@ class CollectionService:
             session_factory
         )
         self._http_client = http_client or HttpxHttpClient()
+        self.clock = clock or (lambda: datetime.now(UTC))
 
     async def run_source(
         self,
         source_id: str,
         *,
+        trigger_type: CollectionTriggerType = CollectionTriggerType.CLI,
         max_items: int | None = None,
     ) -> CollectionExecutionResult:
         # 1. Fetch Source, Check registry, Create running CollectionRun (First Transaction)
@@ -64,20 +75,67 @@ class CollectionService:
 
             source = source_repo.get_by_id(source_id)
             if not source:
-                raise ValueError(f"Source with ID {source_id} not found.")
+                raise SourceNotFoundError(f"Source with ID {source_id} not found.")
 
             if not source.enabled:
-                raise ValueError(f"Source '{source.name}' is disabled.")
+                raise SourceDisabledError(f"Source '{source.name}' is disabled.")
 
             # Get collector. Will raise CollectorNotFoundError if unregistered
             collector = self.registry.get(source.source_type)
 
+            # Stale Run Recovery
+            from datetime import timedelta
+            from glintory.domain.models import CollectionRun
+            
+            stale_threshold = self.clock() - timedelta(minutes=settings.collection_stale_after_minutes)
+            
+            # Find active runs for this source
+            active_runs = (
+                session.query(CollectionRun)
+                .filter(CollectionRun.source_id == source_id, CollectionRun.status == CollectionRunStatus.RUNNING)
+                .all()
+            )
+            
+            now = self.clock()
+            has_running = False
+            for r in active_runs:
+                started_at = r.started_at
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=UTC)
+                if started_at < stale_threshold:
+                    r.status = CollectionRunStatus.ABANDONED
+                    r.completed_at = now
+                    r.error_count = max(r.error_count or 0, 1)
+                    r.error_summary = "Collection run was abandoned after exceeding the stale-run threshold."
+                    source_repo.record_failure(source_id, now, r.error_summary)
+                else:
+                    has_running = True
+            
+            if has_running:
+                raise SourceAlreadyRunningError(f"Source '{source.name}' is already running.")
+
             # Create running collection run record
-            run = run_repo.create_running(source.id)
+            run = run_repo.create_running(source.id, trigger_type)
             run_id = run.id
 
             source_name = source.name
             source_type = source.source_type
+
+            # Resolve max items limit
+            config_max = source.config.get("max_items")
+            if trigger_type == CollectionTriggerType.WEB:
+                web_limit = settings.collection_web_max_items
+                if config_max is not None:
+                    resolved_max_items = min(int(config_max), web_limit)
+                else:
+                    resolved_max_items = web_limit
+            else:
+                if max_items is not None:
+                    resolved_max_items = max_items
+                elif config_max is not None:
+                    resolved_max_items = int(config_max)
+                else:
+                    resolved_max_items = 100
 
             # Create immutable collection context
             context = CollectionContext(
@@ -85,11 +143,14 @@ class CollectionService:
                 source_name=source.name,
                 source_type=source.source_type,
                 source_config=source.config,
-                max_items=max_items if max_items is not None else 100,
+                max_items=resolved_max_items,
                 http=self._http_client,
             )
 
             session.commit()
+        except IntegrityError:
+            session.rollback()
+            raise SourceAlreadyRunningError(f"Source with ID {source_id} is already running.")
         except Exception:
             session.rollback()
             raise
@@ -98,11 +159,18 @@ class CollectionService:
 
         # 2. Execute Collector (Outside of DB Transaction)
         start_time = time.monotonic()
-        completed_at = datetime.now(UTC)
+        completed_at = self.clock()
         try:
+            logger.info(
+                "Collection started. source_id=%s source_type=%s trigger_type=%s collection_run_id=%s",
+                source_id,
+                source_type,
+                trigger_type.value,
+                run_id,
+            )
             result = await collector.collect(context)
         except asyncio.CancelledError as e:
-            completed_at = datetime.now(UTC)
+            completed_at = self.clock()
             error_summary = "Job execution was cancelled."
 
             # Record cancellation in DB (Separate Transaction)
@@ -117,9 +185,25 @@ class CollectionService:
                 session.rollback()
             finally:
                 session.close()
+            
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            logger.info(
+                "Collection finished. source_id=%s source_name=%s source_type=%s "
+                "collection_run_id=%s status=%s fetched_count=%d warning_count=%d "
+                "error_count=%d duration_ms=%d",
+                source_id,
+                source_name,
+                source_type,
+                run_id,
+                CollectionRunStatus.FAILED.value,
+                0,
+                0,
+                1,
+                duration_ms,
+            )
             raise e
         except (KeyboardInterrupt, SystemExit) as e:
-            completed_at = datetime.now(UTC)
+            completed_at = self.clock()
             error_summary = f"Job execution terminated: {type(e).__name__}."
             session = self.session_factory()
             try:
@@ -132,10 +216,26 @@ class CollectionService:
                 session.rollback()
             finally:
                 session.close()
+            
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            logger.info(
+                "Collection finished. source_id=%s source_name=%s source_type=%s "
+                "collection_run_id=%s status=%s fetched_count=%d warning_count=%d "
+                "error_count=%d duration_ms=%d",
+                source_id,
+                source_name,
+                source_type,
+                run_id,
+                CollectionRunStatus.FAILED.value,
+                0,
+                0,
+                1,
+                duration_ms,
+            )
             raise e
         except Exception as e:
             # Fatal collector exceptions
-            completed_at = datetime.now(UTC)
+            completed_at = self.clock()
             error_summary = sanitize_error(str(e))
 
             session = self.session_factory()

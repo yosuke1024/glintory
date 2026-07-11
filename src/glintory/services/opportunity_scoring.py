@@ -1,6 +1,6 @@
-from collections import Counter
-from datetime import date, datetime
 import math
+from collections import Counter
+from datetime import date
 
 from glintory.domain.enums import Confidence, EvidenceRelationType, SignalType
 from glintory.domain.scoring import (
@@ -248,9 +248,7 @@ class OpportunityScoringEngine:
             total_rel_weight += w
 
         weighted_avg_relevance = (
-            weighted_relevance_sum / total_rel_weight
-            if total_rel_weight > 0.0
-            else 0.0
+            weighted_relevance_sum / total_rel_weight if total_rel_weight > 0.0 else 0.0
         )
         relevance_score = round_half_up(weighted_avg_relevance * 4)
         relevance_score = max(0, min(4, relevance_score))
@@ -297,7 +295,11 @@ class OpportunityScoringEngine:
         )
 
         # 2.2 Direct Demand Clarity (0-10)
-        demand_clarity_types = {SignalType.PAIN, SignalType.REQUEST, SignalType.COMPLAINT}
+        demand_clarity_types = {
+            SignalType.PAIN,
+            SignalType.REQUEST,
+            SignalType.COMPLAINT,
+        }
         demand_origins = {
             s.evidence_origin
             for s in positive_signals
@@ -433,9 +435,7 @@ class OpportunityScoringEngine:
 
         # 3.1 Contradicting Evidence (0 to -12)
         contradicting_signals = [
-            s
-            for s in signals
-            if s.relation_type == EvidenceRelationType.CONTRADICTING
+            s for s in signals if s.relation_type == EvidenceRelationType.CONTRADICTING
         ]
         contradicting_origins = {s.evidence_origin for s in contradicting_signals}
         contra_origins_count = len(contradicting_origins)

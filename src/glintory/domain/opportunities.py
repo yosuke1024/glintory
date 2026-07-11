@@ -2,7 +2,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from glintory.domain.enums import Confidence, EvidenceRelationType, OpportunityStatus, SignalType
+from glintory.domain.enums import (
+    Confidence,
+    EvidenceRelationType,
+    OpportunityStatus,
+    SignalType,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +41,8 @@ class OpportunityListItem:
     last_scored_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    score_is_stale: bool
+    evidence_updated_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +59,10 @@ class OpportunityEvidenceItem:
     relevance_score: float
     published_at: datetime | None
     collected_at: datetime
+    association_source: str
+    is_excluded: bool
+    reviewed_at: datetime | None
+    review_note: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +78,23 @@ class ScoreSnapshotDetail:
     confidence: Confidence
     explanation: Mapping[str, object]
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionHistoryItem:
+    id: str
+    from_status: OpportunityStatus | None
+    to_status: OpportunityStatus
+    reason: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class OpportunityNoteItem:
+    id: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +131,13 @@ class OpportunityDetail:
 
     created_at: datetime
     updated_at: datetime
+
+    score_is_stale: bool
+    evidence_updated_at: datetime | None
+    decisions: Sequence[DecisionHistoryItem]
+    notes: Sequence[OpportunityNoteItem]
+    active_evidence: Sequence[OpportunityEvidenceItem]
+    excluded_evidence: Sequence[OpportunityEvidenceItem]
 
 
 @dataclass(frozen=True, slots=True)

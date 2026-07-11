@@ -1,17 +1,31 @@
-from datetime import date, datetime, UTC
-import pytest
-from sqlalchemy.orm import Session
+from datetime import UTC, date, datetime
 
-from glintory.domain.enums import Confidence, EvidenceRelationType, OpportunityStatus, SignalType
-from glintory.domain.models import Base, Opportunity, OpportunitySignal, ScoreSnapshot, Signal, Source
+import pytest
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from glintory.domain.enums import (
+    Confidence,
+    EvidenceRelationType,
+    OpportunityStatus,
+    SignalType,
+)
+from glintory.domain.models import (
+    Base,
+    Opportunity,
+    OpportunitySignal,
+    ScoreSnapshot,
+    Signal,
+    Source,
+)
 from glintory.domain.scoring import OpportunityScoringInput, ScoringEvidenceSignal
-from glintory.infrastructure.opportunity_scoring_repository import OpportunityScoringRepository
+from glintory.infrastructure.opportunity_scoring_repository import (
+    OpportunityScoringRepository,
+)
 from glintory.services.opportunity_scoring import OpportunityScoringEngine
 from glintory.services.opportunity_scoring_service import OpportunityScoringService
 from glintory.services.scoring_hash import calculate_scoring_input_hash
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture
@@ -59,7 +73,10 @@ def test_deterministic_scoring_hash():
         title="Pain point 1",
         excerpt="Important excerpt",
         tags=("python", "ml"),
-        raw_metadata={"full_name": "owner/repo-a", "html_url": "https://github.com/owner/repo-a"},
+        raw_metadata={
+            "full_name": "owner/repo-a",
+            "html_url": "https://github.com/owner/repo-a",
+        },
     )
 
     sig2 = ScoringEvidenceSignal(
@@ -107,7 +124,10 @@ def test_deterministic_scoring_hash():
         title="Pain point 1",
         excerpt="Important excerpt",
         tags=("python", "ml"),
-        raw_metadata={"full_name": "owner/repo-a", "html_url": "https://github.com/owner/repo-a"},
+        raw_metadata={
+            "full_name": "owner/repo-a",
+            "html_url": "https://github.com/owner/repo-a",
+        },
     )
     inp_changed = OpportunityScoringInput(
         opportunity_id="opp-123",
@@ -137,7 +157,7 @@ def test_scoring_engine_basic_rules():
         published_at=published,
         collected_at=collected,
         title="Pain point",
-        excerpt="Excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text", # >= 120 chars
+        excerpt="Excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text",  # >= 120 chars
         tags=("python", "ml"),
         raw_metadata={"full_name": "owner/repo-a"},
     )
@@ -251,6 +271,7 @@ async def test_opportunity_scoring_service_integration(
     # Verify DB update
     db_session.expire_all()
     updated_opp = db_session.get(Opportunity, "opp-1")
+    assert updated_opp is not None
     assert updated_opp.last_scored_at is not None
     assert updated_opp.current_scoring_version == "v1"
     assert updated_opp.total_score > 0

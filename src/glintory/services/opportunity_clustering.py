@@ -1,5 +1,5 @@
 from collections import defaultdict
-import numpy as np
+
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -41,14 +41,18 @@ class OpportunityClusteringEngine:
             # Fallback to putting each signal in its own cluster
             candidates = []
             for s in signals:
-                candidates.append({
-                    "representative_signal": s,
-                    "signals": [{
-                        "signal": s,
-                        "relation_type": EvidenceRelationType.SUPPORTING,
-                        "relevance_score": 1.0,
-                    }],
-                })
+                candidates.append(
+                    {
+                        "representative_signal": s,
+                        "signals": [
+                            {
+                                "signal": s,
+                                "relation_type": EvidenceRelationType.SUPPORTING,
+                                "relevance_score": 1.0,
+                            }
+                        ],
+                    }
+                )
             return candidates
 
         # 3. Calculate Cosine Similarity
@@ -69,13 +73,12 @@ class OpportunityClusteringEngine:
             component_to_indices[label].append(idx)
 
         candidates = []
-        for label, indices in component_to_indices.items():
+        for _label, indices in component_to_indices.items():
             cluster_signals = [signals[idx] for idx in indices]
 
             # Determine representative signal: oldest collected_at, fallback to ID
             sorted_cluster = sorted(
-                cluster_signals,
-                key=lambda x: (x.collected_at, getattr(x, "id", ""))
+                cluster_signals, key=lambda x: (x.collected_at, getattr(x, "id", ""))
             )
             rep_signal = sorted_cluster[0]
             rep_idx = signals.index(rep_signal)
@@ -94,15 +97,19 @@ class OpportunityClusteringEngine:
                 else:
                     rel_type = EvidenceRelationType.RELATED
 
-                signals_info.append({
-                    "signal": sig,
-                    "relation_type": rel_type,
-                    "relevance_score": sim_val,
-                })
+                signals_info.append(
+                    {
+                        "signal": sig,
+                        "relation_type": rel_type,
+                        "relevance_score": sim_val,
+                    }
+                )
 
-            candidates.append({
-                "representative_signal": rep_signal,
-                "signals": signals_info,
-            })
+            candidates.append(
+                {
+                    "representative_signal": rep_signal,
+                    "signals": signals_info,
+                }
+            )
 
         return candidates

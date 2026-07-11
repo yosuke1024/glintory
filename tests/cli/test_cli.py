@@ -603,5 +603,3 @@ async def test_score_command_execution(mock_settings, capsys):
         assert "Opportunity scoring completed." in captured.out
         assert "Opportunities analyzed: 0" in captured.out
         assert "Dry run: yes" in captured.out
-
-

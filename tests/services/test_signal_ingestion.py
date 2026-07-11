@@ -30,7 +30,7 @@ def session_factory():
     session.flush()
 
     session.add(
-        CollectionRun(id="run-1", source_id="src-1", status=CollectionRunStatus.RUNNING)
+        CollectionRun(id="run-1", source_id="src-1", status=CollectionRunStatus.SUCCEEDED)
     )
     session.add(
         CollectionRun(id="run-2", source_id="src-1", status=CollectionRunStatus.RUNNING)

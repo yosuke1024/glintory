@@ -8,8 +8,41 @@
     <h1 style="margin-top: 15px;">{{ opportunity.title }}</h1>
 </header>
 
+<!-- Notifications -->
+{% if notice %}
+<div class="alert alert-success" style="background-color: #dff0d8; border-color: #d6e9c6; color: #3c763d; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #d6e9c6;">
+    <strong>Success:</strong>
+    {% if notice == "status_updated" %}
+    Status successfully updated.
+    {% elif notice == "note_added" %}
+    Note successfully added.
+    {% elif notice == "note_updated" %}
+    Note successfully updated.
+    {% elif notice == "note_deleted" %}
+    Note successfully deleted.
+    {% elif notice == "evidence_added" %}
+    Evidence successfully added.
+    {% elif notice == "evidence_updated" %}
+    Evidence successfully updated.
+    {% elif notice == "evidence_excluded" %}
+    Evidence successfully excluded.
+    {% elif notice == "evidence_restored" %}
+    Evidence successfully restored.
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Score Staleness warning -->
+{% if opportunity.score_is_stale %}
+<div class="alert alert-warning" style="background-color: #fcf8e3; border-color: #faebcc; color: #8a6d3b; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #faebcc;">
+    <strong>Score outdated</strong><br>
+    Evidence has changed since the last scoring run. Run the scoring command to recalculate:
+    <pre style="margin: 5px 0 0 0; background: #fff; padding: 5px; border-radius: 4px; display: inline-block; font-family: monospace; font-size: 0.9em; color: #333;">uv run glintory score --opportunity {{ opportunity.id }}</pre>
+</div>
+{% endif %}
+
 <main class="opportunity-detail-container">
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start;">
         
         <!-- Left Column: Details, Hypotheses and Evidence -->
         <div>
@@ -82,57 +115,305 @@
                 </div>
             </section>
 
-            <!-- Evidence Signals -->
+            <!-- Active Evidence Signals -->
             <section class="detail-section" style="margin-top: 30px;">
-                <h2>Evidence Signals ({{ opportunity.evidence|length }})</h2>
-                {% if opportunity.evidence %}
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Active Evidence ({{ opportunity.active_evidence|length }})</h2>
+                    <a href="/opportunities/{{ opportunity.id }}/evidence/search" class="btn-primary" style="padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 0.9em; display: inline-block;">+ Add Signal</a>
+                </div>
+                
+                {% if opportunity.active_evidence %}
                 <div class="evidence-list" style="display: flex; flex-direction: column; gap: 15px;">
-                    {% for sig in opportunity.evidence %}
-                    <article class="signal-card" style="background: var(--color-bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--color-border);">
-                        <div class="signal-badges" style="margin-bottom: 8px;">
-                            <span class="badge badge-source-type">{{ sig.source_type }}</span>
-                            <span class="badge badge-signal-type">{{ sig.signal_type.value }}</span>
-                            <span class="badge badge-relation-type badge-relation-{{ sig.relation_type.value }}">
-                                Relation: {{ sig.relation_type.value }}
-                            </span>
-                            <span class="badge badge-relevance">
-                                Relevance: {{ '{:.2f}'.format(sig.relevance_score) }}
-                            </span>
+                    {% for sig in opportunity.active_evidence %}
+                    <article class="signal-card" id="evidence-{{ sig.signal_id }}" style="background: var(--color-bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 10px;">
+                        <div>
+                            <div class="signal-badges" style="margin-bottom: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
+                                <span class="badge badge-source-type">{{ sig.source_type }}</span>
+                                <span class="badge badge-signal-type">{{ sig.signal_type.value }}</span>
+                                <span class="badge badge-relation-type badge-relation-{{ sig.relation_type.value }}">
+                                    Relation: {{ sig.relation_type.value }}
+                                </span>
+                                <span class="badge badge-relevance">
+                                    Relevance: {{ '{:.2f}'.format(sig.relevance_score) }}
+                                </span>
+                                <span class="badge" style="background-color: var(--color-bg-page); color: var(--color-text-muted); border: 1px solid var(--color-border);">
+                                    Source: {{ sig.association_source }}
+                                </span>
+                            </div>
+                            <h3 style="margin: 0 0 5px 0; font-size: 1.1em;">
+                                <a href="/signals/{{ sig.signal_id }}">{{ sig.title }}</a>
+                            </h3>
                         </div>
-                        <h3 style="margin: 0 0 10px 0; font-size: 1.1em;">
-                            <a href="/signals/{{ sig.signal_id }}">{{ sig.title }}</a>
-                        </h3>
-                        <p style="font-size: 0.9em; line-height: 1.4; color: var(--color-text-muted); margin: 0 0 10px 0;">
+                        
+                        <p style="font-size: 0.9em; line-height: 1.4; color: var(--color-text-muted); margin: 0;">
                             {% if sig.excerpt|length > 500 %}
                                 {{ sig.excerpt[:500] }}...
                             {% else %}
                                 {{ sig.excerpt }}
                             {% endif %}
                         </p>
-                        <div style="font-size: 0.8em; color: var(--color-text-muted); display: flex; gap: 15px;">
-                            <span>Source: <strong>{{ sig.source_name }}</strong></span>
+                        
+                        {% if sig.review_note %}
+                        <div style="background-color: var(--color-bg-page); padding: 8px 12px; border-radius: 4px; font-size: 0.9em; border-left: 3px solid var(--color-link); color: var(--color-text-secondary); margin-top: 5px;">
+                            <strong>Review Note:</strong> {{ sig.review_note }}
+                            {% if sig.reviewed_at %}
+                            <span style="font-size: 0.8em; color: var(--color-text-muted); float: right;">Reviewed: {{ sig.reviewed_at.strftime('%Y-%m-%d') }}</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div style="font-size: 0.8em; color: var(--color-text-muted); display: flex; gap: 15px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--color-border); padding-top: 10px; margin-top: 5px;">
+                            <span>Publisher: <strong>{{ sig.source_name }}</strong></span>
                             {% if sig.published_at %}
                             <span>Published: {{ sig.published_at.strftime('%Y-%m-%d') }}</span>
                             {% endif %}
                             <span>Collected: {{ sig.collected_at.strftime('%Y-%m-%d') }}</span>
-                            <a href="{{ sig.canonical_url }}" target="_blank" rel="noopener noreferrer" style="margin-left: auto; text-decoration: underline;">
+                            <a href="{{ sig.canonical_url }}" target="_blank" rel="noopener noreferrer" style="text-decoration: underline;">
                                 External Source &nearrow;
                             </a>
+                            
+                            <!-- Actions -->
+                            <div style="margin-left: auto; display: flex; gap: 15px;">
+                                <button type="button" onclick="document.getElementById('evidence-update-form-{{ sig.signal_id }}').style.display='block'; this.style.display='none';" class="text-link" style="background:none; border:none; padding:0; cursor:pointer;">Update</button>
+                                <button type="button" onclick="document.getElementById('evidence-exclude-form-{{ sig.signal_id }}').style.display='block'; this.style.display='none';" class="text-link" style="background:none; border:none; padding:0; cursor:pointer; color:var(--color-danger, #d9534f);">Exclude</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Update Form -->
+                        <div id="evidence-update-form-{{ sig.signal_id }}" style="display: none; background: var(--color-bg-page); padding: 15px; border-radius: 6px; border: 1px solid var(--color-border); margin-top: 10px;">
+                            <form action="/opportunities/{{ opportunity.id }}/evidence/{{ sig.signal_id }}/update" method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <div style="flex: 1; min-width: 150px;">
+                                        <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Relation Type</label>
+                                        <select name="relation_type" required style="width:100%; padding:6px; border-radius:4px; border:1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                                            <option value="supporting" {% if sig.relation_type.value == "supporting" %}selected{% endif %}>supporting</option>
+                                            <option value="related" {% if sig.relation_type.value == "related" %}selected{% endif %}>related</option>
+                                            <option value="contradicting" {% if sig.relation_type.value == "contradicting" %}selected{% endif %}>contradicting</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex: 1; min-width: 150px;">
+                                        <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Relevance Score</label>
+                                        <input type="number" name="relevance_score" step="0.05" min="0.0" max="1.0" value="{{ sig.relevance_score }}" required style="width:100%; padding:6px; border-radius:4px; border:1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Review Note (Required if contradicting)</label>
+                                    <textarea name="review_note" placeholder="Write review note..." rows="2" style="width:100%; padding:6px; border-radius:4px; border:1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary); resize: vertical;">{{ sig.review_note or '' }}</textarea>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" class="btn-primary" style="padding: 6px 12px; border-radius: 4px; font-weight: bold;">Save Changes</button>
+                                    <button type="button" onclick="this.parentNode.parentNode.parentNode.style.display='none'; this.parentNode.parentNode.parentNode.previousElementSibling.querySelector('.text-link').style.display='inline';" class="btn-secondary" style="padding: 6px 12px; border-radius: 4px;">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Exclude Form -->
+                        <div id="evidence-exclude-form-{{ sig.signal_id }}" style="display: none; background: var(--color-bg-page); padding: 15px; border-radius: 6px; border: 1px solid var(--color-border); margin-top: 10px;">
+                            <form action="/opportunities/{{ opportunity.id }}/evidence/{{ sig.signal_id }}/exclude" method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Reason for Exclusion (Required, min 3 chars)</label>
+                                    <textarea name="review_note" required placeholder="Write exclusion reason..." rows="2" style="width:100%; padding:6px; border-radius:4px; border:1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary); resize: vertical;"></textarea>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" class="btn-primary" style="background-color: var(--color-danger, #d9534f); color: white; padding: 6px 12px; border-radius: 4px; font-weight: bold;">Exclude Evidence</button>
+                                    <button type="button" onclick="this.parentNode.parentNode.parentNode.style.display='none'; this.parentNode.parentNode.parentNode.previousElementSibling.querySelectorAll('.text-link')[1].style.display='inline';" class="btn-secondary" style="padding: 6px 12px; border-radius: 4px;">Cancel</button>
+                                </div>
+                            </form>
                         </div>
                     </article>
                     {% endfor %}
                 </div>
                 {% else %}
-                <p>No associated evidence signals.</p>
+                <p>No active evidence signals linked.</p>
+                {% endif %}
+            </section>
+
+            <!-- Excluded Evidence Section -->
+            <section class="detail-section" style="margin-top: 30px; border-top: 1px solid var(--color-border); padding-top: 20px;">
+                <details>
+                    <summary style="font-size: 1.5em; font-weight: bold; cursor: pointer; color: var(--color-text-secondary); margin-bottom: 15px;">
+                        Excluded Evidence ({{ opportunity.excluded_evidence|length }})
+                    </summary>
+                    
+                    {% if opportunity.excluded_evidence %}
+                    <div class="evidence-list" style="display: flex; flex-direction: column; gap: 15px;">
+                        {% for sig in opportunity.excluded_evidence %}
+                        <article class="signal-card" style="background: var(--color-bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 10px; opacity: 0.75;">
+                            <div>
+                                <div class="signal-badges" style="margin-bottom: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
+                                    <span class="badge badge-source-type">{{ sig.source_type }}</span>
+                                    <span class="badge badge-signal-type">{{ sig.signal_type.value }}</span>
+                                    <span class="badge" style="background-color: #d9534f; color: white;">Excluded</span>
+                                </div>
+                                <h3 style="margin: 0 0 5px 0; font-size: 1.1em; text-decoration: line-through;">
+                                    <a href="/signals/{{ sig.signal_id }}">{{ sig.title }}</a>
+                                </h3>
+                            </div>
+                            
+                            <div style="background-color: var(--color-bg-page); padding: 8px 12px; border-radius: 4px; font-size: 0.9em; border-left: 3px solid #d9534f; color: var(--color-text-secondary);">
+                                <strong>Exclusion Reason:</strong> {{ sig.review_note or '—' }}
+                                {% if sig.reviewed_at %}
+                                <span style="font-size: 0.8em; color: var(--color-text-muted); float: right;">Excluded at: {{ sig.reviewed_at.strftime('%Y-%m-%d') }}</span>
+                                {% endif %}
+                            </div>
+                            
+                            <div style="font-size: 0.85em; color: var(--color-text-muted); display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                                <span>Previous Relation: <strong>{{ sig.relation_type.value }}</strong></span>
+                                <span>Relevance: <strong>{{ '{:.2f}'.format(sig.relevance_score) }}</strong></span>
+                                <button type="button" onclick="document.getElementById('evidence-restore-form-{{ sig.signal_id }}').style.display='block'; this.style.display='none';" class="btn-primary" style="padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; margin-left: auto;">Restore Link</button>
+                            </div>
+                            
+                            <!-- Restore Form -->
+                            <div id="evidence-restore-form-{{ sig.signal_id }}" style="display: none; background: var(--color-bg-page); padding: 15px; border-radius: 6px; border: 1px solid var(--color-border); margin-top: 10px;">
+                                <form action="/opportunities/{{ opportunity.id }}/evidence/{{ sig.signal_id }}/restore" method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                        <div style="flex: 1; min-width: 150px;">
+                                            <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Relation Type</label>
+                                            <select name="relation_type" required style="width:100%; padding:6px; border-radius:4px; border:1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                                                <option value="supporting" {% if sig.relation_type.value == "supporting" %}selected{% endif %}>supporting</option>
+                                                <option value="related" {% if sig.relation_type.value == "related" %}selected{% endif %}>related</option>
+                                                <option value="contradicting" {% if sig.relation_type.value == "contradicting" %}selected{% endif %}>contradicting</option>
+                                            </select>
+                                        </div>
+                                        <div style="flex: 1; min-width: 150px;">
+                                            <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Relevance Score</label>
+                                            <input type="number" name="relevance_score" step="0.05" min="0.0" max="1.0" value="{{ sig.relevance_score }}" required style="width:100%; padding:6px; border-radius:4px; border:1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Review Note (Required if contradicting)</label>
+                                        <textarea name="review_note" placeholder="Write review note..." rows="2" style="width:100%; padding:6px; border-radius:4px; border:1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary); resize: vertical;">{{ sig.review_note or '' }}</textarea>
+                                    </div>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button type="submit" class="btn-primary" style="padding: 6px 12px; border-radius: 4px; font-weight: bold;">Confirm Restore</button>
+                                        <button type="button" onclick="this.parentNode.parentNode.parentNode.style.display='none'; this.parentNode.parentNode.parentNode.previousElementSibling.querySelector('.btn-primary').style.display='inline';" class="btn-secondary" style="padding: 6px 12px; border-radius: 4px;">Cancel</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="color: var(--color-text-muted); font-style: italic;">No excluded evidence signals.</p>
+                    {% endif %}
+                </details>
+            </section>
+
+            <!-- Review Notes Section -->
+            <section class="detail-section" style="margin-top: 30px; border-top: 1px solid var(--color-border); padding-top: 20px;">
+                <h2>Review Notes</h2>
+                
+                <!-- Add Note Form -->
+                <form action="/opportunities/{{ opportunity.id }}/notes" method="post" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; background: var(--color-bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--color-border);">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label for="note_body" style="font-weight: bold; font-size: 0.95em;">Add a new note</label>
+                    <textarea name="body" id="note_body" required placeholder="Write a note..." rows="3" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary); resize: vertical;"></textarea>
+                    <div>
+                        <button type="submit" class="btn-primary" style="padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">Save Note</button>
+                    </div>
+                </form>
+                
+                <!-- Notes List -->
+                {% if opportunity.notes %}
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    {% for note in opportunity.notes %}
+                    <article style="background: var(--color-bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--color-border);">
+                        <!-- View Mode -->
+                        <div id="note-view-{{ note.id }}">
+                            <p style="margin: 0 0 10px 0; font-size: 0.95em; white-space: pre-wrap; line-height: 1.5; color: var(--color-text-primary);">{{ note.body }}</p>
+                            <div style="display: flex; gap: 15px; font-size: 0.8em; color: var(--color-text-muted); align-items: center;">
+                                <span>Created: {{ note.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+                                {% if note.updated_at != note.created_at %}
+                                <span>Updated: {{ note.updated_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+                                {% endif %}
+                                
+                                <button type="button" onclick="document.getElementById('note-view-{{ note.id }}').style.display='none'; document.getElementById('note-edit-{{ note.id }}').style.display='block';" style="background: none; border: none; color: var(--color-link); cursor: pointer; text-decoration: underline; padding: 0;">Edit</button>
+                                
+                                <form action="/opportunities/{{ opportunity.id }}/notes/{{ note.id }}/delete" method="post" style="display: inline; margin: 0;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" style="background: none; border: none; color: var(--color-danger, #d9534f); cursor: pointer; text-decoration: underline; padding: 0;">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <!-- Edit Mode (hidden by default) -->
+                        <div id="note-edit-{{ note.id }}" style="display: none;">
+                            <form action="/opportunities/{{ opportunity.id }}/notes/{{ note.id }}/edit" method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <textarea name="body" required rows="3" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary); resize: vertical;">{{ note.body }}</textarea>
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" class="btn-primary" style="padding: 6px 12px; border-radius: 4px; font-weight: bold;">Save Changes</button>
+                                    <button type="button" onclick="document.getElementById('note-view-{{ note.id }}').style.display='block'; document.getElementById('note-edit-{{ note.id }}').style.display='none';" class="btn-secondary" style="padding: 6px 12px; border-radius: 4px;">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="color: var(--color-text-muted); font-style: italic;">No notes recorded for this opportunity.</p>
                 {% endif %}
             </section>
         </div>
 
-        <!-- Right Column: Scores, History & Metadata -->
+        <!-- Right Column: Scores, History, Metadata & Status transition -->
         <div>
+            <!-- Status Transition Form -->
+            <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 20px;">
+                <h3 style="margin-top: 0; font-size: 1.15em;">Transition Status</h3>
+                <form action="/opportunities/{{ opportunity.id }}/status" method="post" style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="expected_status" value="{{ opportunity.status.value }}">
+                    
+                    <div>
+                        <label for="target_status" style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Target Status</label>
+                        <select name="target_status" id="target_status" required style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary);">
+                            <option value="">Select Target Status...</option>
+                            {% if opportunity.status.value == "inbox" %}
+                                <option value="watch">watch</option>
+                                <option value="validate">validate</option>
+                                <option value="rejected">rejected</option>
+                                <option value="archived">archived</option>
+                            {% elif opportunity.status.value == "watch" %}
+                                <option value="inbox">inbox</option>
+                                <option value="validate">validate</option>
+                                <option value="rejected">rejected</option>
+                                <option value="archived">archived</option>
+                            {% elif opportunity.status.value == "validate" %}
+                                <option value="watch">watch</option>
+                                <option value="build">build</option>
+                                <option value="rejected">rejected</option>
+                                <option value="archived">archived</option>
+                            {% elif opportunity.status.value == "build" %}
+                                <option value="validate">validate</option>
+                                <option value="rejected">rejected</option>
+                                <option value="archived">archived</option>
+                            {% elif opportunity.status.value == "rejected" %}
+                                <option value="inbox">inbox</option>
+                                <option value="archived">archived</option>
+                            {% elif opportunity.status.value == "archived" %}
+                                <option value="inbox">inbox</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="reason" style="display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px;">Reason (Required for rejected, archived or reopening)</label>
+                        <textarea name="reason" id="reason" placeholder="Write reason..." rows="2" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--color-border); background-color: var(--color-bg-input); color: var(--color-text-primary); resize: vertical;"></textarea>
+                    </div>
+                    
+                    <div>
+                        <button type="submit" class="btn-primary" style="width: 100%; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer;">Change Status</button>
+                    </div>
+                </form>
+            </section>
+
             <!-- Score Overview -->
             <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 20px;">
-                <h2 style="margin-top: 0;">Scores</h2>
+                <h2 style="margin-top: 0; font-size: 1.25em;">Scores</h2>
                 
                 {% if opportunity.last_scored_at %}
                 <div style="text-align: center; margin-bottom: 20px;">
@@ -169,14 +450,39 @@
                 </p>
             </section>
 
+            <!-- Decision History -->
+            <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 20px;">
+                <h3 style="margin-top: 0; font-size: 1.1em;">Decision History</h3>
+                {% if opportunity.decisions %}
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    {% for dec in opportunity.decisions %}
+                    <div style="border-bottom: 1px solid var(--color-border); padding-bottom: 8px; font-size: 0.9em;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>
+                                <strong>{{ dec.from_status.value if dec.from_status else '—' }}</strong> &rarr; 
+                                <strong>{{ dec.to_status.value }}</strong>
+                            </span>
+                            <span style="color: var(--color-text-muted); font-size: 0.85em;">{{ dec.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
+                        <p style="margin: 5px 0 0 0; color: var(--color-text-secondary); line-height: 1.3;">
+                            Reason: {{ dec.reason if dec.reason else '—' }}
+                        </p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="color: var(--color-text-muted); font-style: italic; font-size: 0.9em;">No decisions recorded yet.</p>
+                {% endif %}
+            </section>
+
             <!-- Score Breakdown -->
             <section class="detail-section" style="background: var(--color-bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 20px;">
-                <h3 style="margin-top: 0;">Score Breakdown</h3>
+                <h3 style="margin-top: 0; font-size: 1.1em;">Score Breakdown</h3>
                 {% if opportunity.latest_snapshot %}
                     {% set exp = opportunity.latest_snapshot.explanation %}
                     
                     <!-- Evidence Components -->
-                    <h4 style="margin: 15px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px;">Evidence</h4>
+                    <h4 style="margin: 15px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px; font-size: 0.95em;">Evidence</h4>
                     {% if exp.evidence and exp.evidence.components %}
                         {% for comp in exp.evidence.components %}
                         <div style="margin-bottom: 8px; font-size: 0.9em;">
@@ -190,7 +496,7 @@
                     {% endif %}
 
                     <!-- Feasibility Components -->
-                    <h4 style="margin: 20px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px;">Feasibility</h4>
+                    <h4 style="margin: 20px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px; font-size: 0.95em;">Feasibility</h4>
                     {% if exp.feasibility and exp.feasibility.components %}
                         {% for comp in exp.feasibility.components %}
                         <div style="margin-bottom: 8px; font-size: 0.9em;">
@@ -204,7 +510,7 @@
                     {% endif %}
 
                     <!-- Penalty Components -->
-                    <h4 style="margin: 20px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px;">Penalties</h4>
+                    <h4 style="margin: 20px 0 5px 0; border-bottom: 1px solid var(--color-border); padding-bottom: 3px; font-size: 0.95em;">Penalties</h4>
                     {% if exp.penalties and exp.penalties.components %}
                         {% for comp in exp.penalties.components %}
                         <div style="margin-bottom: 8px; font-size: 0.9em;">
@@ -219,10 +525,10 @@
 
                     <details style="margin-top: 15px; font-size: 0.8em;">
                         <summary style="cursor: pointer; color: var(--color-text-muted);">View Raw JSON Explanation</summary>
-                        <pre style="background: var(--color-bg-body); padding: 10px; border-radius: 4px; overflow-x: auto; margin-top: 5px;">{{ exp | tojson(indent=2) }}</pre>
+                        <pre style="background: var(--color-bg-body); padding: 10px; border-radius: 4px; overflow-x: auto; margin-top: 5px; color: var(--color-text-primary);">{{ exp | tojson(indent=2) }}</pre>
                     </details>
                 {% else %}
-                    <p style="font-style: italic; color: var(--color-text-muted);">Breakdown unavailable. Not scored yet.</p>
+                    <p style="font-style: italic; color: var(--color-text-muted); font-size: 0.9em;">Breakdown unavailable. Not scored yet.</p>
                 {% endif %}
             </section>
 
@@ -244,6 +550,9 @@
                     {% endif %}
                     {% if opportunity.last_scored_at %}
                     <li>Last Scored: <strong>{{ opportunity.last_scored_at.strftime('%Y-%m-%d %H:%M') }} UTC</strong></li>
+                    {% endif %}
+                    {% if opportunity.evidence_updated_at %}
+                    <li>Evidence Updated: <strong>{{ opportunity.evidence_updated_at.strftime('%Y-%m-%d %H:%M') }} UTC</strong></li>
                     {% endif %}
                 </ul>
             </section>

@@ -5,17 +5,17 @@ Revises: da4fadf39e75
 Create Date: 2026-07-06 19:44:03.793505
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '187355bd71bf'
-down_revision: Union[str, Sequence[str], None] = 'da4fadf39e75'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "187355bd71bf"
+down_revision: str | Sequence[str] | None = "da4fadf39e75"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -38,4 +38,3 @@ def downgrade() -> None:
         batch_op.drop_column("last_clustered_at")
         batch_op.drop_column("cluster_version")
         batch_op.drop_column("generation_method")
-

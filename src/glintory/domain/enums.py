@@ -6,6 +6,7 @@ class CollectionRunStatus(StrEnum):
     SUCCEEDED = "succeeded"
     PARTIAL = "partial"
     FAILED = "failed"
+    ABANDONED = "abandoned"
 
 
 class OpportunityStatus(StrEnum):

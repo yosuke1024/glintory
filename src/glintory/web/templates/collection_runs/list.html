@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+
+{% block title %}Collection History - Glintory{% endblock %}
+
+{% block content %}
+<header class="page-header" style="margin-bottom: 20px;">
+    <h1>Collection Runs</h1>
+    <p class="tagline">Execution history of ingestion runs across all sources.</p>
+</header>
+
+<section class="filter-panel card" style="padding: 15px; margin-bottom: 20px;">
+    <form action="/collection-runs" method="GET" class="filter-form" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+        <div class="filter-group" style="display: flex; flex-direction: column; gap: 5px;">
+            <label for="source" style="font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">Source</label>
+            <select name="source" id="source" style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); font-size: 0.9rem; min-width: 150px;">
+                <option value="">All Sources</option>
+                {% for s in sources %}
+                <option value="{{ s.id }}" {% if selected_source == s.id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group" style="display: flex; flex-direction: column; gap: 5px;">
+            <label for="status_filter" style="font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">Status</label>
+            <select name="status_filter" id="status_filter" style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); font-size: 0.9rem; min-width: 120px;">
+                <option value="">All Statuses</option>
+                <option value="running" {% if selected_status == 'running' %}selected{% endif %}>Running</option>
+                <option value="succeeded" {% if selected_status == 'succeeded' %}selected{% endif %}>Succeeded</option>
+                <option value="partial" {% if selected_status == 'partial' %}selected{% endif %}>Partial</option>
+                <option value="failed" {% if selected_status == 'failed' %}selected{% endif %}>Failed</option>
+                <option value="abandoned" {% if selected_status == 'abandoned' %}selected{% endif %}>Abandoned</option>
+            </select>
+        </div>
+
+        <div class="filter-group" style="display: flex; flex-direction: column; gap: 5px;">
+            <label for="trigger" style="font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">Trigger</label>
+            <select name="trigger" id="trigger" style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); font-size: 0.9rem; min-width: 120px;">
+                <option value="">All Triggers</option>
+                <option value="cli" {% if selected_trigger == 'cli' %}selected{% endif %}>CLI</option>
+                <option value="web" {% if selected_trigger == 'web' %}selected{% endif %}>Web</option>
+                <option value="scheduled" {% if selected_trigger == 'scheduled' %}selected{% endif %}>Scheduled</option>
+            </select>
+        </div>
+
+        <div class="filter-actions" style="display: flex; gap: 8px;">
+            <button type="submit" class="btn btn-primary btn-sm" style="padding: 6px 14px;">Filter</button>
+            <a href="/collection-runs" class="btn btn-secondary btn-sm" style="padding: 6px 14px; text-decoration: none; text-align: center;">Reset</a>
+        </div>
+    </form>
+</section>
+
+{% if runs %}
+<div class="table-responsive card" style="margin-top: 20px;">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Trigger</th>
+                <th>Started At</th>
+                <th>Duration</th>
+                <th>Fetched</th>
+                <th>Inserted</th>
+                <th>Errors</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+            <tr>
+                <td>
+                    <a href="/sources/{{ run.source_id }}" class="text-link">{{ run.source_name }}</a>
+                </td>
+                <td>{{ run.source_type }}</td>
+                <td>
+                    <span class="badge badge-status-{{ run.status }}">
+                        {{ run.status.value }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge badge-trigger-{{ run.trigger_type.value }}">
+                        {{ run.trigger_type.value }}
+                    </span>
+                </td>
+                <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td>
+                <td>{{ run.finished_at | format_duration(run.started_at) }}</td>
+                <td>{{ run.fetched_count }}</td>
+                <td>{{ run.inserted_count }}</td>
+                <td>
+                    <span class="{% if run.error_count > 0 %}text-error{% endif %}">
+                        {{ run.error_count }}
+                    </span>
+                </td>
+                <td>
+                    <a href="/collection-runs/{{ run.id }}" class="text-link">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="pagination-container" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <span class="text-muted" style="font-size: 0.9rem;">Total: <strong>{{ total_count }}</strong> runs</span>
+    <div class="pagination-buttons" style="display: flex; align-items: center;">
+        {% if page > 1 %}
+        <a href="/collection-runs?page={{ page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_status %}&status_filter={{ selected_status }}{% endif %}{% if selected_trigger %}&trigger={{ selected_trigger }}{% endif %}" class="btn btn-secondary btn-sm" style="text-decoration: none;">&larr; Prev</a>
+        {% endif %}
+        <span class="page-indicator" style="margin: 0 15px; font-size: 0.9rem; color: var(--text-muted);">Page {{ page }} of {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="/collection-runs?page={{ page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_status %}&status_filter={{ selected_status }}{% endif %}{% if selected_trigger %}&trigger={{ selected_trigger }}{% endif %}" class="btn btn-secondary btn-sm" style="text-decoration: none;">Next &rarr;</a>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="empty-state card" style="margin-top: 20px; padding: 20px; text-align: center;">
+    <p>No collection runs match the filter criteria.</p>
+</div>
+{% endif %}
+{% endblock %}

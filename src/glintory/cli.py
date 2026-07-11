@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 from glintory.bootstrap import bootstrap
@@ -14,6 +15,7 @@ from glintory.collectors.registry import CollectorNotFoundError
 from glintory.config import Settings
 from glintory.domain.enums import CollectionRunStatus
 from glintory.infrastructure.repositories import SourceRepository
+from glintory.domain.operations import CollectionTriggerType, SourceAlreadyRunningError
 from glintory.infrastructure.schema_status import (
     DatabaseSchemaError,
     check_schema_status,
@@ -146,9 +148,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # Setup score command
-    score_parser = subparsers.add_parser(
-        "score", help="Perform opportunity scoring"
-    )
+    score_parser = subparsers.add_parser("score", help="Perform opportunity scoring")
     score_parser.add_argument(
         "--opportunity",
         help="UUID of a single opportunity to score",
@@ -176,7 +176,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-
 async def run_cli(args: argparse.Namespace) -> int:
     setup_logging()
 
@@ -202,7 +201,6 @@ async def run_cli(args: argparse.Namespace) -> int:
             return await run_score_command(args, runtime)
 
     return 0
-
 
 
 async def _run_source_add(args: argparse.Namespace, runtime: Any) -> int:
@@ -490,8 +488,13 @@ async def _run_collect_single(args: argparse.Namespace, runtime: Any) -> int:
 
     try:
         res = await runtime.collection_service.run_source(
-            source_id, max_items=args.max_items
+            source_id,
+            trigger_type=CollectionTriggerType.CLI,
+            max_items=args.max_items,
         )
+    except SourceAlreadyRunningError as e:
+        sys.stderr.write(f"Source operations conflict: {e}\n")
+        return 4
     except Exception as e:
         sys.stderr.write(f"Collection execution error: {e}\n")
         return 1
@@ -577,12 +580,35 @@ async def _run_collect_all(args: argparse.Namespace, runtime: Any) -> int:
     total_duplicate = 0
     total_warning = 0
     total_error = 0
-
     for source in enabled_sources:
         try:
             res = await runtime.collection_service.run_source(
-                source.id, max_items=args.max_items
+                source.id,
+                trigger_type=CollectionTriggerType.CLI,
+                max_items=args.max_items,
             )
+        except SourceAlreadyRunningError as e:
+            sys.stderr.write(
+                f"Source '{source.name}' is busy (already running). Skipping.\n"
+            )
+            failed_count += 1
+            total_error += 1
+            runs_data.append(
+                {
+                    "source_id": source.id,
+                    "source_name": source.name,
+                    "source_type": source.source_type,
+                    "collection_run_id": "",
+                    "status": "failed",
+                    "fetched_count": 0,
+                    "inserted_count": 0,
+                    "updated_count": 0,
+                    "duplicate_count": 0,
+                    "warning_count": 0,
+                    "error_count": 1,
+                }
+            )
+            continue
         except Exception as e:
             sys.stderr.write(
                 f"Unexpected error running collector for '{source.name}': {e}\n"
@@ -698,13 +724,13 @@ async def run_analyze_command(args: argparse.Namespace, runtime: Any) -> int:
     session = runtime.session_factory()
     try:
         from glintory.domain.clustering import OpportunityClusteringConfig
-        from glintory.services.opportunity_clustering import (
-            OpportunityClusteringEngine,
-        )
         from glintory.infrastructure.opportunity_clustering_repository import (
             OpportunityClusteringRepository,
         )
         from glintory.services.opportunity_analysis import OpportunityAnalysisService
+        from glintory.services.opportunity_clustering import (
+            OpportunityClusteringEngine,
+        )
 
         config = OpportunityClusteringConfig(cluster_version=args.cluster_version)
         repo = OpportunityClusteringRepository(session)

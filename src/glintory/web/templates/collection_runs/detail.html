@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+
+{% block title %}Run #{{ run.id | truncate(8, True, '') }} - Collection History - Glintory{% endblock %}
+
+{% block content %}
+<div class="back-link-container" style="margin-bottom: 20px;">
+    <a href="/collection-runs?source={{ run.source_id }}" class="back-link" style="color: var(--text-muted); text-decoration: none;">&larr; Back to Ingestion History</a>
+</div>
+
+<header class="page-header" style="margin-bottom: 20px;">
+    <h1>Run Detail</h1>
+    <p class="tagline">Run ID: <code>{{ run.id }}</code></p>
+</header>
+
+<div class="card-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+    <div class="info-card card" style="padding: 15px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1.1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">Execution Summary</h3>
+        <div class="stats-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem;">
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Source:</span>
+                <span class="stat-val">
+                    <a href="/sources/{{ run.source_id }}" class="text-link" style="font-weight: bold;">{{ run.source_name }}</a>
+                </span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Type:</span>
+                <span class="stat-val" style="font-weight: bold;">{{ run.source_type }}</span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="stat-label" style="color: var(--text-muted);">Trigger:</span>
+                <span class="stat-val">
+                    <span class="badge badge-trigger-{{ run.trigger_type.value }}">
+                        {{ run.trigger_type.value }}
+                    </span>
+                </span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="stat-label" style="color: var(--text-muted);">Status:</span>
+                <span class="stat-val">
+                    <span class="badge badge-status-{{ run.status }}">
+                        {{ run.status.value }}
+                    </span>
+                </span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Started:</span>
+                <span class="stat-val" style="font-weight: bold;">{{ run.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Finished:</span>
+                <span class="stat-val" style="font-weight: bold;">
+                    {% if run.finished_at %}
+                        {{ run.finished_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Duration:</span>
+                <span class="stat-val" style="font-weight: bold;">{{ run.finished_at | format_duration(run.started_at) }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-card card" style="padding: 15px;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1.1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">Item Processing Stats</h3>
+        <div class="stats-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem;">
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Fetched:</span>
+                <span class="stat-val" style="font-weight: bold;">{{ run.fetched_count }}</span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Inserted (New):</span>
+                <span class="stat-val text-success" style="font-weight: bold;">{{ run.inserted_count }}</span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Updated:</span>
+                <span class="stat-val text-info" style="font-weight: bold;">{{ run.updated_count }}</span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Duplicates:</span>
+                <span class="stat-val" style="font-weight: bold;">{{ run.duplicate_count }}</span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Warnings:</span>
+                <span class="stat-val {% if run.warning_count > 0 %}text-warning{% endif %}" style="font-weight: bold;">
+                    {{ run.warning_count }}
+                </span>
+            </div>
+            <div class="stat-item" style="display: flex; justify-content: space-between;">
+                <span class="stat-label" style="color: var(--text-muted);">Errors:</span>
+                <span class="stat-val {% if run.error_count > 0 %}text-error{% endif %}" style="font-weight: bold;">
+                    {{ run.error_count }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if run.safe_error_summary %}
+<div class="card" style="margin-top: 20px; padding: 15px;">
+    <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1.1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">Sanitized Error Summary</h3>
+    <pre class="error-summary-pre" style="background: rgba(0, 0, 0, 0.2); padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 0.9rem; max-height: 300px; border: 1px solid var(--border-color);"><code style="color: #f87171;">{{ run.safe_error_summary }}</code></pre>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top: 20px; padding: 15px;">
+    <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 1.1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">Run Metadata</h3>
+    {% if run.metadata %}
+        <details class="metadata-details" style="cursor: pointer; font-size: 0.9rem;">
+            <summary style="color: var(--text-muted); font-weight: bold; margin-bottom: 10px;">Click to view metadata JSON</summary>
+            <pre class="metadata-pre" style="background: rgba(0, 0, 0, 0.2); padding: 10px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 0.85rem; border: 1px solid var(--border-color);"><code style="color: #d1d5db;">{{ run.metadata | tojson(indent=2) }}</code></pre>
+        </details>
+    {% else %}
+        <p class="text-muted" style="margin: 0;">No metadata available.</p>
+    {% endif %}
+</div>
+{% endblock %}

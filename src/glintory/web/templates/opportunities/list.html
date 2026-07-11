@@ -127,7 +127,7 @@
             </div>
             
             <div class="signal-card-body" style="margin-top: 15px;">
-                <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+                <div style="display: flex; gap: 15px; margin-bottom: 10px; flex-wrap: wrap;">
                     <div>
                         <strong>Total Score:</strong> 
                         {% if opp.last_scored_at %}
@@ -136,8 +136,18 @@
                             <span style="color: var(--color-text-muted); font-style: italic;">Not scored</span>
                         {% endif %}
                     </div>
+                    <div>
+                        <strong>Score Status:</strong>
+                        {% if not opp.last_scored_at %}
+                            <span class="badge badge-score-unscored" style="background-color: #777; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">Not scored</span>
+                        {% elif opp.score_is_stale %}
+                            <span class="badge badge-score-stale" style="background-color: #d9534f; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">Score outdated</span>
+                        {% else %}
+                            <span class="badge badge-score-current" style="background-color: #5cb85c; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">Score current</span>
+                        {% endif %}
+                    </div>
                     {% if opp.last_scored_at %}
-                    <div style="font-size: 0.9em; color: var(--color-text-muted); display: flex; gap: 10px; align-items: center;">
+                    <div style="font-size: 0.9em; color: var(--color-text-muted); display: flex; gap: 10px; align-items: center; width: 100%;">
                         <span>(Evidence: {{ opp.evidence_score }})</span>
                         <span>(Feasibility: {{ opp.feasibility_score }})</span>
                         <span>(Penalty: {{ opp.penalty_score }})</span>

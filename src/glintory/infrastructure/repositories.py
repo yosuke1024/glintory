@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from glintory.domain.enums import CollectionRunStatus
 from glintory.domain.models import CollectionRun, Signal, Source
 from glintory.domain.signals import NormalizedSignal, SignalIdentityCollisionError
+from glintory.domain.operations import CollectionTriggerType
 
 
 class SourceRepository:
@@ -131,9 +132,12 @@ class CollectionRunRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def create_running(self, source_id: str) -> CollectionRun:
+    def create_running(
+        self, source_id: str, trigger_type: CollectionTriggerType = CollectionTriggerType.CLI
+    ) -> CollectionRun:
         run = CollectionRun(
             source_id=source_id,
+            trigger_type=trigger_type,
             status=CollectionRunStatus.RUNNING,
             fetched_count=0,
             inserted_count=0,

@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 
 from glintory.domain.clustering import calculate_evidence_origin
 from glintory.domain.enums import Confidence, OpportunityStatus
-from glintory.domain.models import Opportunity, OpportunitySignal, ScoreSnapshot, Signal, Source
+from glintory.domain.models import (
+    Opportunity,
+    OpportunitySignal,
+    ScoreSnapshot,
+    Signal,
+    Source,
+)
 from glintory.domain.scoring import (
     OpportunityScoringInput,
     ScoringEvidenceSignal,
@@ -18,12 +24,14 @@ class OpportunityScoringRepository:
         self.session = session
 
     def _to_scoring_input(
-        self, opp: Opportunity, signals_with_sources: list[tuple[Signal, Source, OpportunitySignal]]
+        self,
+        opp: Opportunity,
+        signals_with_sources: list[tuple[Signal, Source, OpportunitySignal]],
     ) -> OpportunityScoringInput:
         scoring_signals = []
         for sig, src, opp_sig in signals_with_sources:
             origin = calculate_evidence_origin(src.source_type, sig.canonical_url)
-            
+
             # Extract tags as tuple
             tags_tuple = tuple(sig.tags) if sig.tags else ()
 
@@ -46,7 +54,9 @@ class OpportunityScoringRepository:
             )
 
         # opp.status can be string or Enum, standardise to string
-        status_str = opp.status.value if hasattr(opp.status, "value") else str(opp.status)
+        status_str = (
+            opp.status.value if hasattr(opp.status, "value") else str(opp.status)
+        )
 
         return OpportunityScoringInput(
             opportunity_id=opp.id,
@@ -73,12 +83,13 @@ class OpportunityScoringRepository:
 
         opp_ids = [opp.id for opp in opps]
 
-        # Bulk load signals and sources to avoid N+1
+        # Bulk load signals and sources to avoid N+1 (active only)
         links = (
             self.session.query(OpportunitySignal, Signal, Source)
             .join(Signal, OpportunitySignal.signal_id == Signal.id)
             .join(Source, Signal.source_id == Source.id)
             .filter(OpportunitySignal.opportunity_id.in_(opp_ids))
+            .filter(OpportunitySignal.is_excluded.is_(False))
             .all()
         )
 
@@ -97,8 +108,10 @@ class OpportunityScoringRepository:
 
         return inputs
 
-    def load_scoring_input_by_id(self, opportunity_id: str) -> OpportunityScoringInput | None:
-        """Load a single opportunity scoring input by ID."""
+    def load_scoring_input_by_id(
+        self, opportunity_id: str
+    ) -> OpportunityScoringInput | None:
+        """Load a single opportunity scoring input by ID (active only)."""
         opp = self.session.get(Opportunity, opportunity_id)
         if not opp:
             return None
@@ -108,6 +121,7 @@ class OpportunityScoringRepository:
             .join(Signal, OpportunitySignal.signal_id == Signal.id)
             .join(Source, Signal.source_id == Source.id)
             .filter(OpportunitySignal.opportunity_id == opportunity_id)
+            .filter(OpportunitySignal.is_excluded.is_(False))
             .all()
         )
 
@@ -188,10 +202,12 @@ class OpportunityScoringRepository:
             opp.current_scoring_version = scoring_version
             opp.last_scored_at = last_scored_at
             opp.updated_at = last_scored_at
-        
+
         try:
             self.session.flush()
-        except IntegrityError as e:
+        except IntegrityError:
             self.session.rollback()
             # Do not expose raw database URL or raw SQL parameters for security
-            raise ValueError("Database integrity error occurred during persistence.") from None
+            raise ValueError(
+                "Database integrity error occurred during persistence."
+            ) from None

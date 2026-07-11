@@ -73,8 +73,8 @@ def calculate_scoring_input_hash(
     }
 
     # Generate a compact, key-sorted JSON representation
-    json_bytes = json.dumps(
-        data_to_hash, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    json_bytes = json.dumps(data_to_hash, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
 
     return hashlib.sha256(json_bytes).hexdigest()

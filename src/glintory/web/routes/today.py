@@ -1,5 +1,6 @@
 import pathlib
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
+from sqlalchemy import func
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -43,6 +44,43 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
     query_service = OpportunityQueryService(query_repo)
     top_opps = query_service.get_top_opportunities(limit=3)
 
+    from glintory.domain.models import Opportunity, Source, CollectionRun
+    from glintory.domain.enums import CollectionRunStatus
+
+    has_any_opp = db.query(Opportunity).first() is not None
+
+    # Calculate Source Operations Summary
+    enabled_sources_count = db.query(Source).filter(Source.enabled == True).count()
+    
+    running_sources_count = (
+        db.query(CollectionRun)
+        .filter(CollectionRun.status == CollectionRunStatus.RUNNING)
+        .group_by(CollectionRun.source_id)
+        .count()
+    )
+
+    now = datetime.now(UTC)
+    last_24h = now - timedelta(hours=24)
+    failed_runs_24h_count = (
+        db.query(CollectionRun)
+        .filter(
+            CollectionRun.status.in_([CollectionRunStatus.FAILED, CollectionRunStatus.ABANDONED]),
+            CollectionRun.started_at >= last_24h
+        )
+        .count()
+    )
+
+    last_success_run = (
+        db.query(func.max(CollectionRun.completed_at))
+        .filter(CollectionRun.status.in_([CollectionRunStatus.SUCCEEDED, CollectionRunStatus.PARTIAL]))
+        .scalar()
+    )
+    last_success_run_str = "—"
+    if last_success_run:
+        if last_success_run.tzinfo is None:
+            last_success_run = last_success_run.replace(tzinfo=UTC)
+        last_success_run_str = last_success_run.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -53,5 +91,10 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
             "last_status": last_status,
             "recent_signals": recent,
             "top_opportunities": top_opps,
+            "has_any_opportunity": has_any_opp,
+            "enabled_sources_count": enabled_sources_count,
+            "running_sources_count": running_sources_count,
+            "failed_runs_24h_count": failed_runs_24h_count,
+            "last_success_run_str": last_success_run_str,
         },
     )
