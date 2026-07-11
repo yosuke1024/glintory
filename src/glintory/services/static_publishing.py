@@ -366,6 +366,9 @@ def build_static_site(
 
             # Render English (Default)
             loc_data_en = get_localized_data(op, enrichment, "en", en_loc)
+            translation_available_en = (en_loc is not None)
+            translation_fallback_en = (enrichment is not None and en_loc is None)
+            
             rendered_detail_en = detail_template.render(
                 base_path=base_path,
                 op=op,
@@ -376,6 +379,8 @@ def build_static_site(
                 enrichment=enrichment,
                 locale="en",
                 loc_data=loc_data_en,
+                translation_available=translation_available_en,
+                translation_fallback=translation_fallback_en,
             )
 
             op_dir = os.path.join(temp_build_dir, "opportunities", op.id)
@@ -385,6 +390,9 @@ def build_static_site(
 
             # Render Japanese
             loc_data_ja = get_localized_data(op, enrichment, "ja", ja_loc)
+            translation_available_ja = (ja_loc is not None)
+            translation_fallback_ja = (enrichment is not None and ja_loc is None)
+            
             rendered_detail_ja = detail_template.render(
                 base_path=base_path,
                 op=op,
@@ -395,6 +403,8 @@ def build_static_site(
                 enrichment=enrichment,
                 locale="ja",
                 loc_data=loc_data_ja,
+                translation_available=translation_available_ja,
+                translation_fallback=translation_fallback_ja,
             )
 
             op_dir_ja = os.path.join(op_dir, "ja")

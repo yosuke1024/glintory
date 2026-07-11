@@ -15,6 +15,15 @@ from glintory.domain.validation_models import EnglishBrief, JapaneseBrief, Bilin
 logger = logging.getLogger(__name__)
 
 
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class LocalLlmRuntimeDescriptor:
+    version: str
+    commit: str | None
+    binary_sha256: str
+
+
 class OpportunityEnrichmentRequest(BaseModel):
     opportunity_id: str
     title: str
@@ -212,6 +221,7 @@ class LocalLlmProvider:
         self.model_sha256 = model_sha256 or settings.local_llm_model_sha256
         self.host = host or settings.local_llm_bind_address
         self.port = port or settings.local_llm_port
+        self.runtime_descriptor: LocalLlmRuntimeDescriptor | None = None
 
     def verify_infrastructure(self) -> None:
         if not os.path.exists(self.binary_path):
@@ -229,11 +239,43 @@ class LocalLlmProvider:
                 text=True,
                 timeout=5,
             )
-            if "3600" not in res.stdout and "2fb9267" not in res.stdout:
-                logger.error("LLM_RUNTIME_START_FAILED")
+            version_str = "unknown"
+            commit_str = None
+            for line in res.stdout.splitlines():
+                if "version:" in line:
+                    parts = line.split("version:")
+                    if len(parts) > 1:
+                        val = parts[1].strip()
+                        version_str = val
+                        if "(" in val and ")" in val:
+                            inner = val.split("(")[1].split(")")[0].strip()
+                            commit_str = inner
+                            version_str = val.split("(")[0].strip()
+            
+            if version_str == "unknown":
+                version_str = res.stdout.strip() or "unknown"
+
+            expected_version = settings.local_llm_runtime_version
+            expected_ver_num = expected_version.lstrip("b")
+            if expected_ver_num not in version_str and expected_version not in version_str:
+                logger.error(f"Version mismatch: expected {expected_version}, got {version_str}")
                 raise ValueError("LLM_RUNTIME_START_FAILED")
-        except Exception:
-            logger.error("LLM_RUNTIME_START_FAILED")
+
+            if settings.local_llm_runtime_commit:
+                expected_commit = settings.local_llm_runtime_commit
+                if not commit_str or not (expected_commit.startswith(commit_str) or commit_str.startswith(expected_commit)):
+                    logger.error(f"Commit mismatch: expected {expected_commit}, got {commit_str}")
+                    raise ValueError("LLM_RUNTIME_START_FAILED")
+
+            self.runtime_descriptor = LocalLlmRuntimeDescriptor(
+                version=version_str,
+                commit=commit_str,
+                binary_sha256=self.binary_sha256
+            )
+        except Exception as e:
+            if isinstance(e, ValueError) and str(e) == "LLM_RUNTIME_START_FAILED":
+                raise
+            logger.error(f"LLM_RUNTIME_START_FAILED: {e}")
             raise RuntimeError("LLM_RUNTIME_START_FAILED")
 
         if not os.path.exists(self.model_path):
@@ -314,6 +356,9 @@ class LocalLlmProvider:
                 "type": "json_object",
                 "schema": BILINGUAL_ENRICHMENT_JSON_SCHEMA,
             },
+            "chat_template_kwargs": {
+                "enable_thinking": False,
+            },
             "max_tokens": settings.local_llm_max_output_tokens,
             "temperature": 0.0,
         }
@@ -322,21 +367,46 @@ class LocalLlmProvider:
             with httpx.Client(timeout=float(settings.local_llm_timeout_seconds)) as client:
                 response = client.post(url, json=payload)
                 if response.status_code != 200:
-                    logger.error("LLM_INFERENCE_FAILED")
+                    logger.error("LLM_INFERENCE_FAILED: status_code is not 200")
                     return OpportunityEnrichmentResponse(
                         status="failed",
                         error_code="LLM_INFERENCE_FAILED",
                         duration_ms=int((time.perf_counter() - start_time) * 1000),
                     )
 
-                result = response.json()
-                content = result["choices"][0]["message"]["content"]
+                try:
+                    result = response.json()
+                except Exception:
+                    logger.error("LLM_INFERENCE_FAILED: Response is not JSON")
+                    return OpportunityEnrichmentResponse(
+                        status="invalid_output",
+                        error_code="LLM_INVALID_JSON",
+                        duration_ms=int((time.perf_counter() - start_time) * 1000),
+                    )
+
+                if not isinstance(result, dict) or "choices" not in result or not result["choices"]:
+                    logger.error("LLM_INFERENCE_FAILED: Invalid response structure")
+                    return OpportunityEnrichmentResponse(
+                        status="invalid_output",
+                        error_code="LLM_SCHEMA_VALIDATION_FAILED",
+                        duration_ms=int((time.perf_counter() - start_time) * 1000),
+                    )
+
+                content = result["choices"][0].get("message", {}).get("content")
+                if not content:
+                    logger.error("LLM_INFERENCE_FAILED: Empty content in message")
+                    return OpportunityEnrichmentResponse(
+                        status="invalid_output",
+                        error_code="LLM_SCHEMA_VALIDATION_FAILED",
+                        duration_ms=int((time.perf_counter() - start_time) * 1000),
+                    )
+
                 duration_ms = int((time.perf_counter() - start_time) * 1000)
 
                 try:
                     data = json.loads(content)
                 except json.JSONDecodeError:
-                    logger.error("LLM_INFERENCE_FAILED")
+                    logger.error("LLM_INFERENCE_FAILED: content is not JSON")
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_INVALID_JSON",
@@ -344,19 +414,27 @@ class LocalLlmProvider:
                     )
 
                 try:
+                    brief = BilingualOpportunityBrief.model_validate(data)
+                except Exception as e:
+                    logger.error(f"LLM_INFERENCE_FAILED: Pydantic validation failed: {e}")
+                    return OpportunityEnrichmentResponse(
+                        status="invalid_output",
+                        error_code="LLM_SCHEMA_VALIDATION_FAILED",
+                        duration_ms=duration_ms,
+                    )
+
+                try:
                     input_evidence_ids = {e["id"] for e in request.evidence}
-                    for ref in data.get("evidence_refs", []):
+                    for ref in brief.evidence_refs:
                         if ref not in input_evidence_ids:
-                            logger.error("LLM_INFERENCE_FAILED")
+                            logger.error(f"LLM_INFERENCE_FAILED: evidence ref {ref} not in input set")
                             return OpportunityEnrichmentResponse(
                                 status="invalid_output",
                                 error_code="LLM_SCHEMA_VALIDATION_FAILED",
                                 duration_ms=duration_ms,
                             )
-
-                    brief = BilingualOpportunityBrief.model_validate(data)
                 except Exception:
-                    logger.error("LLM_INFERENCE_FAILED")
+                    logger.error("LLM_INFERENCE_FAILED: evidence check failed")
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_SCHEMA_VALIDATION_FAILED",
@@ -378,8 +456,8 @@ class LocalLlmProvider:
                 error_code="LLM_TIMEOUT",
                 duration_ms=int((time.perf_counter() - start_time) * 1000),
             )
-        except Exception:
-            logger.error("LLM_INFERENCE_FAILED")
+        except Exception as e:
+            logger.error(f"LLM_INFERENCE_FAILED: {e}")
             return OpportunityEnrichmentResponse(
                 status="failed",
                 error_code="LLM_INFERENCE_FAILED",

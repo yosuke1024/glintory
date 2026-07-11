@@ -356,7 +356,7 @@ def build_parser() -> argparse.ArgumentParser:
     enrich_run_parser = enrich_subparsers.add_parser("run", help="Run LLM enrichment")
     enrich_run_parser.add_argument("--opportunity", help="UUID of a single opportunity to enrich")
     enrich_run_parser.add_argument("--max-opportunities", type=int, help="Maximum opportunities to process")
-    enrich_run_parser.add_argument("--model-id", help="Model ID override")
+    enrich_run_parser.add_argument("--require-all-success", action="store_true", help="Enforce strict success exit codes")
     enrich_run_parser.add_argument("--json", action="store_true", help="Output in JSON format")
     enrich_run_parser.add_argument("--force", action="store_true", help="Force reprocessing even if input hash matches")
 
@@ -1480,21 +1480,11 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
 
 async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:
     import json
-    import os
     import sys
     from glintory.services.opportunity_enrichment_service import OpportunityEnrichmentService
     from glintory.infrastructure.local_llm_client import LocalLlmProvider
 
     provider = LocalLlmProvider()
-
-    # Override model-id if provided
-    if args.model_id:
-        # Override file name
-        provider.model_sha256 = ""  # Disable SHA-256 check when custom model is specified
-        provider.model_sha256 = os.environ.get("GLINTORY_LOCAL_LLM_MODEL_SHA256", "")
-        # Adjust model path based on parent directory
-        model_dir = os.path.dirname(provider.model_path)
-        provider.model_path = os.path.join(model_dir, args.model_id)
 
     service = OpportunityEnrichmentService(
         session_factory=runtime.session_factory,
@@ -1530,20 +1520,36 @@ async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:
             if res.warning_codes:
                 print(f"Warnings: {', '.join(res.warning_codes)}")
 
+        if getattr(args, "require_all_success", False):
+            if res.selected_count == 0:
+                sys.stderr.write("No opportunities selected.\n")
+                return 4
+            if res.failed_count > 0 or res.succeeded_count != res.selected_count:
+                sys.stderr.write(f"Strict conformance check failed: selected={res.selected_count}, succeeded={res.succeeded_count}, failed={res.failed_count}\n")
+                return 4
+            return 0
+
         return 0
-    except Exception:
+    except Exception as e:
+        err_msg = str(e)
+        is_runtime_start_failed = "LLM_RUNTIME_START_FAILED" in err_msg
+        
+        exit_code = 1
+        if not is_runtime_start_failed and "LLM_INFERENCE_FAILED" in err_msg:
+            exit_code = 4
+
         if args.json:
             print(
                 json.dumps(
                     {
                         "operational_status": "failed",
-                        "error_code": "ENRICHMENT_RUN_FAILED",
+                        "error_code": "LLM_RUNTIME_START_FAILED" if is_runtime_start_failed else "ENRICHMENT_RUN_FAILED",
                     }
                 )
             )
         else:
-            sys.stderr.write("ENRICHMENT_RUN_FAILED\n")
-        return 1
+            sys.stderr.write(f"ENRICHMENT_RUN_FAILED: {err_msg}\n")
+        return exit_code
 
 
 def run_publish_config_validation(args: argparse.Namespace) -> int:

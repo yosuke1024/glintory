@@ -344,7 +344,7 @@ def test_validation_rejects_html_and_invalid_refs(db_session_factory, mock_oppor
     # 1. Mock version command to verify_infrastructure succeeds
     with patch("subprocess.run") as mock_run:
         mock_res = MagicMock()
-        mock_res.stdout = "version: 3600"
+        mock_res.stdout = "version: 5092 (d3bd7193)"
         mock_run.return_value = mock_res
 
         # Mock check verification paths
@@ -545,5 +545,117 @@ def test_static_site_fallback_and_rendering(db_session_factory, mock_opportunity
         content_ja = f.read()
     assert "AI 日タイト" in content_ja
     assert "AI 日サマ" in content_ja
-    assert "以下の証拠データに基づくAI生成の要約。" in content_ja
+    assert "以下の証拠データに基づくAI生成の日本語参考訳です。" in content_ja
     assert "View in English (English)" in content_ja
+
+    # Test Fallback rendering (Japanese localization is missing)
+    session = db_session_factory()
+    # Delete Japanese localization
+    session.query(OpportunityEnrichmentLocalization).filter(
+        OpportunityEnrichmentLocalization.locale == "ja"
+    ).delete()
+    session.commit()
+
+    build_static_site(
+        session=session,
+        output_dir=output_dir,
+        site_url="https://example.com/glintory",
+    )
+    session.close()
+
+    with open(opp_detail_file_ja, "r") as f:
+        content_ja_fallback = f.read()
+    assert "AI Generated Title" in content_ja_fallback  # fallback to English
+    assert "日本語訳はまだ生成されていません。英語版のAI要約を表示しています。" in content_ja_fallback
+
+
+def test_zero_evidence_skips_with_warning(db_session_factory, mock_opportunity_data):
+    opp_id, signal_id, _ = mock_opportunity_data
+    settings.local_llm_enabled = True
+
+    # Delete all evidence relation records to simulate zero evidence
+    session = db_session_factory()
+    session.query(OpportunitySignal).filter(OpportunitySignal.opportunity_id == opp_id).delete()
+    session.commit()
+    session.close()
+
+    resp = OpportunityEnrichmentResponse(status="succeeded")
+    provider = FakeEnrichmentProvider(resp)
+    service = OpportunityEnrichmentService(db_session_factory, provider)
+
+    res = service.run_enrichment(affected_opportunity_ids=[opp_id])
+    assert res.skipped_count == 1
+    assert "LLM_NO_EVIDENCE" in res.warning_codes
+    assert len(provider.calls) == 0
+
+
+def test_input_budget_exceeded(db_session_factory, mock_opportunity_data):
+    opp_id, signal_id, _ = mock_opportunity_data
+    settings.local_llm_enabled = True
+    
+    # Store old limit
+    old_limit = settings.local_llm_max_input_chars
+    settings.local_llm_max_input_chars = 50  # extremely small limit to trigger early budget overflow
+
+    try:
+        resp = OpportunityEnrichmentResponse(status="succeeded")
+        provider = FakeEnrichmentProvider(resp)
+        service = OpportunityEnrichmentService(db_session_factory, provider)
+
+        res = service.run_enrichment(affected_opportunity_ids=[opp_id])
+        assert res.failed_count == 1
+        assert "LLM_INPUT_BUDGET_EXCEEDED" in res.warning_codes
+        
+        # Verify DB shows failed status with budget error code
+        session = db_session_factory()
+        enrich = session.query(OpportunityEnrichment).filter(OpportunityEnrichment.opportunity_id == opp_id).first()
+        assert enrich is not None
+        assert enrich.status == "failed"
+        assert enrich.error_code == "LLM_INPUT_BUDGET_EXCEEDED"
+        session.close()
+    finally:
+        settings.local_llm_max_input_chars = old_limit
+
+
+def test_provider_response_count_mismatch(db_session_factory, mock_opportunity_data):
+    opp_id, signal_id, _ = mock_opportunity_data
+    settings.local_llm_enabled = True
+
+    # Case 1: Excess responses
+    class ExcessProvider(OpportunityEnrichmentProvider):
+        def enrich_many(self, reqs):
+            return [OpportunityEnrichmentResponse(status="succeeded")] * (len(reqs) + 1)
+
+    service = OpportunityEnrichmentService(db_session_factory, ExcessProvider())
+    with pytest.raises(ValueError, match="Provider Contract Error"):
+        service.run_enrichment(affected_opportunity_ids=[opp_id])
+
+    # Verify enrichment record is marked failed in DB
+    session = db_session_factory()
+    enrich = session.query(OpportunityEnrichment).filter(OpportunityEnrichment.opportunity_id == opp_id).first()
+    assert enrich is not None
+    assert enrich.status == "failed"
+    assert enrich.error_code == "LLM_INFERENCE_FAILED"
+    session.close()
+
+
+def test_runtime_start_failure_leaves_no_running_records(db_session_factory, mock_opportunity_data):
+    opp_id, signal_id, _ = mock_opportunity_data
+    settings.local_llm_enabled = True
+
+    # Force verify_infrastructure to raise start failed exception
+    class FailingProvider(OpportunityEnrichmentProvider):
+        def verify_infrastructure(self):
+            raise RuntimeError("LLM_RUNTIME_START_FAILED")
+        def enrich_many(self, reqs):
+            return []
+
+    service = OpportunityEnrichmentService(db_session_factory, FailingProvider())
+    with pytest.raises(RuntimeError, match="LLM_RUNTIME_START_FAILED"):
+        service.run_enrichment(affected_opportunity_ids=[opp_id])
+
+    # Verify no enrichment record in DB is left in running state
+    session = db_session_factory()
+    enrich = session.query(OpportunityEnrichment).filter(OpportunityEnrichment.opportunity_id == opp_id).first()
+    assert enrich is None or enrich.status != "running"
+    session.close()

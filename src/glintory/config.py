@@ -68,7 +68,10 @@ class Settings(BaseSettings):
 
     local_llm_enabled: bool = False
     local_llm_binary_path: str = Field(default="./bin/llama-server")
-    local_llm_binary_sha256: str = Field(default="5edcfae5739f313a9d30bf9e59116b53f5240c3e6ffeb9f25be9bb7b8c303222")
+    local_llm_binary_sha256: str = Field(default="f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e")
+    local_llm_runtime_version: str = Field(default="b5092")
+    local_llm_runtime_commit: str | None = Field(default="d3bd7193ba66c15963fd1c59448f22019a8caf6e")
+    local_llm_archive_sha256: str = Field(default="36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5")
     local_llm_model_path: str = Field(default="./models/Qwen3-1.7B-Q8_0.gguf")
     local_llm_model_repo: str = Field(default="Qwen/Qwen3-1.7B-GGUF")
     local_llm_model_file: str = Field(default="Qwen3-1.7B-Q8_0.gguf")

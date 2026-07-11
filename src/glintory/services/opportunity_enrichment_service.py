@@ -73,7 +73,15 @@ class OpportunityEnrichmentService:
                 warning_codes=(),
             )
 
-        # 1. Select Qualifying Opportunities
+        # 1. Verify Infrastructure early before creating running records
+        if hasattr(self.provider, "verify_infrastructure"):
+            try:
+                self.provider.verify_infrastructure()
+            except Exception as e:
+                logger.error(f"LLM infrastructure validation failed: {e}")
+                raise
+
+        # 2. Select Qualifying Opportunities
         session = self.session_factory()
         repo = OpportunityEnrichmentRepository(session)
         selected_opps = []
@@ -99,12 +107,19 @@ class OpportunityEnrichmentService:
                 warning_codes=(),
             )
 
-        # 2. Build requests and manage state records before LLM execution
+        # 3. Build requests and manage state records before LLM execution
         batch_items = []
         skipped_count = 0
         failed_count = 0
+        warning_codes = []
 
         for opp, score_hash, evidences in selected_opps:
+            if not evidences:
+                logger.warning(f"Skipping opportunity {opp.id} (LLM_NO_EVIDENCE).")
+                skipped_count += 1
+                warning_codes.append("LLM_NO_EVIDENCE")
+                continue
+
             started_at = self.clock()
             input_hash = self.calculate_input_hash(
                 opportunity_id=opp.id,
@@ -127,6 +142,9 @@ class OpportunityEnrichmentService:
                         session.flush()
 
                 # Register enrichment as running in DB
+                runtime_ver = "unknown"
+                if hasattr(self.provider, "runtime_descriptor") and self.provider.runtime_descriptor:
+                    runtime_ver = self.provider.runtime_descriptor.version
                 enrichment = db_repo.create_enrichment(
                     opportunity_id=opp.id,
                     status="running",
@@ -135,16 +153,16 @@ class OpportunityEnrichmentService:
                     model_revision=settings.local_llm_model_revision,
                     model_sha256=settings.local_llm_model_sha256,
                     runtime="llama.cpp",
-                    runtime_version="unknown",
+                    runtime_version=runtime_ver,
                     prompt_version=PROMPT_VERSION,
                     input_hash=input_hash,
                     started_at=started_at,
                 )
                 session.commit()
                 enrichment_id = enrichment.id
-            except Exception:
+            except Exception as e:
                 session.rollback()
-                logger.error("LLM_ENRICHMENT_RECORD_CREATE_FAILED")
+                logger.error(f"LLM_ENRICHMENT_RECORD_CREATE_FAILED: {e}")
                 failed_count += 1
                 continue
             finally:
@@ -152,13 +170,40 @@ class OpportunityEnrichmentService:
 
             # Build Request with strict token budget
             conf_str = opp.confidence.value if hasattr(opp.confidence, "value") else str(opp.confidence)
-            req = self.build_budgeted_request(
-                opp_id=opp.id,
-                title=opp.title,
-                summary=opp.proposed_solution or "",
-                confidence=conf_str,
-                evidences=evidences,
-            )
+            try:
+                req = self.build_budgeted_request(
+                    opp_id=opp.id,
+                    title=opp.title,
+                    summary=opp.proposed_solution or "",
+                    confidence=conf_str,
+                    evidences=evidences,
+                )
+            except ValueError as e:
+                if str(e) == "LLM_INPUT_BUDGET_EXCEEDED":
+                    completed_at = self.clock()
+                    duration_ms = int((completed_at - started_at).total_seconds() * 1000)
+                    session = self.session_factory()
+                    db_repo = OpportunityEnrichmentRepository(session)
+                    try:
+                        db_repo.update_enrichment_result(
+                            enrichment_id=enrichment_id,
+                            status="failed",
+                            completed_at=completed_at,
+                            duration_ms=duration_ms,
+                            error_code="LLM_INPUT_BUDGET_EXCEEDED",
+                        )
+                        session.commit()
+                    except Exception as e2:
+                        session.rollback()
+                        logger.error(f"Failed to update LLM_INPUT_BUDGET_EXCEEDED: {e2}")
+                    finally:
+                        session.close()
+
+                    failed_count += 1
+                    warning_codes.append("LLM_INPUT_BUDGET_EXCEEDED")
+                    continue
+                else:
+                    raise
 
             batch_items.append({
                 "request": req,
@@ -168,26 +213,71 @@ class OpportunityEnrichmentService:
             })
 
         if not batch_items:
+            final_warnings = []
+            for w in warning_codes:
+                if w not in final_warnings:
+                    final_warnings.append(w)
             return OpportunityEnrichmentRunResult(
                 operational_status="success",
                 selected_count=len(selected_opps),
                 succeeded_count=0,
                 failed_count=failed_count,
                 skipped_count=skipped_count,
-                warning_codes=(),
+                warning_codes=tuple(final_warnings),
             )
 
-        # 3. Batch LLM Execution
+        # 4. Batch LLM Execution
         requests = [item["request"] for item in batch_items]
-        responses = self.provider.enrich_many(requests)
+        responses = []
+        try:
+            responses = list(self.provider.enrich_many(requests))
+        except Exception as e:
+            logger.error(f"Provider enrich_many failed: {e}")
+            responses = [
+                OpportunityEnrichmentResponse(
+                    status="failed",
+                    error_code="LLM_RUNTIME_START_FAILED",
+                )
+                for _ in batch_items
+            ]
 
-        # 4. Save results
+        # Verify Response Count Conformance
+        if len(responses) > len(batch_items):
+            # Provider Contract Error: fail all running records and raise exception
+            completed_at = self.clock()
+            for item in batch_items:
+                session = self.session_factory()
+                db_repo = OpportunityEnrichmentRepository(session)
+                try:
+                    db_repo.update_enrichment_result(
+                        enrichment_id=item["enrichment_id"],
+                        status="failed",
+                        completed_at=completed_at,
+                        duration_ms=int((completed_at - item["started_at"]).total_seconds() * 1000),
+                        error_code="LLM_INFERENCE_FAILED",
+                    )
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                finally:
+                    session.close()
+            raise ValueError("Provider Contract Error: Received more responses than requested")
+        elif len(responses) < len(batch_items):
+            while len(responses) < len(batch_items):
+                responses.append(
+                    OpportunityEnrichmentResponse(
+                        status="failed",
+                        error_code="LLM_INFERENCE_FAILED",
+                    )
+                )
+
+        # 5. Save results
         succeeded_count = 0
-        warning_codes = []
 
         for item, res in zip(batch_items, responses):
             enrichment_id = item["enrichment_id"]
             completed_at = self.clock()
+            duration_ms = res.duration_ms or int((completed_at - item["started_at"]).total_seconds() * 1000)
 
             session = self.session_factory()
             db_repo = OpportunityEnrichmentRepository(session)
@@ -196,7 +286,7 @@ class OpportunityEnrichmentService:
                     enrichment_id=enrichment_id,
                     status=res.status,
                     completed_at=completed_at,
-                    duration_ms=res.duration_ms,
+                    duration_ms=duration_ms,
                     error_code=res.error_code,
                     english=res.english,
                     japanese=res.japanese,
@@ -210,9 +300,9 @@ class OpportunityEnrichmentService:
                     failed_count += 1
                     if res.error_code:
                         warning_codes.append(res.error_code)
-            except Exception:
+            except Exception as e:
                 session.rollback()
-                logger.error("LLM_RESULT_PERSISTENCE_FAILED")
+                logger.error(f"LLM_RESULT_PERSISTENCE_FAILED: {e}")
                 failed_count += 1
             finally:
                 session.close()
@@ -246,27 +336,38 @@ class OpportunityEnrichmentService:
         evidences: list[dict[str, Any]],
     ) -> OpportunityEnrichmentRequest:
         max_chars = settings.local_llm_max_input_chars
-        sorted_ev = sorted(evidences, key=lambda e: e.get("relevance_score", 0.0), reverse=True)
+        
+        # Limit title to 500 chars, summary to 2000 chars
+        title_limit = title[:500]
+        summary_limit = summary[:2000]
 
         req_content = {
             "opportunity_id": opp_id,
-            "title": title,
-            "summary": summary,
+            "title": title_limit,
+            "summary": summary_limit,
             "evidence_count": 0,
             "confidence": confidence,
             "evidence": [],
         }
 
+        # Check base budget
+        base_json = json.dumps(req_content, ensure_ascii=False)
+        if len(base_json) > max_chars:
+            raise ValueError("LLM_INPUT_BUDGET_EXCEEDED")
+
+        sorted_ev = sorted(evidences, key=lambda e: e.get("relevance_score", 0.0), reverse=True)
         selected_evidences = []
         for ev in sorted_ev:
             excerpt_str = ev.get("excerpt") or ""
             excerpt_truncated = excerpt_str[:1000]
+            ev_title = (ev.get("title") or "")[:500]
+            source_name = (ev.get("source_name") or "")[:200]
 
             ev_item = {
                 "id": ev["id"],
-                "source_name": ev.get("source_name") or "",
+                "source_name": source_name,
                 "signal_type": ev.get("signal_type") or "",
-                "title": ev.get("title") or "",
+                "title": ev_title,
                 "excerpt": excerpt_truncated,
                 "published_at": ev["published_at"].isoformat() if ev.get("published_at") else None,
                 "canonical_url": ev.get("canonical_url") or "",
@@ -283,10 +384,13 @@ class OpportunityEnrichmentService:
                 break
             selected_evidences = test_ev
 
+        if evidences and not selected_evidences:
+            raise ValueError("LLM_INPUT_BUDGET_EXCEEDED")
+
         return OpportunityEnrichmentRequest(
             opportunity_id=opp_id,
-            title=title,
-            summary=summary,
+            title=title_limit,
+            summary=summary_limit,
             evidence_count=len(selected_evidences),
             confidence=confidence,
             evidence=selected_evidences,

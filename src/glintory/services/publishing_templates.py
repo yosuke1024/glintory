@@ -432,7 +432,11 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
           {% if locale == 'en' %}
             ✨ AI-generated brief based on the evidence below.
           {% else %}
-            ✨ 以下の証拠データに基づくAI生成の要約。
+            {% if translation_fallback %}
+              ✨ 日本語訳はまだ生成されていません。英語版のAI要約を表示しています。
+            {% else %}
+              ✨ 以下の証拠データに基づくAI生成の日本語参考訳です。
+            {% endif %}
           {% endif %}
         </p>
         <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">

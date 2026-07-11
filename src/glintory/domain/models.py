@@ -661,7 +661,7 @@ class OpportunityEnrichment(Base):
             name="chk_opportunity_enrichments_confidence",
         ),
         CheckConstraint(
-            "error_code IN ('LLM_MODEL_DOWNLOAD_FAILED', 'LLM_MODEL_CHECKSUM_FAILED', 'LLM_RUNTIME_START_FAILED', 'LLM_TIMEOUT', 'LLM_INVALID_JSON', 'LLM_SCHEMA_VALIDATION_FAILED', 'LLM_INFERENCE_FAILED') OR error_code IS NULL",
+            "error_code IN ('LLM_MODEL_DOWNLOAD_FAILED', 'LLM_MODEL_CHECKSUM_FAILED', 'LLM_RUNTIME_START_FAILED', 'LLM_TIMEOUT', 'LLM_INVALID_JSON', 'LLM_SCHEMA_VALIDATION_FAILED', 'LLM_INFERENCE_FAILED', 'LLM_INPUT_BUDGET_EXCEEDED') OR error_code IS NULL",
             name="chk_opportunity_enrichments_error_code",
         ),
     )
