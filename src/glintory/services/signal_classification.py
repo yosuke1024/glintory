@@ -159,6 +159,7 @@ def _classify_rss_entry(
     default_hint: SignalType,
 ) -> SignalType:
     import re
+
     search_text = title.lower()
     if excerpt:
         search_text += " " + excerpt.lower()
@@ -169,13 +170,28 @@ def _classify_rss_entry(
         return pattern in text
 
     pain_phrases = [
-        "too expensive", "hard to use", "hard to configure", "too complex",
-        "manual process", "privacy concern", "missing support", "looking for an alternative",
-        "self-hosted alternative", "doesn't work", "does not work", "frustrating"
+        "too expensive",
+        "hard to use",
+        "hard to configure",
+        "too complex",
+        "manual process",
+        "privacy concern",
+        "missing support",
+        "looking for an alternative",
+        "self-hosted alternative",
+        "doesn't work",
+        "does not work",
+        "frustrating",
     ]
     launch_phrases = [
-        "announcing", "introducing", "released", "launching", "created a",
-        "showcase", "my project", "my tool"
+        "announcing",
+        "introducing",
+        "released",
+        "launching",
+        "created a",
+        "showcase",
+        "my project",
+        "my tool",
     ]
 
     if any(has_word(phrase, search_text) for phrase in pain_phrases):

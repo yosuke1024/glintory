@@ -35,8 +35,11 @@ def generate_content_hash(
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
-def calculate_opportunity_content_hash(opp: Any, evidences: list[dict[str, Any]]) -> str:
+def calculate_opportunity_content_hash(
+    opp: Any, evidences: list[dict[str, Any]]
+) -> str:
     """Calculate deterministic SHA-256 hash for an opportunity's content and its evidence."""
+
     # Stable evidence sort key: relevance_score DESC, published_at ASC, signal_id ASC
     def get_sort_key(ev: dict[str, Any]) -> tuple[float, str, str]:
         rev_score = -float(ev.get("relevance_score", 0.0) or 0.0)
@@ -61,20 +64,23 @@ def calculate_opportunity_content_hash(opp: Any, evidences: list[dict[str, Any]]
         exc = ev.get("excerpt") or ""
         exc_limit = exc[:500] if exc else None
 
-        serialized_ev.append({
-            "signal_id": ev.get("signal_id"),
-            "role": ev.get("role"),
-            "title": ev.get("title"),
-            "url": ev.get("url"),
-            "published_at": pub_at_str,
-            "relevance_score": ev.get("relevance_score"),
-            "summary_ja": ev.get("summary_ja"),
-            "summary_en": ev.get("summary_en"),
-            "excerpt": exc_limit
-        })
+        serialized_ev.append(
+            {
+                "signal_id": ev.get("signal_id"),
+                "role": ev.get("role"),
+                "title": ev.get("title"),
+                "url": ev.get("url"),
+                "published_at": pub_at_str,
+                "relevance_score": ev.get("relevance_score"),
+                "summary_ja": ev.get("summary_ja"),
+                "summary_en": ev.get("summary_en"),
+                "excerpt": exc_limit,
+            }
+        )
 
     payload = {
-        "title": opp.title,
+        "title_ja": opp.title_ja,
+        "title_en": opp.title_en,
         "summary_ja": opp.summary_ja,
         "summary_en": opp.summary_en,
         "problem_ja": opp.problem_ja,
@@ -95,10 +101,14 @@ def calculate_opportunity_content_hash(opp: Any, evidences: list[dict[str, Any]]
         "evidence_score": int(opp.evidence_score or 0),
         "feasibility_score": int(opp.feasibility_score or 0),
         "penalty_score": int(opp.penalty_score or 0),
-        "confidence": opp.confidence.value if hasattr(opp.confidence, "value") else str(opp.confidence or ""),
-        "evidences": serialized_ev
+        "confidence": opp.confidence.value
+        if hasattr(opp.confidence, "value")
+        else str(opp.confidence or ""),
+        "gate_status": opp.gate_status,
+        "evidences": serialized_ev,
     }
 
-    serialized = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    serialized = json.dumps(
+        payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-

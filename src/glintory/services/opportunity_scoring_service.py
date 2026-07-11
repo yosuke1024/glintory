@@ -59,7 +59,7 @@ class OpportunityScoringService:
                     status="running",
                     analyzed_count=0,
                     scored_count=0,
-                    unchanged_count=0
+                    unchanged_count=0,
                 )
                 run_session.add(scoring_run)
                 run_session.commit()
@@ -104,7 +104,9 @@ class OpportunityScoringService:
             else:
                 limit = max_opportunities or 1000
                 scoring_inputs = repo.load_scoring_inputs(
-                    active_only=True, max_opportunities=limit, scoring_version=self.scoring_version
+                    active_only=True,
+                    max_opportunities=limit,
+                    scoring_version=self.scoring_version,
                 )
 
             # Retrieve latest snapshot hashes to determine what has changed
@@ -157,7 +159,7 @@ class OpportunityScoringService:
                     analyzed_count=len(scoring_inputs),
                     scored_count=len(to_persist),
                     unchanged_count=unchanged_count,
-                    status="succeeded"
+                    status="succeeded",
                 )
 
             return OpportunityScoringResult(
@@ -206,7 +208,7 @@ class OpportunityScoringService:
                     analyzed_count=len(scoring_inputs),
                     scored_count=len(to_persist),
                     unchanged_count=unchanged_count,
-                    status="failed"
+                    status="failed",
                 )
             raise
         finally:
@@ -232,7 +234,7 @@ class OpportunityScoringService:
                 analyzed_count=len(scoring_inputs),
                 scored_count=len(to_persist),
                 unchanged_count=unchanged_count,
-                status="succeeded"
+                status="succeeded",
             )
 
         return OpportunityScoringResult(
@@ -255,7 +257,7 @@ class OpportunityScoringService:
         analyzed_count: int,
         scored_count: int,
         unchanged_count: int,
-        status: str = "succeeded"
+        status: str = "succeeded",
     ) -> None:
         if not scoring_run_id:
             return

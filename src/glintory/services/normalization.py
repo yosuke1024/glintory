@@ -142,7 +142,10 @@ class SignalNormalizer:
                     from glintory.services.signal_classification import (
                         _classify_rss_entry,
                     )
-                    signal_type = _classify_rss_entry(item.title, item.excerpt, default_hint)
+
+                    signal_type = _classify_rss_entry(
+                        item.title, item.excerpt, default_hint
+                    )
 
                     default_categories = item.metadata.get("default_categories") or ()
                     default_tags = item.metadata.get("default_tags") or ()

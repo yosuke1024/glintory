@@ -498,6 +498,7 @@ def test_static_site_fallback_and_rendering(
     db_session_factory, mock_opportunity_data, tmp_path
 ):
     from glintory.domain.models import Opportunity
+
     opp_id, signal_id, _ = mock_opportunity_data
     output_dir = str(tmp_path / "static")
 
@@ -512,7 +513,9 @@ def test_static_site_fallback_and_rendering(
     )
     assert res_fallback["total_files"] > 0
 
-    opp_detail_file = os.path.join(output_dir, "opportunities", opp_public_id, "index.html")
+    opp_detail_file = os.path.join(
+        output_dir, "opportunities", opp_public_id, "index.html"
+    )
     with open(opp_detail_file) as f:
         content = f.read()
     assert "テスト案件タイトル" in content

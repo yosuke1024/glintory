@@ -408,12 +408,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # Setup opportunities command
-    opportunities_parser = subparsers.add_parser("opportunities", help="Manage opportunities")
-    opportunities_subparsers = opportunities_parser.add_subparsers(dest="subcommand", required=True)
-    rebuild_parser = opportunities_subparsers.add_parser("rebuild", help="Rebuild opportunities from v1 to v2")
-    rebuild_parser.add_argument("--from-score-version", required=True, choices=["v1"], help="Source scoring version to rebuild from")
-    rebuild_parser.add_argument("--to-score-version", required=True, choices=["v2"], help="Target scoring version to rebuild to")
-    rebuild_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+    opportunities_parser = subparsers.add_parser(
+        "opportunities", help="Manage opportunities"
+    )
+    opportunities_subparsers = opportunities_parser.add_subparsers(
+        dest="subcommand", required=True
+    )
+    rebuild_parser = opportunities_subparsers.add_parser(
+        "rebuild", help="Rebuild opportunities from v1 to v2"
+    )
+    rebuild_parser.add_argument(
+        "--from-score-version",
+        required=True,
+        choices=["v1"],
+        help="Source scoring version to rebuild from",
+    )
+    rebuild_parser.add_argument(
+        "--to-score-version",
+        required=True,
+        choices=["v2"],
+        help="Target scoring version to rebuild to",
+    )
+    rebuild_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
+    )
 
     parser.add_argument(
         "--debug",
@@ -1538,6 +1556,7 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
 
     elif args.subcommand == "validate-contract":
         from glintory.services.contract_validation import validate_public_contract
+
         data_dir = os.path.join(args.dir, "data", "v1")
         errors = validate_public_contract(data_dir)
         if errors:
@@ -1549,17 +1568,22 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
 
     elif args.subcommand == "inspect-jurypress-feed":
         from glintory.services.contract_validation import inspect_jurypress_feed
+
         data_dir = os.path.join(args.dir, "data", "v1")
         res = inspect_jurypress_feed(data_dir)
 
         print("=== JuryPress Ready Opportunities ===")
         for item in res["ready"]:
-            print(f"- [{item['public_id']}] {item['title']} (Score: {item['score']}, Confidence: {item['confidence']})")
+            print(
+                f"- [{item['public_id']}] {item['title']} (Score: {item['score']}, Confidence: {item['confidence']})"
+            )
 
         print("\n=== Excluded Opportunities ===")
         for item in res["excluded"]:
             reasons_str = ", ".join(item["reasons"])
-            print(f"- [{item['public_id']}] {item['title']} (Score: {item['score']}, Confidence: {item['confidence']})")
+            print(
+                f"- [{item['public_id']}] {item['title']} (Score: {item['score']}, Confidence: {item['confidence']})"
+            )
             print(f"  Reasons: {reasons_str}")
         return 0
 
@@ -1730,15 +1754,23 @@ async def run_opportunities_command(args: argparse.Namespace, runtime: Any) -> i
             to_version = args.to_score_version
 
             service = OpportunityRebuildService(session)
-            result = service.rebuild_v2(from_version=from_version, to_version=to_version)
+            result = service.rebuild_v2(
+                from_version=from_version, to_version=to_version
+            )
 
             if args.json:
                 print(json.dumps(result))
             else:
-                print(f"Rebuild completed from {from_version} to {to_version} successfully.")
-                print(f"Source Opportunities: {result['source_opportunities']}, Source Signals: {result['source_signals']}")
+                print(
+                    f"Rebuild completed from {from_version} to {to_version} successfully."
+                )
+                print(
+                    f"Source Opportunities: {result['source_opportunities']}, Source Signals: {result['source_signals']}"
+                )
                 print(f"Created v2 Opportunities: {result['created_v2_opportunities']}")
-                print(f"Gate Passed: {result['gate_passed']}, Gate Rejected: {result['gate_rejected']}")
+                print(
+                    f"Gate Passed: {result['gate_passed']}, Gate Rejected: {result['gate_rejected']}"
+                )
                 print(f"Scored Opportunities: {result['scored_opportunities']}")
             return 0
         except Exception as e:

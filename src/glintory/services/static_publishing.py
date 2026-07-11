@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import json
 import os
@@ -68,6 +69,7 @@ def format_datetime(val: Any) -> str:
         return val
     try:
         from datetime import timedelta, timezone
+
         # Convert to JST (UTC+9)
         jst = timezone(timedelta(hours=9))
         val_jst = val.astimezone(jst)
@@ -146,10 +148,10 @@ def build_static_site(
         status="running",
         published_count=0,
         jurypress_ready_count=0,
-        dataset_content_hash=""
+        dataset_content_hash="",
     )
     session.add(pub_run)
-    session.commit()
+    session.flush()
 
     if base_path:
         if not base_path.startswith("/"):
@@ -189,6 +191,7 @@ def build_static_site(
                 Opportunity.status != OpportunityStatus.REJECTED,
                 Opportunity.status != OpportunityStatus.ARCHIVED,
                 Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH]),
+                Opportunity.public_lifecycle == "active",
             )
             .order_by(
                 Opportunity.total_score.desc(),
@@ -287,7 +290,7 @@ def build_static_site(
             temp_build_dir=temp_build_dir,
             base_path=base_path,
             site_url=valid_site_url,
-            gen_time=gen_time
+            gen_time=gen_time,
         )
 
         with open(os.path.join(temp_build_dir, "assets", "app.css"), "w") as f:
@@ -371,6 +374,7 @@ def build_static_site(
             evidences = []
             for sig, rel_score, sum_en, sum_ja, src_name, src_type in ev_signals:
                 from glintory.domain.enums import SignalRole
+
                 role_val = sig.signal_role
                 role_str = "不明"
                 if role_val == SignalRole.DEMAND:
@@ -486,7 +490,9 @@ def build_static_site(
         # 1. From OpportunityPublicAlias table
         aliases = session.query(OpportunityPublicAlias).all()
         for alias in aliases:
-            redir_dir = os.path.join(temp_build_dir, "opportunities", alias.old_public_id)
+            redir_dir = os.path.join(
+                temp_build_dir, "opportunities", alias.old_public_id
+            )
             os.makedirs(redir_dir, exist_ok=True)
             redir_html = f"""<!DOCTYPE html>
 <html>
@@ -494,7 +500,7 @@ def build_static_site(
   <meta charset="utf-8">
   <title>Redirecting...</title>
   <meta http-equiv="refresh" content="0; url={base_path}/opportunities/{alias.canonical_public_id}/">
-  <link rel="canonical" href="{valid_site_url.rstrip('/')}{base_path}/opportunities/{alias.canonical_public_id}/">
+  <link rel="canonical" href="{valid_site_url.rstrip("/")}{base_path}/opportunities/{alias.canonical_public_id}/">
 </head>
 <body>
   <p>Redirecting to <a href="{base_path}/opportunities/{alias.canonical_public_id}/">{alias.canonical_public_id}</a>...</p>
@@ -514,7 +520,7 @@ def build_static_site(
   <meta charset="utf-8">
   <title>Redirecting...</title>
   <meta http-equiv="refresh" content="0; url={base_path}/opportunities/{op.public_id}/">
-  <link rel="canonical" href="{valid_site_url.rstrip('/')}{base_path}/opportunities/{op.public_id}/">
+  <link rel="canonical" href="{valid_site_url.rstrip("/")}{base_path}/opportunities/{op.public_id}/">
 </head>
 <body>
   <p>Redirecting to <a href="{base_path}/opportunities/{op.public_id}/">{op.public_id}</a>...</p>
@@ -539,7 +545,7 @@ def build_static_site(
             .filter(Opportunity.current_scoring_version == "v2")
             .all()
         )
-        
+
         opp_rep_sources = {}
         for opp in v2_opps:
             links = (
@@ -550,17 +556,17 @@ def build_static_site(
                 .filter(OpportunitySignal.is_excluded.is_(False))
                 .all()
             )
-            
+
             rep_source_type = None
             centroid_sigs = [
                 (sig, source_type)
                 for opp_sig, sig, source_type in links
-                if opp_sig.relation_type in (EvidenceRelationType.SUPPORTING, EvidenceRelationType.RELATED)
+                if opp_sig.relation_type
+                in (EvidenceRelationType.SUPPORTING, EvidenceRelationType.RELATED)
             ]
             if centroid_sigs:
                 sorted_sigs = sorted(
-                    centroid_sigs,
-                    key=lambda x: (x[0].collected_at, x[0].id)
+                    centroid_sigs, key=lambda x: (x[0].collected_at, x[0].id)
                 )
                 rep_source_type = sorted_sigs[0][1]
             opp_rep_sources[opp.id] = rep_source_type
@@ -585,7 +591,7 @@ def build_static_site(
                 .filter(
                     Source.source_type == stype,
                     SourceSchedule.enabled.is_(True),
-                    Source.enabled.is_(True)
+                    Source.enabled.is_(True),
                 )
                 .count()
             )
@@ -611,7 +617,12 @@ def build_static_site(
                     sa.func.sum(CollectionRun.inserted_count),
                     sa.func.sum(CollectionRun.updated_count),
                     sa.func.sum(CollectionRun.skipped_count),
-                    sa.func.sum(sa.case((CollectionRun.status == CollectionRunStatus.FAILED, 1), else_=0))
+                    sa.func.sum(
+                        sa.case(
+                            (CollectionRun.status == CollectionRunStatus.FAILED, 1),
+                            else_=0,
+                        )
+                    ),
                 )
                 .join(Source, CollectionRun.source_id == Source.id)
                 .filter(Source.source_type == stype)
@@ -630,18 +641,29 @@ def build_static_site(
                 .join(OpportunitySignal, OpportunitySignal.signal_id == Signal.id)
                 .join(Opportunity, OpportunitySignal.opportunity_id == Opportunity.id)
                 .join(Source, Signal.source_id == Source.id)
-                .filter(Source.source_type == stype, Opportunity.current_scoring_version == "v2")
+                .filter(
+                    Source.source_type == stype,
+                    Opportunity.current_scoring_version == "v2",
+                )
                 .distinct()
                 .count()
             )
 
             # Filter opportunities by representative source type
-            opps_by_type = [opp for opp in v2_opps if opp_rep_sources.get(opp.id) == stype]
+            opps_by_type = [
+                opp for opp in v2_opps if opp_rep_sources.get(opp.id) == stype
+            ]
             candidates = len(opps_by_type)
             passed_count = sum(1 for opp in opps_by_type if opp.gate_status == "passed")
-            rejected_count = sum(1 for opp in opps_by_type if opp.gate_status == "rejected")
-            scored_count = sum(1 for opp in opps_by_type if opp.last_scored_at is not None)
-            enriched_count = sum(1 for opp in opps_by_type if opp.enrichment_status == "completed")
+            rejected_count = sum(
+                1 for opp in opps_by_type if opp.gate_status == "rejected"
+            )
+            scored_count = sum(
+                1 for opp in opps_by_type if opp.last_scored_at is not None
+            )
+            enriched_count = sum(
+                1 for opp in opps_by_type if opp.enrichment_status == "completed"
+            )
             published_count = sum(1 for opp in opps_by_type if is_opp_published(opp))
 
             # Evidence used by PUBLISHED opportunities of this source type
@@ -654,7 +676,7 @@ def build_static_site(
                     .filter(
                         Source.source_type == stype,
                         OpportunitySignal.opportunity_id.in_(published_opp_ids),
-                        OpportunitySignal.is_excluded.is_(False)
+                        OpportunitySignal.is_excluded.is_(False),
                     )
                     .count()
                 )
@@ -723,6 +745,7 @@ def build_static_site(
             )
         # Load AnalysisRun, ScoringRun, PublishingRun
         from glintory.domain.models import AnalysisRun, PublishingRun, ScoringRun
+
         analysis_runs = (
             session.query(AnalysisRun)
             .order_by(AnalysisRun.started_at.desc())
@@ -810,6 +833,14 @@ def build_static_site(
         with open(os.path.join(temp_build_dir, "sitemap.xml"), "w") as f:
             f.write(sitemap_xml.strip())
 
+        # Validate Contract before Swap
+        from glintory.services.contract_validation import validate_public_contract
+
+        data_v1_dir = os.path.join(temp_build_dir, "data", "v1")
+        val_errors = validate_public_contract(data_v1_dir)
+        if val_errors:
+            raise ValueError(f"Contract Validation Failed: {val_errors}")
+
         if os.path.exists(output_dir):
             backup_dir = output_dir + f".bak-{uuid.uuid4().hex}"
             try:
@@ -831,17 +862,30 @@ def build_static_site(
         pub_run.status = "succeeded"
         session.commit()
 
-    except Exception:
-        # Update PublishingRun auditing upon failure
+    except Exception as e:
+        # DB Rollback
+        with contextlib.suppress(Exception):
+            session.rollback()
+
+        # Save failure run in a separate commit
         try:
-            pub_run.completed_at = datetime.now(UTC)
-            pub_run.status = "failed"
+            fail_run = PublishingRun(
+                started_at=gen_time,
+                completed_at=datetime.now(UTC),
+                status="failed",
+                published_count=0,
+                jurypress_ready_count=0,
+                dataset_content_hash="",
+            )
+            session.add(fail_run)
             session.commit()
         except Exception:
             pass
+
         if os.path.exists(temp_build_dir):
-            shutil.rmtree(temp_build_dir)
-        raise
+            with contextlib.suppress(Exception):
+                shutil.rmtree(temp_build_dir)
+        raise e
 
     return {
         "opportunities_generated": len(opportunities),

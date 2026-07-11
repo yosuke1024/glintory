@@ -68,7 +68,10 @@ class OpportunityScoringRepository:
         )
 
     def load_scoring_inputs(
-        self, active_only: bool = True, max_opportunities: int = 1000, scoring_version: str | None = None
+        self,
+        active_only: bool = True,
+        max_opportunities: int = 1000,
+        scoring_version: str | None = None,
     ) -> list[OpportunityScoringInput]:
         """Load all qualifying opportunities and their associated signals."""
         query = self.session.query(Opportunity)

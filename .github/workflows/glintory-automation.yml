@@ -293,8 +293,25 @@ jobs:
 
       - name: Write JuryPress Feed Integration Summary
         run: |
+          MANIFEST="dist/data/v1/manifest.json"
+          SCHEMA_VER=$(jq -r '.schema_version' "$MANIFEST")
+          DATASET_HASH=$(jq -r '.content_hash' "$MANIFEST")
+          PUB_COUNT=$(jq -r '.counts.published_opportunities' "$MANIFEST")
+          READY_COUNT=$(jq -r '.counts.jurypress_ready' "$MANIFEST")
+          MIN_SCORE="${GLINTORY_JURYPRESS_MIN_SCORE:-60}"
+          COMMIT_SHA=$(jq -r '.source_commit' "$MANIFEST")
+          
           {
             echo "### Public Data Contract & JuryPress Integration"
+            echo "- **Public Contract Schema Version:** $SCHEMA_VER"
+            echo "- **Dataset Content Hash:** $DATASET_HASH"
+            echo "- **Published Opportunity Count:** $PUB_COUNT"
+            echo "- **JuryPress Ready Count:** $READY_COUNT"
+            echo "- **JuryPress Minimum Score:** $MIN_SCORE"
+            echo "- **Source Commit:** $COMMIT_SHA"
+            echo "- **Contract Validation Status:** Succeeded"
+            echo ""
+            echo "#### JuryPress Feed Inspection Details"
             uv run glintory publish inspect-jurypress-feed --dir dist
           } >> "$GITHUB_STEP_SUMMARY"
 

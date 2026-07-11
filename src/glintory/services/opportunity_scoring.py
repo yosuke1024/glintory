@@ -725,9 +725,47 @@ class OpportunityScoringEngine:
             return pattern in text
 
         # Check clarity elements
-        problem_kws = ["problem", "pain", "issue", "difficult", "annoy", "error", "fail", "broken", "limit", "課題", "問題", "困っ", "バグ", "エラー"]
-        workaround_kws = ["workaround", "instead of", "alternative", "current tool", "manually", "excel", "scripts", "回避", "代替", "手動", "スプレッドシート"]
-        gap_kws = ["why", "limit", "lack", "cannot", "expensive", "slow", "不足", "できない", "高価", "遅い"]
+        problem_kws = [
+            "problem",
+            "pain",
+            "issue",
+            "difficult",
+            "annoy",
+            "error",
+            "fail",
+            "broken",
+            "limit",
+            "課題",
+            "問題",
+            "困っ",
+            "バグ",
+            "エラー",
+        ]
+        workaround_kws = [
+            "workaround",
+            "instead of",
+            "alternative",
+            "current tool",
+            "manually",
+            "excel",
+            "scripts",
+            "回避",
+            "代替",
+            "手動",
+            "スプレッドシート",
+        ]
+        gap_kws = [
+            "why",
+            "limit",
+            "lack",
+            "cannot",
+            "expensive",
+            "slow",
+            "不足",
+            "できない",
+            "高価",
+            "遅い",
+        ]
 
         has_prob_el = any(has_word_local(kw, combined_ev_text) for kw in problem_kws)
         has_work_el = any(has_word_local(kw, combined_ev_text) for kw in workaround_kws)
@@ -801,10 +839,27 @@ class OpportunityScoringEngine:
             return False
 
         # 3. Solo Developer Suitability (0-20)
-        has_client = check_kws(["cli", "extension", "static", "desktop", "local", "offline"], combined_text)
-        has_backend = check_kws(["backend", "server", "database", "cloud", "realtime", "websocket", "sync"], combined_text)
-        has_heavy_api = check_kws(["openai", "gemini", "api", "integration", "stripe"], combined_text)
-        has_team = check_kws(["enterprise", "team", "organization", "collaboration", "rbac", "multi-tenant"], combined_text)
+        has_client = check_kws(
+            ["cli", "extension", "static", "desktop", "local", "offline"], combined_text
+        )
+        has_backend = check_kws(
+            ["backend", "server", "database", "cloud", "realtime", "websocket", "sync"],
+            combined_text,
+        )
+        has_heavy_api = check_kws(
+            ["openai", "gemini", "api", "integration", "stripe"], combined_text
+        )
+        has_team = check_kws(
+            [
+                "enterprise",
+                "team",
+                "organization",
+                "collaboration",
+                "rbac",
+                "multi-tenant",
+            ],
+            combined_text,
+        )
 
         if not has_client and not has_backend and not has_heavy_api and not has_team:
             solo_suitability = 2
@@ -832,14 +887,28 @@ class OpportunityScoringEngine:
                     "has_client": has_client,
                     "has_backend": has_backend,
                     "has_heavy_api": has_heavy_api,
-                    "has_team": has_team
+                    "has_team": has_team,
                 },
             )
         )
 
         # 4. Distribution and Reach (0-15)
-        has_dist = check_kws(["store", "npm", "pypi", "release", "self-serve", "marketplace", "pwa", "download"], combined_text)
-        has_sales = check_kws(["sales", "enterprise", "b2b", "organization", "sales cycle"], combined_text)
+        has_dist = check_kws(
+            [
+                "store",
+                "npm",
+                "pypi",
+                "release",
+                "self-serve",
+                "marketplace",
+                "pwa",
+                "download",
+            ],
+            combined_text,
+        )
+        has_sales = check_kws(
+            ["sales", "enterprise", "b2b", "organization", "sales cycle"], combined_text
+        )
 
         if not has_dist and not has_sales:
             reach_score = 1
@@ -859,20 +928,37 @@ class OpportunityScoringEngine:
                 score=reach_score,
                 maximum=15,
                 explanation=reach_reason,
-                facts={
-                    "has_dist": has_dist,
-                    "has_sales": has_sales
-                },
+                facts={"has_dist": has_dist, "has_sales": has_sales},
             )
         )
 
         # 5. Monetization and Asset Value (0-10)
-        has_mon = check_kws(["sub", "saas", "license", "byok", "ad", "sponsor", "pay", "premium", "charge", "stripe", "buy"], combined_text)
-        has_infra = check_kws(["infra", "server cost", "hosting", "bandwidth", "gpu", "database"], combined_text)
+        has_mon = check_kws(
+            [
+                "sub",
+                "saas",
+                "license",
+                "byok",
+                "ad",
+                "sponsor",
+                "pay",
+                "premium",
+                "charge",
+                "stripe",
+                "buy",
+            ],
+            combined_text,
+        )
+        has_infra = check_kws(
+            ["infra", "server cost", "hosting", "bandwidth", "gpu", "database"],
+            combined_text,
+        )
 
         if not has_mon and not has_infra:
             mon_score = 1
-            mon_reason = "Monetization model details are insufficient. Defaulting to low score."
+            mon_reason = (
+                "Monetization model details are insufficient. Defaulting to low score."
+            )
         else:
             base_mon = 5
             if has_mon:
@@ -888,10 +974,7 @@ class OpportunityScoringEngine:
                 score=mon_score,
                 maximum=10,
                 explanation=mon_reason,
-                facts={
-                    "has_mon": has_mon,
-                    "has_infra": has_infra
-                },
+                facts={"has_mon": has_mon, "has_infra": has_infra},
             )
         )
 

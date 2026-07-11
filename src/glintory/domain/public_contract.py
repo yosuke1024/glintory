@@ -1,11 +1,16 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class PublicEvidenceV1(BaseModel):
+class BasePublicModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class PublicEvidenceV1(BasePublicModel):
     signal_id: str
-    role: str
+    role: Literal["demand", "pain", "solution", "unknown"]
     source_type: str
     source_name: str
     title: str
@@ -17,21 +22,21 @@ class PublicEvidenceV1(BaseModel):
     excerpt: str | None = None
 
 
-class PublicOpportunityLocalizationItemV1(BaseModel):
-    status: str
-    title: str
-    summary: str
+class PublicOpportunityLocalizationItemV1(BasePublicModel):
+    status: Literal["pending", "completed", "failed"]
+    title: str | None = None
+    summary: str | None = None
 
 
-class PublicOpportunityLocalizationListV1(BaseModel):
+class PublicOpportunityLocalizationListV1(BasePublicModel):
     ja: PublicOpportunityLocalizationItemV1
     en: PublicOpportunityLocalizationItemV1
 
 
-class PublicOpportunityLocalizationDetailItemV1(BaseModel):
-    status: str
-    title: str
-    summary: str
+class PublicOpportunityLocalizationDetailItemV1(BasePublicModel):
+    status: Literal["pending", "completed", "failed"]
+    title: str | None = None
+    summary: str | None = None
     target_user: str | None = None
     problem: str | None = None
     current_workaround: str | None = None
@@ -41,18 +46,18 @@ class PublicOpportunityLocalizationDetailItemV1(BaseModel):
     risks: str | None = None
 
 
-class PublicOpportunityLocalizationDetailV1(BaseModel):
+class PublicOpportunityLocalizationDetailV1(BasePublicModel):
     ja: PublicOpportunityLocalizationDetailItemV1
     en: PublicOpportunityLocalizationDetailItemV1
 
 
-class PublicOpportunityScoreListV1(BaseModel):
+class PublicOpportunityScoreListV1(BasePublicModel):
     total: int
-    confidence: str
+    confidence: Literal["low", "medium", "high"]
     version: str
 
 
-class PublicOpportunityEvidenceMetricsV1(BaseModel):
+class PublicOpportunityEvidenceMetricsV1(BasePublicModel):
     total: int
     independent: int
     demand: int
@@ -60,13 +65,30 @@ class PublicOpportunityEvidenceMetricsV1(BaseModel):
     source_domains: int
 
 
-class JuryPressReadinessV1(BaseModel):
+JuryPressReasonCode = Literal[
+    "INVALID_SCORING_VERSION",
+    "GATE_REJECTED",
+    "STATUS_EXCLUDED",
+    "LOW_CONFIDENCE",
+    "SCORE_BELOW_THRESHOLD",
+    "INSUFFICIENT_INDEPENDENT_EVIDENCE",
+    "INSUFFICIENT_DEMAND_EVIDENCE",
+    "ENRICHMENT_MISSING",
+    "ENRICHMENT_STALE",
+    "JAPANESE_LOCALIZATION_MISSING",
+    "ENGLISH_LOCALIZATION_MISSING",
+    "EVIDENCE_SUMMARY_MISSING",
+]
+
+
+class JuryPressReadinessV1(BasePublicModel):
     ready: bool
-    reasons: list[str] = Field(default_factory=list)
+    reasons: list[JuryPressReasonCode] = Field(default_factory=list)
 
 
-class PublicOpportunitySummaryV1(BaseModel):
-    public_id: str
+class PublicOpportunitySummaryV1(BasePublicModel):
+    public_id: str = Field(pattern=r"^opp_[0-9a-f]{32}$")
+    public_lifecycle: Literal["active", "merged", "retired"] = "active"
     revision: int
     content_hash: str
     first_published_at: datetime | None = None
@@ -79,39 +101,40 @@ class PublicOpportunitySummaryV1(BaseModel):
     html_url: str
 
 
-class PublicOpportunityListV1(BaseModel):
-    schema_version: str = "1.0.0"
+class PublicOpportunityListV1(BasePublicModel):
+    schema_version: Literal["1.0.0"] = "1.0.0"
     generated_at: datetime
     count: int
     items: list[PublicOpportunitySummaryV1]
 
 
-class ScoreComponentV1(BaseModel):
+class ScoreComponentV1(BasePublicModel):
     name: str
     score: int
     maximum: int
     explanation: str
 
 
-class PublicOpportunityScoreDetailV1(BaseModel):
+class PublicOpportunityScoreDetailV1(BasePublicModel):
     total: int
     evidence: int
     feasibility: int
     penalty: int
-    confidence: str
+    confidence: Literal["low", "medium", "high"]
     version: str
     components: list[ScoreComponentV1] = Field(default_factory=list)
 
 
-class PublicOpportunityGateV1(BaseModel):
+class PublicOpportunityGateV1(BasePublicModel):
     version: str
-    status: str
+    status: Literal["passed", "rejected", "failed"]
     reason: str
 
 
-class PublicOpportunityDetailV1(BaseModel):
-    schema_version: str = "1.0.0"
-    public_id: str
+class PublicOpportunityDetailV1(BasePublicModel):
+    schema_version: Literal["1.0.0"] = "1.0.0"
+    public_id: str = Field(pattern=r"^opp_[0-9a-f]{32}$")
+    public_lifecycle: Literal["active", "merged", "retired"] = "active"
     revision: int
     content_hash: str
     first_published_at: datetime | None = None
@@ -123,38 +146,38 @@ class PublicOpportunityDetailV1(BaseModel):
     jurypress: JuryPressReadinessV1
 
 
-class JuryPressFeedItemV1(BaseModel):
-    public_id: str
+class JuryPressFeedItemV1(BasePublicModel):
+    public_id: str = Field(pattern=r"^opp_[0-9a-f]{32}$")
     revision: int
     content_hash: str
     score: int
-    confidence: str
+    confidence: Literal["low", "medium", "high"]
     title_ja: str
     title_en: str
     detail_url: str
 
 
-class JuryPressFeedV1(BaseModel):
-    schema_version: str = "1.0.0"
+class JuryPressFeedV1(BasePublicModel):
+    schema_version: Literal["1.0.0"] = "1.0.0"
     generated_at: datetime
     content_hash: str
     count: int
     items: list[JuryPressFeedItemV1]
 
 
-class PublicManifestCountsV1(BaseModel):
+class PublicManifestCountsV1(BasePublicModel):
     published_opportunities: int
     jurypress_ready: int
 
 
-class PublicManifestEndpointsV1(BaseModel):
+class PublicManifestEndpointsV1(BasePublicModel):
     opportunities: str
     jurypress: str
 
 
-class PublicManifestV1(BaseModel):
-    contract: str = "glintory-public-data"
-    schema_version: str = "1.0.0"
+class PublicManifestV1(BasePublicModel):
+    contract: Literal["glintory-public-data"] = "glintory-public-data"
+    schema_version: Literal["1.0.0"] = "1.0.0"
     generated_at: datetime
     dataset_revision: str
     source_commit: str
