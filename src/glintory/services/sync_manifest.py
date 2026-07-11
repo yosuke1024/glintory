@@ -65,6 +65,7 @@ def sync_manifest_file(
     validated_sources = []
 
     # 1. Validation phase (Read configs, validate secret-like keys, validate via collector)
+    names_set = set()
     for src_def in sources_to_sync:
         if not isinstance(src_def, dict):
             raise ValueError("Each source definition must be an object.")
@@ -78,6 +79,16 @@ def sync_manifest_file(
         if not name or not source_type or not config_file_rel:
             raise ValueError(
                 "Source definition must contain 'name', 'source_type', and 'config_file'."
+            )
+
+        if name in names_set:
+            raise ValueError(f"Duplicate source name in manifest: {name}")
+        names_set.add(name)
+
+        # Block absolute config paths
+        if os.path.isabs(config_file_rel):
+            raise ValueError(
+                f"Absolute path not allowed for config_file: {config_file_rel}"
             )
 
         # Resolve config file path
@@ -95,6 +106,35 @@ def sync_manifest_file(
 
         # Check secret-like keys in config
         check_secret_keys_recursive(config_data)
+
+        # Check env secret values in config
+        secret_values = []
+        for env_var in ["GLINTORY_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]:
+            val = os.environ.get(env_var)
+            if val and val.strip():
+                secret_values.append(val.strip())
+
+        def check_secret_values(d: Any, secrets: list[str]) -> None:
+            if isinstance(d, dict):
+                for v in d.values():
+                    if isinstance(v, str):
+                        for secret in secrets:
+                            if secret in v:
+                                raise ValueError(
+                                    "Public Safety Audit Failed: Secret value detected in config data."
+                                )
+                    check_secret_values(v, secrets)
+            elif isinstance(d, list):
+                for item in d:
+                    if isinstance(item, str):
+                        for secret in secrets:
+                            if secret in item:
+                                raise ValueError(
+                                    "Public Safety Audit Failed: Secret value detected in config data."
+                                )
+                    check_secret_values(item, secrets)
+
+        check_secret_values(config_data, secret_values)
 
         # Validate via collector
         try:

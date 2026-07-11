@@ -6,15 +6,19 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout codebase
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
           python-version: '3.12'
 
@@ -25,7 +29,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync
+          uv sync --frozen
+
+      - name: UV Lock Check
+        run: |
+          uv lock --check
 
       - name: Ruff Check
         run: |
@@ -39,6 +47,19 @@ jobs:
         run: |
           uv run pyright
 
-      - name: Pytest
+      - name: Alembic Schema Consistency Check
+        run: |
+          uv run alembic check
+
+      - name: Alembic Migration Roundtrip
+        run: |
+          # Upgrade to head
+          uv run alembic upgrade head
+          # Downgrade back to base
+          uv run alembic downgrade base
+          # Re-upgrade to head to ensure clean final state
+          uv run alembic upgrade head
+
+      - name: Run Pytest
         run: |
           uv run pytest -W error

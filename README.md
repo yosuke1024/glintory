@@ -2,6 +2,83 @@
 
 Find the signals worth building on.
 
+## GitHub-Native Scheduled Collection & Durable State Architecture
+
+Glintory はサーバーへの常駐型スケジューラを排し、GitHub Actions の Scheduled Workflow を外部スケジューラとして利用するサーバーレス型アーキテクチャを採用しています。定刻に一度起動し、状態アセットを取得・実行・検証し、静的サイトを生成して終了します。
+
+### アーキテクチャ構成
+
+```text
+GitHub Actions Scheduled Workflow (定刻起動: 毎日日本時間 午前6時17分 / UTC 21:17)
+    │
+    ├──> 1. 前回の SQLite State（アーカイブ）を GitHub Release (glintory-state) から取得
+    ├──> 2. SQLite の整合性検証 (PRAGMA integrity_check) & 安全監査 (Public Safety Audit)
+    ├──> 3. Alembic Migration (最新化)
+    ├──> 4. Public Source Manifest (public-sources.json) の同期 (Upsert)
+    ├──> 5. Due Source Collection (収集実行: 各スケジュールによる due に従う)
+    ├──> 6. Opportunity Analysis & Deterministic Scoring
+    ├──> 7. 静的サイト生成 (Jinja2 / Atomic Build / dist ディレクトリ)
+    │
+    └──> 8. GitHub Pages デプロイ (dist ディレクトリのホスティング) & State Assets の更新・Prune
+```
+
+### GitHub API と State 管理 (`github_state_store.py`)
+
+状態（SQLite データベース）は、GitHub Actions の実行終了時に `glintory-state-{GITHUB_RUN_ID}-{GITHUB_RUN_ATTEMPT}.tar.gz` 形式のアーカイブに圧縮され、GitHub Release `glintory-state` に prerelease 属性付きアセットとしてアップロードされます。
+
+- **最新 State の自動判別**:
+  Release API に登録されたアセット名から `^glintory-state-[0-9]+-[0-9]+\.tar\.gz$` にマッチするものを検索し、`created_at DESC` および `id DESC` でソートして最も新しいアセット1件をダウンロードします。
+- **堅牢な二重検証 (Double Verification)**:
+  アップロード終了後、アップロードされたアセットを別の一時フォルダへ再ダウンロードし、展開検証・マニフェスト照合・ローカルファイルとの SHA-256 ハッシュ値の一致確認を行います。いずれかが失敗した場合は、古い世代のアセットは維持され、デプロイせず Workflow は失敗します。
+- **5世代保持と Prune**:
+  検証完了後に、古いアセットは直近5世代（5アセット）を残して自動的に削除（Prune）されます。
+- **※ 運用上の注意**:
+  - `glintory-state` タグ・リリースは自動管理されています。**手動で削除したり、不変リリース保護（immutable release protection）を有効にしたりしないでください。**
+  - 初回起動時など、Release自体が存在しない、または有効なアセットが未登録の場合は、自動的に空データベースを作成してマイグレーションを実行します。
+
+### 必要な環境変数と GitHub Actions 設定
+
+GitHub Actions を有効化し、運用を開始するには以下の設定が必要です。
+
+#### 1. Repository Variables (リポジトリ変数)
+GitHub リポジトリの `Settings -> Secrets and variables -> Actions -> Variables` で以下を設定します。
+- `GLINTORY_REPOSITORY_URL`: 公開静的サイトのフッターからリンクする、リポジトリの絶対HTTPS URL。
+- `GLINTORY_PUBLIC_SITE_URL`: GitHub Pages でホストする公開サイトの絶対 URL（Sitemap生成で absolute HTTPS URL として使用されます）。
+
+#### 2. Workflow Permissions (パーミッション)
+ワークフロー実行時、GitHub API にアクセスするために必要なパーミッション（`contents: write`, `pages: write`, `id-token: write`）が割り当てられていることを確認してください。
+
+#### 3. 初回実行 (Manual Trigger)
+新しいリポジトリで運用を開始する際は、まず Actions タブから `Glintory Scheduled Automation` ワークフローを `workflow_dispatch` で手動実行してください。これにより初回リリースと初期状態 DB が自動生成されます。
+
+### Failure / Recovery 通知 Issue
+
+定時ジョブが失敗した場合は、自動的に `[Glintory Automation] Failure` という件名の Issue が起票され、`automation-failure` ラベルが付与されます。
+- ジョブの再起動手順やエラー概要が記載されますが、セキュリティ監査上の理由から、**データベース接続 URL やシークレット、例外スタックトレースなどの生文字列は露出されません。**
+- 重複起票は防止され、すでに未解決の Issue が存在する場合は新たなコメントのみが追記されます。
+- ジョブが復旧し正常終了すると、該当 Issue に復旧コメントが追記され、自動的にクローズされます。
+
+### Public State の安全監査と容量制限
+
+- **Public Safety Audit (安全監査)**:
+  SQLite データベースに機密情報（APIキー、トークン）やプライベートなレビュー情報（`notes`、`decisions`、`opportunity_signals` のレビューメモ）が残っていないか監査されます。
+  - 環境変数 `GLINTORY_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN` に設定されている実際の秘密値が含まれていないかもチェックされます。
+  - 監査に引っかかった場合や不正な JSON 設定が含まれていた場合は、処理を即時中断（fail-closed）して外部へ公開・アップロードしません。
+- **容量制限**:
+  - 圧縮アーカイブ最大サイズ: 10MB
+  - 展開後データベース最大サイズ: 50MB
+  - メタデータ/マニフェスト最大サイズ: 1MB
+  - 重複ファイル名や、シンボリックリンク/ソケットなどの非レギュラーファイルはセキュリティ保護のため一切拒否されます。
+
+### 公開用検索クエリの目的と対象
+`public-sources.json` に設定されている `topic:self-hosted` や `"too expensive"` 等の検索は、ユーザーが SaaS 移行や代替製品の開発機会（Opportunity）を正確に収集・発見できるよう、特定の目的を持って構成されています。
+
+### 停止条件
+長期間の収集失敗や一定期間シグナルが検出されない場合の自動停止条件として、例外回数が一定の閾値を超えた場合に自動でワークフローを終了する保護メカニズムを持っています。
+
+
+---
+
 ## GitHub Collector
 
 Glintory に実装された `GitHubCollector` は、GitHub REST API から公開リポジトリおよび公開 Issue 情報を収集します。
@@ -9,7 +86,7 @@ Glintory に実装された `GitHubCollector` は、GitHub REST API から公開
 ### 特徴
 - 公開リポジトリ情報の検索・収集
 - 公開 Issue 情報の検索・収集
-- 収集した情報は正規化された `RawItem` 形式で返されます（現段階では Signal DB への保存、Opportunity の生成、Today 画面への表示は行いません。コレクター単体の実装フェーズです）。
+- 収集した情報は正規化された `RawItem` 形式で返されます。
 
 ### 設定方法と認証
 
@@ -106,7 +183,7 @@ GLINTORY_HN_TEXT_MAX_CHARS=5000
 
 #### Source Config の JSON 例
 
-以下は、`HackerNewsCollector` を利用するための Source 設定の記述例です。
+以下は、`HackerNewsCollector` を利用するための Source 設定 of 記述例です。
 
 ```json
 {
@@ -237,9 +314,6 @@ uv run alembic downgrade -1
 uv run alembic check
 ```
 
-> [!NOTE]
-> 現段階では、正規化・永続化した Signal を UI（Today 画面など）へ表示する処理、FTS5、Opportunity 生成、およびスコアリング処理は実装されていません。
-
 ## Command Line Interface (CLI)
 
 Glintoryのコマンドラインツール（CLI）を用いて、ソースの管理およびシグナルの収集を実行できます。
@@ -344,11 +418,6 @@ docker compose run --rm \
     --config /config/hackernews-source.example.json
 ```
 
-> [!NOTE]
-> * データベースはNamed Volume上のSQLiteを利用します。
-> * Web UIからのSource管理、Scheduler（自動定期実行）はまだ未実装です。
-> * 外部AIは使用せず、決定論的な正規化・フィルタリングのみを行います。
-
 ## Web Interface & FTS5 Search
 
 SQLite の FTS5 全文検索エンジンを活用し、収集した Signal の閲覧・検索・絞り込みをブラウザおよび JSON API から行うことができます。
@@ -363,7 +432,6 @@ uv run alembic upgrade head
 uv run uvicorn glintory.main:app --reload
 ```
 
-サーバー起動後、ブラウザで以下の URL にアクセスできます。
 * UI 画面: `http://localhost:8000/signals`
 * Today ダッシュボード: `http://localhost:8000/`
 
@@ -383,9 +451,8 @@ uv run uvicorn glintory.main:app --reload
 * ユーザー入力は安全にサニタイズ（ダブルクォートでエスケープされ、複数単語は `AND` で結合）されます。
 * Raw FTS5 構文は利用できません。
 * `OR` / `NOT` / `NEAR` やワイルドカード `*` などの演算子検索は未対応です。
-* `tags` および `categories` は全文検索の対象外です（フィルタリングのみ）。
+* `tags` および `categories` は全文検索の対象外です（フィルターリングのみ）。
 * 日本語の形態素解析（Mecab等のトークナイザー）は導入していません。
-* Opportunity分析（クラスタリングやスコアリング等）は未実装のため、ダッシュボードではプレースホルダーが表示されます。
 * 収集処理（Collect）は Web UI から実行できません（CLI から実行してください）。
 * 外部 AI は使用せず、ローカルの SQLite データベース内のみで検索処理を完結させています。
 
@@ -426,9 +493,6 @@ uv run glintory score
 - **Penalty Score (-30〜0点)**: 対立する証拠、起原の過度な集中、陳腐化、競合飽和度に基づく減点。
 - **Total Score (0〜100点)**: Evidence + Feasibility + Penalty。
 - **Confidence (HIGH / MEDIUM / LOW)**: 証拠数と多様性の閾値クリア度で判定する客観的な信頼度。
-
-> [!NOTE]
-> スコアリングは冪等に実行されます。同じインプット状態（関連シグナルや評価日が変わらない場合）であればハッシュ値を比較し、無駄な `ScoreSnapshot` レコードは作成されません。
 
 ### Web UI & JSON API
 
@@ -478,6 +542,3 @@ uv run glintory score
 7. **セキュリティと保護 (CSRF & Form Limits)**
    - すべての Web 書き込み操作は、Origin / Referer および Cookie トークンを用いた暗号学的に安全な CSRF 検証が行われます。
    - 悪意ある大量データの送信を防ぐため、フォーム送信ボディサイズは最大 50KB に制限されています。
-
-
-

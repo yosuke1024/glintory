@@ -279,7 +279,10 @@ def build_parser() -> argparse.ArgumentParser:
     snapshot_parser.add_argument("--run-attempt", help="GitHub Run Attempt")
     snapshot_parser.add_argument("--metadata-file", help="Path to metadata JSON file")
     snapshot_parser.add_argument(
-        "--profile", default="public", help="Audit profile (e.g. public)"
+        "--profile",
+        default="public",
+        choices=["public"],
+        help="Audit profile (e.g. public)",
     )
     snapshot_parser.add_argument(
         "--json", action="store_true", help="Output in JSON format"

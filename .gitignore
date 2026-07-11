@@ -36,4 +36,7 @@ env/
 # Glintory build and data artifacts
 dist/
 data/
+.state/
+build/state/
+*.tar.gz
 

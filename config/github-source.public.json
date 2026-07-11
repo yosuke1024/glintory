@@ -1,15 +1,46 @@
 {
   "repository_queries": [
     {
-      "query": "google guava",
+      "query": "topic:self-hosted",
+      "sort": "stars",
+      "order": "desc",
+      "max_items": 10
+    },
+    {
+      "query": "topic:local-first",
+      "sort": "stars",
+      "order": "desc",
+      "max_items": 10
+    },
+    {
+      "query": "topic:offline-first",
       "sort": "stars",
       "order": "desc",
       "max_items": 10
     }
   ],
-  "issue_queries": [],
-  "per_page": 50,
-  "max_pages_per_query": 3,
+  "issue_queries": [
+    {
+      "query": "\"too expensive\"",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 5
+    },
+    {
+      "query": "\"self-hosted alternative\"",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 5
+    },
+    {
+      "query": "\"wish there was\"",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 5
+    }
+  ],
+  "per_page": 20,
+  "max_pages_per_query": 1,
   "include_forks": false,
   "include_archived": false
 }

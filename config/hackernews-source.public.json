@@ -1,5 +1,5 @@
 {
-  "feeds": ["new", "best", "ask"],
+  "feeds": ["new", "best", "ask", "show"],
   "max_items_per_feed": 25,
   "include_jobs": false,
   "include_dead": false,
