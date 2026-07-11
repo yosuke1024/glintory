@@ -665,10 +665,13 @@ async def _run_source_sync_manifest(args: argparse.Namespace, runtime: Any) -> i
             )
         return 0
     except Exception as e:
-        import traceback
+        if getattr(args, "debug", False):
+            import traceback
 
-        traceback.print_exc()
-        sys.stderr.write(f"SOURCE_MANIFEST_SYNC_FAILED: {e}\n")
+            traceback.print_exc()
+            sys.stderr.write(f"SOURCE_MANIFEST_SYNC_FAILED: {e}\n")
+        else:
+            sys.stderr.write("SOURCE_MANIFEST_SYNC_FAILED\n")
         return 1
     finally:
         session.close()

@@ -323,8 +323,8 @@ def main():
                 args.automation_result, args.deploy_pages_result, args.collection_status
             )
 
-    except Exception as e:
-        sys.stderr.write(f"NOTIFICATION_FAILED: {e}\n")
+    except Exception:
+        sys.stderr.write("NOTIFICATION_FAILED\n")
         # Overwrite Actions summary to show failed notification
         args.notification_result = "failed"
         write_step_summary(args)

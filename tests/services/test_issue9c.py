@@ -2137,3 +2137,119 @@ def test_workflow_early_failure(tmp_path):
     finally:
         issue_notifier.run_gh = original_run_gh
         os.environ.pop("GITHUB_STEP_SUMMARY", None)
+
+
+def test_source_manifest_sync_exception_masking(tmp_path):
+    import argparse
+    import asyncio
+    import io
+
+    from glintory.cli import _run_source_sync_manifest
+
+    # Mock runtime and sync_manifest_file to raise a fake exception containing secrets
+    mock_runtime = MagicMock()
+    mock_runtime.session_factory.return_value = MagicMock()
+
+    secret_message = (
+        "Fake error: TOKEN_xxx, sqlite:///private.db, HTTP response body "
+        "and /Users/example/private/config.json should be hidden"
+    )
+
+    with mock.patch(
+        "glintory.services.sync_manifest.sync_manifest_file",
+        side_effect=Exception(secret_message),
+    ):
+        # 1. No --debug option (default behavior)
+        args_no_debug = argparse.Namespace(
+            file="manifest.json", json=False, debug=False
+        )
+
+        stderr_capture = io.StringIO()
+        with mock.patch("sys.stderr", stderr_capture):
+            exit_code = asyncio.run(
+                _run_source_sync_manifest(args_no_debug, mock_runtime)
+            )
+
+        assert exit_code == 1
+        stderr_out = stderr_capture.getvalue()
+        assert "SOURCE_MANIFEST_SYNC_FAILED" in stderr_out
+        # Secrets should not be in stderr
+        assert "TOKEN_xxx" not in stderr_out
+        assert "sqlite:///private.db" not in stderr_out
+        assert "HTTP response" not in stderr_out
+        assert "/Users/example/private/config.json" not in stderr_out
+        # Traceback should not be printed
+        assert "Traceback" not in stderr_out
+
+        # 2. With --debug option (should show details)
+        args_debug = argparse.Namespace(file="manifest.json", json=False, debug=True)
+        stderr_capture_debug = io.StringIO()
+        with mock.patch("sys.stderr", stderr_capture_debug):
+            exit_code_debug = asyncio.run(
+                _run_source_sync_manifest(args_debug, mock_runtime)
+            )
+
+        assert exit_code_debug == 1
+        stderr_out_debug = stderr_capture_debug.getvalue()
+        assert "SOURCE_MANIFEST_SYNC_FAILED" in stderr_out_debug
+        assert "TOKEN_xxx" in stderr_out_debug
+        assert "sqlite:///private.db" in stderr_out_debug
+
+
+def test_github_issue_notifier_exception_masking(tmp_path):
+    import io
+
+    import scripts.github_issue_notifier as issue_notifier
+
+    summary_file = tmp_path / "summary.md"
+    os.environ["GITHUB_STEP_SUMMARY"] = str(summary_file)
+
+    secret_message = (
+        "Fake notifier error: TOKEN_xxx, sqlite:///private.db, HTTP response body "
+        "and /Users/example/private/config.json should be hidden"
+    )
+
+    # Let's mock ensure_label_exists to raise exception with secrets
+    original_ensure_label = issue_notifier.ensure_label_exists
+    issue_notifier.ensure_label_exists = MagicMock(
+        side_effect=Exception(secret_message)
+    )
+
+    argv = [
+        "--automation-result",
+        "failure",
+        "--deploy-pages-result",
+        "success",
+        "--collection-status",
+        "failed",
+    ]
+
+    stderr_capture = io.StringIO()
+    try:
+        with (
+            mock.patch("sys.argv", ["scripts/github_issue_notifier.py"] + argv),
+            mock.patch("sys.stderr", stderr_capture),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            issue_notifier.main()
+
+        assert exc_info.value.code != 0
+        stderr_out = stderr_capture.getvalue()
+
+        # Verify stderr has ONLY NOTIFICATION_FAILED
+        assert stderr_out.strip() == "NOTIFICATION_FAILED"
+
+        # Verify secrets are masked
+        assert "TOKEN_xxx" not in stderr_out
+        assert "sqlite:///private.db" not in stderr_out
+        assert "HTTP response" not in stderr_out
+        assert "/Users/example/private/config.json" not in stderr_out
+
+        # Verify Actions Summary contains "failed"
+        assert summary_file.exists()
+        summary_content = summary_file.read_text()
+        assert "| **Notification Result** | failed |" in summary_content
+
+    finally:
+        issue_notifier.ensure_label_exists = original_ensure_label
+        os.environ.pop("GITHUB_STEP_SUMMARY", None)
