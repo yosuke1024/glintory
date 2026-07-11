@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
+from datetime import UTC, datetime
 
 # Import glintory functions safely
 # As it is packaged, we can import from glintory
@@ -55,9 +55,8 @@ class GitHubClient:
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return res.stdout
-        except subprocess.CalledProcessError as e:
-            err_msg = f"gh command failed: {e.stderr or e.stdout}"
-            raise GitHubAPIError(err_msg) from e
+        except subprocess.CalledProcessError:
+            raise GitHubAPIError("gh command failed") from None
 
     def get_release_assets(self, tag: str) -> list[dict]:
         """Fetch assets for the release associated with the given tag.
@@ -72,14 +71,14 @@ class GitHubClient:
             # Format and parse dates for correct sorting
             for asset in assets:
                 # API dates are typically ISO 8601: "2026-07-11T12:00:00Z"
-                created_at_str = asset.get("created_at", "")
+                created_at_str = asset.get("created_at") or ""
                 try:
                     # Parse to datetime for reliable DESC sorting
                     asset["parsed_created_at"] = datetime.fromisoformat(
                         created_at_str.replace("Z", "+00:00")
                     )
-                except ValueError:
-                    asset["parsed_created_at"] = datetime.min
+                except Exception:
+                    asset["parsed_created_at"] = datetime.min.replace(tzinfo=UTC)
 
             # Sort by parsed_created_at DESC, id DESC
             assets.sort(
@@ -111,11 +110,17 @@ class GitHubClient:
                 ]
             )
 
-    def upload_asset(self, tag: str, file_path: str) -> None:
+    def upload_asset(self, tag: str, file_path: str) -> dict:
         """Upload an asset to the specified release.
         Clobber is NOT allowed.
         """
         self.run_gh(["release", "upload", tag, file_path])
+        filename = os.path.basename(file_path)
+        assets = self.get_release_assets(tag)
+        for asset in assets:
+            if asset.get("name") == filename:
+                return asset
+        raise GitHubAPIError("Uploaded asset not found in release asset list")
 
     def download_asset(self, tag: str, name: str, output_dir: str) -> str:
         """Download a specific asset by name from the release."""
@@ -154,8 +159,8 @@ def handle_download_latest(client: GitHubClient, state_dir: str, db_url: str) ->
     print("Checking for latest state asset...")
     try:
         assets = client.get_release_assets("glintory-state")
-    except Exception as e:
-        print(f"Error checking release assets: {e}", file=sys.stderr)
+    except Exception:
+        sys.stderr.write("STATE_DOWNLOAD_FAILED\n")
         raise SystemExit(1)
 
     # Filter by pattern: glintory-state-{run_id}-{run_attempt}.tar.gz
@@ -165,45 +170,41 @@ def handle_download_latest(client: GitHubClient, state_dir: str, db_url: str) ->
         if ASSET_PATTERN.match(name):
             valid_assets.append(asset)
 
-    # Sort was already performed in DESC order inside get_release_assets
     if not valid_assets:
-        # Check if release exists or not
-        # If release tag exists but has 0 valid assets, or release tag does not exist
-        # we can initialize a new empty database
         print("No valid state assets found. Initializing empty database...")
-        # Clean up database if exists to ensure clean start
         if os.path.exists(db_path):
             os.remove(db_path)
-        # Alembic migration
-        bootstrap()
-        reset_db_connections()
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        alembic_cfg = Config(os.path.join(project_root, "alembic.ini"))
-        command.upgrade(alembic_cfg, "head")
-        print("Database initialized successfully.")
-        return
+        try:
+            bootstrap()
+            reset_db_connections()
+            project_root = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..")
+            )
+            alembic_cfg = Config(os.path.join(project_root, "alembic.ini"))
+            command.upgrade(alembic_cfg, "head")
+            print("Database initialized successfully.")
+            return
+        except Exception:
+            sys.stderr.write("STATE_RESTORE_FAILED\n")
+            raise SystemExit(1)
 
-    # Select exactly the latest 1 asset
     latest_asset = valid_assets[0]
     asset_name = latest_asset["name"]
-    print(f"Latest asset selected: {asset_name} (ID: {latest_asset['id']})")
+    print(f"Latest asset selected (Asset ID: {latest_asset['id']})")
 
-    # Download to state_dir
     try:
         downloaded_path = client.download_asset("glintory-state", asset_name, state_dir)
-    except Exception as e:
-        print(f"Failed to download asset {asset_name}: {e}", file=sys.stderr)
+    except Exception:
+        sys.stderr.write("STATE_DOWNLOAD_FAILED\n")
         raise SystemExit(1)
 
-    print(f"Verifying downloaded archive: {downloaded_path}")
+    print("Verifying downloaded archive...")
     try:
-        # Verify the archive
         verify_state_archive(downloaded_path)
-        # Restore the database
         restore_state_archive(downloaded_path, db_path, force=True)
         print("Database restored successfully.")
-    except Exception as e:
-        print(f"Verification or Restore failed for {asset_name}: {e}", file=sys.stderr)
+    except Exception:
+        sys.stderr.write("STATE_VERIFY_FAILED\n")
         raise SystemExit(1)
 
 
@@ -215,10 +216,7 @@ def handle_upload_and_verify(
     run_id = os.environ.get("GITHUB_RUN_ID")
     run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT")
     if not run_id or not run_attempt:
-        print(
-            "Error: GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT environment variables must be set.",
-            file=sys.stderr,
-        )
+        sys.stderr.write("STATE_UPLOAD_FAILED\n")
         raise SystemExit(1)
 
     # Target filename format: glintory-state-{GITHUB_RUN_ID}-{GITHUB_RUN_ATTEMPT}.tar.gz
@@ -226,27 +224,28 @@ def handle_upload_and_verify(
     local_archive_path = os.path.join(state_dir, archive_name)
 
     # 1. Create Local Snapshot
-    print(f"Creating local state snapshot: {local_archive_path}")
+    print("Creating local state snapshot...")
     try:
         # Close active connections first to ensure clean snapshot
         reset_db_connections()
         create_state_snapshot(
             output_path=local_archive_path,
+            database_url=db_url,
             run_id=run_id,
             run_attempt=run_attempt,
             metadata_file=metadata_file,
             profile="public",
         )
-    except Exception as e:
-        print(f"Snapshot creation failed: {e}", file=sys.stderr)
+    except Exception:
+        sys.stderr.write("STATE_VERIFY_FAILED\n")
         raise SystemExit(1)
 
     # 2. Local Verify
     print("Verifying local archive...")
     try:
         verify_state_archive(local_archive_path)
-    except Exception as e:
-        print(f"Local verification failed: {e}", file=sys.stderr)
+    except Exception:
+        sys.stderr.write("STATE_VERIFY_FAILED\n")
         if os.path.exists(local_archive_path):
             os.remove(local_archive_path)
         raise SystemExit(1)
@@ -258,55 +257,55 @@ def handle_upload_and_verify(
     print("Ensuring target release exists...")
     try:
         client.create_release_if_not_exists("glintory-state")
-    except Exception as e:
-        print(f"Failed to create/verify release tag: {e}", file=sys.stderr)
+    except Exception:
+        sys.stderr.write("STATE_UPLOAD_FAILED\n")
         raise SystemExit(1)
 
     # 3. Upload to Release (no clobber)
-    print(f"Uploading archive to release: {archive_name}")
+    print("Uploading archive to release...")
+    uploaded_asset = None
     try:
-        client.upload_asset("glintory-state", local_archive_path)
-    except Exception as e:
-        print(f"Upload failed: {e}", file=sys.stderr)
+        uploaded_asset = client.upload_asset("glintory-state", local_archive_path)
+    except Exception:
+        sys.stderr.write("STATE_UPLOAD_FAILED\n")
         raise SystemExit(1)
 
     # 4. Download Uploaded Asset to Temporary Directory
-    with tempfile.TemporaryDirectory() as tmp_download_dir:
-        print("Downloading uploaded asset for double verification...")
-        try:
+    double_verification_failed = False
+    try:
+        with tempfile.TemporaryDirectory() as tmp_download_dir:
+            print("Downloading uploaded asset for double verification...")
             downloaded_path = client.download_asset(
                 "glintory-state", archive_name, tmp_download_dir
             )
-        except Exception as e:
-            print(f"Verification Download failed: {e}", file=sys.stderr)
-            raise SystemExit(1)
 
-        # 5. Verify the re-downloaded archive
-        print("Verifying downloaded archive structure and metadata...")
-        try:
+            # 5. Verify the re-downloaded archive
+            print("Verifying downloaded archive structure and metadata...")
             downloaded_manifest = verify_state_archive(downloaded_path)
-        except Exception as e:
-            print(f"Verification of uploaded asset failed: {e}", file=sys.stderr)
-            raise SystemExit(1)
 
-        # 6. Verify Manifest fields match
-        if (
-            downloaded_manifest.get("github_run_id") != run_id
-            or downloaded_manifest.get("github_run_attempt") != run_attempt
-        ):
-            print(
-                f"Manifest Run ID or Attempt mismatch! expected={run_id}/{run_attempt}, actual={downloaded_manifest.get('github_run_id')}/{downloaded_manifest.get('github_run_attempt')}",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
+            # 6. Verify Manifest fields match
+            if (
+                downloaded_manifest.get("github_run_id") != run_id
+                or downloaded_manifest.get("github_run_attempt") != run_attempt
+            ):
+                raise ValueError("Run ID / Attempt mismatch")
 
-        # 7. Compare SHA-256 hashes of local and downloaded archives
-        downloaded_sha = compute_sha256(downloaded_path)
-        if downloaded_sha != local_sha:
-            print(
-                "SHA-256 mismatch between local and uploaded archive!", file=sys.stderr
-            )
-            raise SystemExit(1)
+            # 7. Compare SHA-256 hashes of local and downloaded archives
+            downloaded_sha = compute_sha256(downloaded_path)
+            if downloaded_sha != local_sha:
+                raise ValueError("SHA-256 mismatch")
+    except Exception:
+        double_verification_failed = True
+
+    if double_verification_failed:
+        sys.stderr.write("STATE_POST_UPLOAD_VERIFY_FAILED\n")
+        if uploaded_asset:
+            try:
+                client.delete_asset(uploaded_asset["id"])
+            except Exception:
+                sys.stderr.write("NEW_ASSET_CLEANUP_FAILED\n")
+                raise SystemExit(1)
+        raise SystemExit(1)
 
     print("Double verification succeeded. State uploaded securely.")
 
@@ -318,8 +317,8 @@ def handle_prune(client: GitHubClient) -> None:
     print("Pruning old state assets, keeping latest 5...")
     try:
         assets = client.get_release_assets("glintory-state")
-    except Exception as e:
-        print(f"Failed to fetch assets for pruning: {e}", file=sys.stderr)
+    except Exception:
+        sys.stderr.write("STATE_POST_UPLOAD_VERIFY_FAILED\n")
         raise SystemExit(1)
 
     valid_assets = []
@@ -332,16 +331,12 @@ def handle_prune(client: GitHubClient) -> None:
     if len(valid_assets) > 5:
         to_delete = valid_assets[5:]
         for asset in to_delete:
-            asset_name = asset["name"]
             asset_id = asset["id"]
-            print(f"Deleting old state asset: {asset_name} (ID: {asset_id})")
+            print(f"Deleting old state asset (Asset ID: {asset_id})")
             try:
                 client.delete_asset(asset_id)
-            except Exception as e:
-                print(
-                    f"Warning: Failed to delete asset {asset_name}: {e}",
-                    file=sys.stderr,
-                )
+            except Exception:
+                sys.stderr.write("NEW_ASSET_CLEANUP_FAILED\n")
 
 
 def main():
@@ -384,12 +379,18 @@ def main():
     # Overwrite db_url from env if present
     db_url = os.environ.get("GLINTORY_DATABASE_URL", args.db_url)
 
-    if args.command == "download-latest":
-        handle_download_latest(client, args.state_dir, db_url)
-    elif args.command == "upload-and-verify":
-        handle_upload_and_verify(client, args.state_dir, db_url, args.metadata_file)
-    elif args.command == "prune":
-        handle_prune(client)
+    try:
+        if args.command == "download-latest":
+            handle_download_latest(client, args.state_dir, db_url)
+        elif args.command == "upload-and-verify":
+            handle_upload_and_verify(client, args.state_dir, db_url, args.metadata_file)
+        elif args.command == "prune":
+            handle_prune(client)
+    except SystemExit as e:
+        sys.exit(e.code)
+    except Exception:
+        sys.stderr.write("STATE_STORE_EXECUTION_FAILED\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

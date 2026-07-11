@@ -1376,6 +1376,10 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
         session = runtime.session_factory()
         try:
             site_url = args.site_url or os.environ.get("GLINTORY_PUBLIC_SITE_URL")
+            if not site_url or site_url.strip() == "":
+                sys.stderr.write("GLINTORY_PUBLIC_SITE_URL_MISSING\n")
+                return 1
+
             pixapps_url = os.environ.get("GLINTORY_PIXAPPS_URL")
 
             res = build_static_site(
@@ -1392,8 +1396,8 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
                     f"Static site generated successfully at: {args.output_dir}. Total files: {res['total_files']}."
                 )
             return 0
-        except Exception as e:
-            sys.stderr.write(f"Static site generation failed: {e}\n")
+        except Exception:
+            sys.stderr.write("PAGES_BUILD_FAILED\n")
             return 1
         finally:
             session.close()

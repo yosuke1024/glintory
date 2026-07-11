@@ -206,7 +206,7 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.exception("Failed to finalize collection run on cancellation.")
+                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "CANCEL", "run_id": run_id, "source_id": source_id})
             finally:
                 session.close()
 
@@ -229,7 +229,7 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.exception("Failed to finalize collection run on termination.")
+                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "TERMINATE", "run_id": run_id, "source_id": source_id})
             finally:
                 session.close()
             raise e
@@ -252,9 +252,7 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.exception(
-                    "Failed to finalize collection run on collector failure."
-                )
+                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "COLLECTOR_FAILURE", "run_id": run_id, "source_id": source_id})
             finally:
                 session.close()
 
@@ -281,7 +279,7 @@ class CollectionService:
                 collected_at=items_collected_at,
             )
         except Exception:
-            logger.exception("Signal ingestion encountered a fatal error.")
+            logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "INGESTION_FATAL", "run_id": run_id, "source_id": source_id})
             finished_at = self.clock()
             error_summary = "Signal ingestion failed."
 
@@ -305,9 +303,7 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.exception(
-                    "Failed to finalize collection run on ingestion failure."
-                )
+                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "INGESTION_FAILURE", "run_id": run_id, "source_id": source_id})
                 raise
             finally:
                 session.close()
@@ -411,7 +407,7 @@ class CollectionService:
             # Failure Mode: If finalization itself fails (e.g. DB unavailable),
             # propagate the exception and let the run remain in 'running' state
             # so that it gets recovered by the stale-run recovery next time.
-            logger.exception("Failed to finalize collection run in Finalize Phase.")
+            logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "FINALIZE", "run_id": run_id, "source_id": source_id})
             raise
         finally:
             session.close()

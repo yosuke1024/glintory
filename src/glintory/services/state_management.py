@@ -399,6 +399,8 @@ def validate_manifest_fields(manifest: dict) -> None:
 
 def create_state_snapshot(
     output_path: str,
+    *,
+    database_url: str | None = None,
     run_id: str | None = None,
     run_attempt: str | None = None,
     metadata_file: str | None = None,
@@ -409,8 +411,8 @@ def create_state_snapshot(
             f"Unsupported profile specified: {profile}. Only 'public' is allowed."
         )
 
-    db_url = settings.database_url
-    db_path = get_db_path_from_url(db_url)
+    effective_database_url = database_url or settings.database_url
+    db_path = get_db_path_from_url(effective_database_url)
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Source database file not found: {db_path}")
 
@@ -637,6 +639,99 @@ def verify_state_archive_content(extracted_dir: str, archive_size: int) -> dict:
     return manifest
 
 
+def validate_archive_structure(tar: tarfile.TarFile) -> None:
+    members = tar.getmembers()
+    names = set()
+    allowed = {"glintory.sqlite3", "manifest.json"}
+    total_size = 0
+
+    for m in members:
+        # 1. Duplicate check
+        if m.name in names:
+            raise ValueError(
+                f"Archive verification failed: Duplicate member name detected: {m.name}"
+            )
+        names.add(m.name)
+
+        # 2. Allowed member name check (Unknown Member)
+        if m.name not in allowed:
+            raise ValueError(
+                f"Archive verification failed: Unrecognized files in archive: {m.name}"
+            )
+
+        # 3. Link prevention
+        if m.islnk() or m.issym():
+            raise ValueError(
+                f"Archive verification failed: Links are not allowed in archive (file '{m.name}')"
+            )
+
+        # 4. Special file prevention (Device, FIFO, Directory)
+        if m.ischr() or m.isblk():
+            raise ValueError(
+                f"Archive verification failed: Device files are not allowed in archive (file '{m.name}')"
+            )
+        if m.isfifo():
+            raise ValueError(
+                f"Archive verification failed: FIFO files are not allowed in archive (file '{m.name}')"
+            )
+        if m.isdir():
+            raise ValueError(
+                f"Archive verification failed: Directories are not allowed in archive (file '{m.name}')"
+            )
+
+        # 5. Sparse File check
+        if m.type == b"S" or getattr(m, "sparse", None) is not None:
+            raise ValueError(
+                f"Archive verification failed: Sparse files are not allowed (file '{m.name}')"
+            )
+
+        # 6. Regular file verification
+        if not m.isreg():
+            raise ValueError(
+                f"Archive verification failed: Non-regular file detected in archive: {m.name}"
+            )
+
+        # 7. Size verification
+        if m.size < 0:
+            raise ValueError(
+                f"Archive verification failed: Negative size detected: {m.name}"
+            )
+
+        if m.name == "glintory.sqlite3" and m.size > MAX_DB_SIZE:
+            raise ValueError(
+                "Archive verification failed: glintory.sqlite3 size exceeds safety limit."
+            )
+        if m.name == "manifest.json" and m.size > MAX_MANIFEST_SIZE:
+            raise ValueError(
+                "Archive verification failed: manifest.json size exceeds safety limit."
+            )
+
+        total_size += m.size
+
+        # 8. Path traversal check
+        normalized_name = os.path.normpath(m.name)
+        if (
+            normalized_name.startswith("..")
+            or normalized_name.startswith("/")
+            or ".." in normalized_name
+        ):
+            raise ValueError(
+                f"Archive verification failed: Path traversal detected: {m.name}"
+            )
+
+    # 9. Required files check
+    if names != allowed:
+        raise ValueError(
+            f"Archive verification failed: Unrecognized files in archive: {names - allowed or allowed - names}"
+        )
+
+    # 10. Total size verification
+    if total_size > MAX_DB_SIZE + MAX_MANIFEST_SIZE:
+        raise ValueError(
+            "Archive verification failed: Total member size exceeds safety limit."
+        )
+
+
 def verify_state_archive(archive_path: str) -> dict:
     if not os.path.exists(archive_path):
         raise FileNotFoundError(f"Archive not found: {archive_path}")
@@ -649,48 +744,7 @@ def verify_state_archive(archive_path: str) -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Open and verify tar file structure
         with tarfile.open(archive_path, "r:gz") as tar:
-            members = tar.getmembers()
-            names = set()
-
-            # Allowlist: only glintory.sqlite3 and manifest.json
-            allowed = {"glintory.sqlite3", "manifest.json"}
-
-            for m in members:
-                # Duplicate check
-                if m.name in names:
-                    raise ValueError(
-                        f"Archive verification failed: Duplicate member name detected: {m.name}"
-                    )
-                names.add(m.name)
-
-                # Link prevention
-                if m.islnk() or m.issym():
-                    raise ValueError(
-                        f"Archive verification failed: Links are not allowed in archive (file '{m.name}')"
-                    )
-
-                # Regular file verification
-                if not m.isreg():
-                    raise ValueError(
-                        f"Archive verification failed: Non-regular file detected in archive: {m.name}"
-                    )
-
-                # Path traversal check
-                normalized_name = os.path.normpath(m.name)
-                if (
-                    normalized_name.startswith("..")
-                    or normalized_name.startswith("/")
-                    or ".." in normalized_name
-                ):
-                    raise ValueError(
-                        f"Archive verification failed: Path traversal detected: {m.name}"
-                    )
-
-            if names != allowed:
-                raise ValueError(
-                    f"Archive verification failed: Unrecognized files in archive: {names - allowed or allowed - names}"
-                )
-
+            validate_archive_structure(tar)
             # Extract to temporary directory safely
             if hasattr(tarfile, "data_filter"):
                 tar.extractall(tmpdir, filter="data")
@@ -723,41 +777,7 @@ def restore_state_archive(
     # so that os.replace remains atomic (same filesystem)
     with tempfile.TemporaryDirectory(dir=target_dir) as tmpdir:
         with tarfile.open(archive_path, "r:gz") as tar:
-            members = tar.getmembers()
-            names = set()
-            allowed = {"glintory.sqlite3", "manifest.json"}
-
-            for m in members:
-                if m.name in names:
-                    raise ValueError(
-                        f"Archive verification failed: Duplicate member name detected: {m.name}"
-                    )
-                names.add(m.name)
-
-                if m.islnk() or m.issym():
-                    raise ValueError(
-                        f"Archive verification failed: Links are not allowed in archive (file '{m.name}')"
-                    )
-                if not m.isreg():
-                    raise ValueError(
-                        f"Archive verification failed: Non-regular file detected in archive: {m.name}"
-                    )
-
-                normalized_name = os.path.normpath(m.name)
-                if (
-                    normalized_name.startswith("..")
-                    or normalized_name.startswith("/")
-                    or ".." in normalized_name
-                ):
-                    raise ValueError(
-                        f"Archive verification failed: Path traversal detected: {m.name}"
-                    )
-
-            if names != allowed:
-                raise ValueError(
-                    f"Archive verification failed: Unrecognized files in archive: {names - allowed or allowed - names}"
-                )
-
+            validate_archive_structure(tar)
             if hasattr(tarfile, "data_filter"):
                 tar.extractall(tmpdir, filter="data")
             else:

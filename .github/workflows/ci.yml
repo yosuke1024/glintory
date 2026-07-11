@@ -2,9 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,15 +24,23 @@ jobs:
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Set Temporary Database URL
+        run: |
+          echo "GLINTORY_DATABASE_URL=sqlite:///$RUNNER_TEMP/glintory-ci.sqlite3" >> "$GITHUB_ENV"
+
+      - name: UV Lock Check
+        run: |
+          uv lock --check
 
       - name: Install dependencies
         run: |
           uv sync --frozen
 
-      - name: UV Lock Check
+      - name: CLI Help Check
         run: |
-          uv lock --check
+          uv run glintory --help
 
       - name: Ruff Check
         run: |
@@ -47,19 +54,29 @@ jobs:
         run: |
           uv run pyright
 
-      - name: Alembic Schema Consistency Check
-        run: |
-          uv run alembic check
-
-      - name: Alembic Migration Roundtrip
-        run: |
-          # Upgrade to head
-          uv run alembic upgrade head
-          # Downgrade back to base
-          uv run alembic downgrade base
-          # Re-upgrade to head to ensure clean final state
-          uv run alembic upgrade head
+      - name: Run actionlint
+        uses: shogo82148/actions-actionlint@c7e91244fbf922883015f606bf93ec8eb8bb1fb9 # v1.23.0
 
       - name: Run Pytest
         run: |
           uv run pytest -W error
+
+      - name: Alembic Upgrade Head
+        run: |
+          uv run alembic upgrade head
+
+      - name: Alembic Check
+        run: |
+          uv run alembic check
+
+      - name: Alembic Current Check
+        run: |
+          uv run alembic current
+
+      - name: Alembic Downgrade
+        run: |
+          uv run alembic downgrade -1
+
+      - name: Alembic Re-upgrade
+        run: |
+          uv run alembic upgrade head

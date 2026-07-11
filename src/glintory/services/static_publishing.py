@@ -4,9 +4,30 @@ import shutil
 import uuid
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse
 from xml.sax.saxutils import escape as xml_escape
 
 from jinja2 import Environment, select_autoescape
+
+
+def validate_site_url(url: str | None) -> str:
+    if not url:
+        raise ValueError("SITE_URL_REQUIRED")
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError("INVALID_SITE_URL_SCHEME")
+    if not parsed.netloc:
+        raise ValueError("INVALID_SITE_URL_NETLOC")
+    if parsed.username or parsed.password:
+        raise ValueError("INVALID_SITE_URL_CREDENTIALS")
+    if parsed.query:
+        raise ValueError("INVALID_SITE_URL_QUERY")
+    if parsed.fragment:
+        raise ValueError("INVALID_SITE_URL_FRAGMENT")
+    return url
+
+
 from sqlalchemy.orm import Session
 
 from glintory.domain.models import (
@@ -45,6 +66,8 @@ def build_static_site(
     pixapps_url: str | None = None,
     generated_at: datetime | None = None,
 ) -> dict:
+    valid_site_url = validate_site_url(site_url)
+
     # Set generated_at deterministically
     gen_time = generated_at or datetime.now(UTC)
 
@@ -740,18 +763,10 @@ tr:hover td {
         def get_now_str() -> str:
             return gen_time.strftime("%Y-%m-%d")
 
-        target_site_url = site_url or ""
-        if target_site_url.endswith("/"):
-            target_site_url = target_site_url[:-1]
+        target_site_url = valid_site_url.rstrip("/")
 
         def make_loc(path: str) -> str:
             full_url = f"{target_site_url}{base_path}{path}"
-            # Must be absolute HTTPS URL
-            if not full_url.startswith("https://"):
-                if full_url.startswith("http://"):
-                    full_url = "https://" + full_url[7:]
-                else:
-                    full_url = "https://" + full_url.lstrip("/")
             return xml_escape(full_url)
 
         sitemap_items.append(f"""  <url>

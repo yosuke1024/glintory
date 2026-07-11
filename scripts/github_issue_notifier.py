@@ -7,38 +7,60 @@ import sys
 from datetime import UTC, datetime
 
 
+class GitHubAPIError(Exception):
+    pass
+
+
 def run_gh(args: list[str]) -> str:
     cmd = ["gh"] + args
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return res.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"gh command failed: {e.stderr or e.stdout}", file=sys.stderr)
-        raise SystemExit(1)
+    except subprocess.CalledProcessError:
+        raise GitHubAPIError("gh command execution failed") from None
 
 
 def get_open_failure_issues() -> list[dict]:
-    out = run_gh(
-        [
-            "issue",
-            "list",
-            "--state",
-            "open",
-            "--label",
-            "automation-failure",
-            "--json",
-            "number,title",
-        ]
-    )
-    if not out.strip():
-        return []
     try:
+        out = run_gh(
+            [
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                "automation-failure",
+                "--json",
+                "number,title",
+            ]
+        )
+        if not out.strip():
+            return []
         return json.loads(out)
-    except json.JSONDecodeError:
+    except Exception:
         return []
 
 
-def handle_success() -> None:
+def ensure_label_exists() -> None:
+    print("Ensuring automation-failure label exists...")
+    try:
+        run_gh(
+            [
+                "label",
+                "create",
+                "automation-failure",
+                "--description",
+                "Glintory scheduled automation failures",
+                "--color",
+                "B60205",
+                "--force",
+            ]
+        )
+    except Exception:
+        sys.stderr.write("LABEL_CREATION_FAILED\n")
+
+
+def handle_success(automation_result: str, deploy_pages_result: str) -> None:
     issues = get_open_failure_issues()
     target_title = "[Glintory Automation] Failure"
     matching = [i for i in issues if i.get("title") == target_title]
@@ -58,6 +80,8 @@ def handle_success() -> None:
         f"- **Run ID:** {run_id}\n"
         f"- **Attempt:** {run_attempt}\n"
         f"- **Run URL:** {run_url}\n"
+        f"- **Automation Job Result:** {automation_result}\n"
+        f"- **Deploy Pages Job Result:** {deploy_pages_result}\n"
         f"- **UTC Timestamp:** {datetime.now(UTC).isoformat()}\n"
     )
 
@@ -68,7 +92,7 @@ def handle_success() -> None:
         run_gh(["issue", "close", str(issue_num)])
 
 
-def handle_failure() -> None:
+def handle_failure(automation_result: str, deploy_pages_result: str) -> None:
     issues = get_open_failure_issues()
     target_title = "[Glintory Automation] Failure"
     matching = [i for i in issues if i.get("title") == target_title]
@@ -84,6 +108,8 @@ def handle_failure() -> None:
         f"- **Run ID:** {run_id}\n"
         f"- **Attempt:** {run_attempt}\n"
         f"- **Run URL:** {run_url}\n"
+        f"- **Automation Job Result:** {automation_result}\n"
+        f"- **Deploy Pages Job Result:** {deploy_pages_result}\n"
         f"- **UTC Timestamp:** {datetime.now(UTC).isoformat()}\n\n"
         f"#### Instructions for Recovery:\n"
         f"1. Navigate to the Run URL above.\n"
@@ -116,21 +142,34 @@ def main():
         description="Handle Glintory automation notifications."
     )
     parser.add_argument(
-        "status", choices=["success", "failure"], help="Status of the automation job"
+        "--automation-result",
+        required=True,
+        help="Result status of the automation job (e.g. success, failure, cancelled)",
+    )
+    parser.add_argument(
+        "--deploy-pages-result",
+        required=True,
+        help="Result status of the deploy-pages job (e.g. success, failure, cancelled)",
     )
     args = parser.parse_args()
 
     # Ensure GITHUB_TOKEN is available in env (needed by gh CLI)
     if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
-        # Attempt to copy GITHUB_TOKEN to GH_TOKEN
         print(
             "Warning: GITHUB_TOKEN or GH_TOKEN not set in environment.", file=sys.stderr
         )
 
-    if args.status == "success":
-        handle_success()
-    elif args.status == "failure":
-        handle_failure()
+    try:
+        # Idempotently ensure the label exists before anything else
+        ensure_label_exists()
+
+        if args.automation_result == "success" and args.deploy_pages_result == "success":
+            handle_success(args.automation_result, args.deploy_pages_result)
+        else:
+            handle_failure(args.automation_result, args.deploy_pages_result)
+    except Exception:
+        sys.stderr.write("NOTIFICATION_FAILED\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

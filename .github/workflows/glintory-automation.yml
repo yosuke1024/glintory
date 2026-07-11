@@ -24,8 +24,9 @@ jobs:
       GLINTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      status: ${{ job.status }}
+      GLINTORY_PUBLIC_SITE_URL: ${{ vars.GLINTORY_PUBLIC_SITE_URL }}
+      GLINTORY_REPOSITORY_URL: ${{ vars.GLINTORY_REPOSITORY_URL }}
+      GLINTORY_PIXAPPS_URL: ${{ vars.GLINTORY_PIXAPPS_URL }}
     steps:
       - name: Checkout codebase
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -38,7 +39,7 @@ jobs:
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Prepare directories
         run: |
@@ -68,14 +69,6 @@ jobs:
           uv run glintory scheduler run --once --json > build/state/scheduler_metadata.json
           cat build/state/scheduler_metadata.json
 
-      - name: Run opportunity analysis
-        run: |
-          uv run glintory analyze --json
-
-      - name: Run scoring
-        run: |
-          uv run glintory score --json
-
       - name: Create state snapshot and upload
         run: |
           # Under the hood, this creates snapshot -> verify -> upload -> download -> verify -> prune
@@ -83,20 +76,24 @@ jobs:
 
       - name: Generate public static site
         run: |
-          site_url="${{ vars.GLINTORY_PUBLIC_SITE_URL }}"
-          repo_url="${{ vars.GLINTORY_REPOSITORY_URL }}"
-          # Inject repo URL and site URL
-          export GLINTORY_PUBLIC_SITE_URL="$site_url"
-          export GLINTORY_REPOSITORY_URL="$repo_url"
-          uv run glintory publish build --output-dir dist --base-path /glintory --json
+          uv run glintory publish build \
+            --output-dir dist \
+            --base-path /glintory \
+            --site-url "$GLINTORY_PUBLIC_SITE_URL" \
+            --json
 
       - name: Generate GITHUB_STEP_SUMMARY
         run: |
-          echo "## Glintory Execution Summary" >> $GITHUB_STEP_SUMMARY
-          echo "### State Metadata" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          uv run glintory state inspect --input .state/glintory-state-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz --json >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Glintory Execution Summary"
+            echo "### State Metadata"
+            echo '```json'
+            uv run glintory state inspect --input ".state/glintory-state-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz" --json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@983d63b72ee22c1d7a854228965c3cad64654918 # v5.0.0
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda996908607 # v3.0.1
@@ -105,15 +102,25 @@ jobs:
 
   deploy-pages:
     needs: automation
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@d6db596a2a8849b214bea8702aa55f722ccd6dfd # v4.0.5
 
   notify:
-    needs: automation
-    if: always()
+    needs:
+      - automation
+      - deploy-pages
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -129,11 +136,29 @@ jobs:
           python-version: '3.12'
 
       - name: Handle success notification
-        if: needs: automation.result == 'success'
+        if: >-
+          ${{
+            needs.automation.result == 'success' &&
+            needs.deploy-pages.result == 'success'
+          }}
+        env:
+          AUTOMATION_RESULT: "success"
+          DEPLOY_PAGES_RESULT: "success"
         run: |
-          python scripts/github_issue_notifier.py success
+          python scripts/github_issue_notifier.py \
+            --automation-result "$AUTOMATION_RESULT" \
+            --deploy-pages-result "$DEPLOY_PAGES_RESULT"
 
       - name: Handle failure notification
-        if: needs: automation.result == 'failure'
+        if: >-
+          ${{
+            needs.automation.result != 'success' ||
+            needs.deploy-pages.result != 'success'
+          }}
+        env:
+          AUTOMATION_RESULT: ${{ needs.automation.result }}
+          DEPLOY_PAGES_RESULT: ${{ needs.deploy-pages.result }}
         run: |
-          python scripts/github_issue_notifier.py failure
+          python scripts/github_issue_notifier.py \
+            --automation-result "$AUTOMATION_RESULT" \
+            --deploy-pages-result "$DEPLOY_PAGES_RESULT"

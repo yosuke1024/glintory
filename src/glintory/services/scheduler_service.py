@@ -68,7 +68,7 @@ class SchedulerService:
             session.commit()
         except Exception as e:
             session.rollback()
-            logger.exception(
+            logger.error(
                 'operation=scheduler_tick_claim_failed message="Failed to claim due executions."'
             )
             raise e
@@ -115,7 +115,7 @@ class SchedulerService:
                     skipped_disabled_count += 1
                 except Exception:
                     session.rollback()
-                    logger.exception(
+                    logger.error(
                         "operation=scheduler_finalize_skipped_disabled_failed "
                         "execution_id=%s",
                         cl.execution_id,
@@ -171,8 +171,8 @@ class SchedulerService:
                 status = ScheduleExecutionStatus.FAILED
                 failed_count += 1
                 err_summary = sanitize_error(f"Unexpected error: {str(e)}")
-                logger.exception(
-                    "operation=scheduler_execution_error execution_id=%s source_id=%s",
+                logger.error(
+                    "operation=scheduler_execution_error execution_id=%s source_id=%s stage_code=COLLECTION_EXECUTION_FAILED",
                     cl.execution_id,
                     cl.source_id,
                 )
@@ -191,7 +191,7 @@ class SchedulerService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.exception(
+                logger.error(
                     "operation=scheduler_finalize_failed execution_id=%s",
                     cl.execution_id,
                 )

@@ -74,7 +74,7 @@ class SchedulerRunner:
                 return SchedulerRunOnceResult(exit_code=6, tick_result=None)
         except Exception:
             session.rollback()
-            logger.exception(
+            logger.error(
                 'operation=scheduler_lease_error message="Lease acquisition failed."'
             )
             return SchedulerRunOnceResult(exit_code=1, tick_result=None)
@@ -99,7 +99,7 @@ class SchedulerRunner:
             )
             exit_code = 7
         except Exception:
-            logger.exception(
+            logger.error(
                 'operation=scheduler_tick_error message="Error running scheduler tick."'
             )
             exit_code = 1
@@ -154,7 +154,7 @@ class SchedulerRunner:
                     break
                 except Exception:
                     session.rollback()
-                    logger.exception(
+                    logger.error(
                         'operation=scheduler_heartbeat_failed message="Error renewing lease."'
                     )
                 finally:

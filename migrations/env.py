@@ -64,6 +64,18 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Check if a connection was explicitly passed via attributes (e.g. from tests)
+    explicit_connection = config.attributes.get("connection")
+    if explicit_connection is not None:
+        context.configure(
+            connection=explicit_connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     # Use our centralized get_engine() to inherit SQLite connection configurations (PRAGMAs, WAL, directory creation)
     connectable = get_engine()
 
