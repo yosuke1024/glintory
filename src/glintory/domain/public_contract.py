@@ -8,9 +8,12 @@ class BasePublicModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+SignalRolePublicV1 = Literal["demand", "supply", "context", "unknown"]
+
+
 class PublicEvidenceV1(BasePublicModel):
     signal_id: str
-    role: Literal["demand", "pain", "solution", "unknown"]
+    role: SignalRolePublicV1
     source_type: str
     source_name: str
     title: str
@@ -54,7 +57,7 @@ class PublicOpportunityLocalizationDetailV1(BasePublicModel):
 class PublicOpportunityScoreListV1(BasePublicModel):
     total: int
     confidence: Literal["low", "medium", "high"]
-    version: str
+    version: str = "v2"
 
 
 class PublicOpportunityEvidenceMetricsV1(BasePublicModel):
@@ -102,7 +105,7 @@ class PublicOpportunitySummaryV1(BasePublicModel):
 
 
 class PublicOpportunityListV1(BasePublicModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: str = "1.0.0"
     generated_at: datetime
     count: int
     items: list[PublicOpportunitySummaryV1]
@@ -121,29 +124,41 @@ class PublicOpportunityScoreDetailV1(BasePublicModel):
     feasibility: int
     penalty: int
     confidence: Literal["low", "medium", "high"]
-    version: str
+    version: str = "v2"
     components: list[ScoreComponentV1] = Field(default_factory=list)
+    independent_evidence_count: int = 0
+    demand_evidence_count: int = 0
 
 
 class PublicOpportunityGateV1(BasePublicModel):
-    version: str
+    version: Literal["v2"] = "v2"
     status: Literal["passed", "rejected", "failed"]
     reason: str
 
 
 class PublicOpportunityDetailV1(BasePublicModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: str = "1.0.0"
     public_id: str = Field(pattern=r"^opp_[0-9a-f]{32}$")
     public_lifecycle: Literal["active", "merged", "retired"] = "active"
     revision: int
     content_hash: str
     first_published_at: datetime | None = None
     last_published_at: datetime | None = None
-    localization: PublicOpportunityLocalizationDetailV1
-    score: PublicOpportunityScoreDetailV1
-    gate: PublicOpportunityGateV1
-    evidence: list[PublicEvidenceV1]
-    jurypress: JuryPressReadinessV1
+    localization: PublicOpportunityLocalizationDetailV1 | None = None
+    score: PublicOpportunityScoreDetailV1 | None = None
+    gate: PublicOpportunityGateV1 | None = None
+    evidence: list[PublicEvidenceV1] | None = None
+    jurypress: JuryPressReadinessV1 | None = None
+
+    # Readiness validation attributes (SSOT for independent verification)
+    enrichment_status: Literal["pending", "completed", "failed"] | None = None
+    translation_status: Literal["pending", "completed", "failed"] | None = None
+
+    # Tombstone/Redirection metadata
+    retired_at: datetime | None = None
+    retired_reason: str | None = None
+    canonical_public_id: str | None = None
+    canonical_detail_url: str | None = None
 
 
 class JuryPressFeedItemV1(BasePublicModel):
@@ -158,7 +173,7 @@ class JuryPressFeedItemV1(BasePublicModel):
 
 
 class JuryPressFeedV1(BasePublicModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: str = "1.0.0"
     generated_at: datetime
     content_hash: str
     count: int
@@ -177,7 +192,7 @@ class PublicManifestEndpointsV1(BasePublicModel):
 
 class PublicManifestV1(BasePublicModel):
     contract: Literal["glintory-public-data"] = "glintory-public-data"
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: str = "1.0.0"
     generated_at: datetime
     dataset_revision: str
     source_commit: str

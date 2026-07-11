@@ -8,7 +8,7 @@ from typing import Any, Literal, cast
 from sqlalchemy import desc
 
 from glintory.domain.enums import Confidence, OpportunityStatus
-from glintory.domain.models import Opportunity, OpportunitySignal, ScoreSnapshot, Signal
+from glintory.domain.models import Opportunity, OpportunitySignal, ScoreSnapshot, Signal, OpportunityPublicAlias
 from glintory.domain.public_contract import (
     JuryPressFeedItemV1,
     JuryPressFeedV1,
@@ -31,7 +31,9 @@ from glintory.domain.public_contract import (
     PublicOpportunitySummaryV1,
     ScoreComponentV1,
 )
-from glintory.services.content_hashing import calculate_opportunity_content_hash
+from glintory.services.content_hashing import (
+    calculate_opportunity_detail_canonical_hash,
+)
 
 
 def get_git_commit() -> str:
@@ -158,26 +160,56 @@ def generate_public_contract(
         with open(os.path.join(schemas_dir, filename), "w") as f:
             json.dump(model.model_json_schema(), f, indent=2, ensure_ascii=False)
 
-    # 3. Retrieve all opportunities that were ever published (not merged)
-    all_opps = (
-        session.query(Opportunity)
-        .filter(
-            Opportunity.current_scoring_version == "v2",
-            Opportunity.gate_status == "passed",
-            ~Opportunity.status.in_(
-                [OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED]
-            ),
-            Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH]),
-            Opportunity.public_lifecycle.in_(["active", "retired"]),
-        )
-        .all()
-    )
+    # 3. Retrieve all opportunities to evaluate publication candidates and tombstones
+    all_db_opps = session.query(Opportunity).all()
 
     summary_items = []
     jurypress_ready_items = []
+    tombstones = []
 
-    # Sort opportunities by public_id ASC for deterministic ordering of lists
-    sorted_opps = sorted(all_opps, key=lambda o: o.public_id)
+    # Filter/update public lifecycle states
+    for op in all_db_opps:
+        # Determine if currently matches active criteria
+        is_active_candidate = (
+            op.current_scoring_version == "v2"
+            and op.gate_status == "passed"
+            and op.status not in (OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED)
+            and op.confidence in (Confidence.MEDIUM, Confidence.HIGH)
+            and op.public_lifecycle != "merged"
+        )
+
+        if is_active_candidate:
+            op.public_lifecycle = "active"
+        else:
+            # If it was ever published, it must transition to retired (tombstone)
+            was_previously_published = (
+                op.first_published_at is not None or op.public_content_hash is not None
+            )
+            if was_previously_published and op.public_lifecycle != "merged":
+                op.public_lifecycle = "retired"
+                op.retired_at = gen_time
+                # Determine reason code
+                if op.current_scoring_version != "v2":
+                    op.retired_reason = "SCORING_VERSION_CHANGED"
+                elif op.gate_status != "passed":
+                    op.retired_reason = "GATE_REJECTED"
+                elif op.status in (OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED):
+                    op.retired_reason = "STATUS_EXCLUDED"
+                elif op.confidence not in (Confidence.MEDIUM, Confidence.HIGH):
+                    op.retired_reason = "CONFIDENCE_LOW"
+                else:
+                    op.retired_reason = "CLUSTERING_EXCLUDED"
+            else:
+                if op.public_lifecycle != "merged":
+                    op.public_lifecycle = "unregistered"
+
+    session.flush()
+
+    # Query active & retired ones to output
+    sorted_opps = sorted(
+        [o for o in all_db_opps if o.public_lifecycle in ("active", "retired")],
+        key=lambda o: o.public_id,
+    )
 
     for op in sorted_opps:
         # Load evidence signals
@@ -209,40 +241,8 @@ def generate_public_contract(
 
         sorted_ev_signals = sorted(ev_signals, key=get_ev_sort_key)
 
-        ev_list_for_hash = []
-        for sig, rel_score, sum_en, sum_ja, _ in sorted_ev_signals:
-            ev_list_for_hash.append(
-                {
-                    "signal_id": sig.id,
-                    "role": sig.signal_role.value
-                    if hasattr(sig.signal_role, "value")
-                    else str(sig.signal_role),
-                    "title": sig.title,
-                    "url": sig.canonical_url,
-                    "published_at": sig.published_at,
-                    "relevance_score": rel_score,
-                    "summary_ja": sum_ja,
-                    "summary_en": sum_en,
-                    "excerpt": sig.excerpt,
-                }
-            )
-
-        stable_hash = calculate_opportunity_content_hash(op, ev_list_for_hash)
-
-        # Update revision and content hash in DB if changed or initial publish
-        if op.public_content_hash is None:
-            op.public_revision = 1
-            op.public_content_hash = stable_hash
-            op.first_published_at = gen_time
-            op.last_published_at = gen_time
-        elif op.public_content_hash != stable_hash:
-            op.public_revision += 1
-            op.public_content_hash = stable_hash
-            op.last_published_at = gen_time
-
         ready, reasons = evaluate_jurypress_readiness(op, sorted_ev_signals)
 
-        # Map evidences using model constraint of max 500 characters on excerpt
         mapped_evidences = []
         for sig, rel_score, sum_en, sum_ja, _ in sorted_ev_signals:
             exc = sig.excerpt or ""
@@ -251,7 +251,7 @@ def generate_public_contract(
                 PublicEvidenceV1(
                     signal_id=sig.id,
                     role=cast(
-                        Literal["demand", "pain", "solution", "unknown"],
+                        Literal["demand", "supply", "context", "unknown"],
                         sig.signal_role.value
                         if hasattr(sig.signal_role, "value")
                         else str(sig.signal_role),
@@ -293,21 +293,31 @@ def generate_public_contract(
         # Sort score components by name ASC for deterministic details
         score_components.sort(key=lambda c: c.name)
 
-        loc_ja_status = "completed" if (op.title_ja and op.summary_ja) else "pending"
-        loc_en_status = "completed" if (op.title_en and op.summary_en) else "pending"
+        # Localization Status logic
+        if op.translation_status == "failed":
+            loc_ja_status = "failed"
+        elif op.translation_status == "completed" and op.title_ja and op.summary_ja:
+            loc_ja_status = "completed"
+        else:
+            loc_ja_status = "pending"
 
-        # Build Detail V1
+        if op.translation_status == "failed":
+            loc_en_status = "failed"
+        elif op.translation_status == "completed" and op.title_en and op.summary_en:
+            loc_en_status = "completed"
+        else:
+            loc_en_status = "pending"
+
         detail_model = PublicOpportunityDetailV1(
-            schema_version="1.0.0",
             public_id=op.public_id,
-            public_lifecycle=op.public_lifecycle,
-            revision=op.public_revision,
-            content_hash=op.public_content_hash,
+            public_lifecycle=cast(Literal["active", "merged", "retired"], op.public_lifecycle),
+            revision=op.public_revision or 1,
+            content_hash="",
             first_published_at=op.first_published_at,
             last_published_at=op.last_published_at,
             localization=PublicOpportunityLocalizationDetailV1(
                 ja=PublicOpportunityLocalizationDetailItemV1(
-                    status=loc_ja_status,
+                    status=cast(Literal["pending", "completed", "failed"], loc_ja_status),
                     title=op.title_ja,
                     summary=op.summary_ja,
                     target_user=op.target_user_ja,
@@ -319,7 +329,7 @@ def generate_public_contract(
                     risks=op.risks_ja,
                 ),
                 en=PublicOpportunityLocalizationDetailItemV1(
-                    status=loc_en_status,
+                    status=cast(Literal["pending", "completed", "failed"], loc_en_status),
                     title=op.title_en,
                     summary=op.summary_en,
                     target_user=op.target_user_en,
@@ -330,7 +340,9 @@ def generate_public_contract(
                     why_selected=op.why_selected_en,
                     risks=op.risks_en,
                 ),
-            ),
+            )
+            if op.public_lifecycle == "active"
+            else None,
             score=PublicOpportunityScoreDetailV1(
                 total=op.total_score or 0,
                 evidence=op.evidence_score or 0,
@@ -342,19 +354,61 @@ def generate_public_contract(
                     if hasattr(op.confidence, "value")
                     else str(op.confidence),
                 ),
-                version="v2",
+                version=op.current_scoring_version or "unknown",
                 components=score_components,
-            ),
+                independent_evidence_count=op.independent_evidence_count,
+                demand_evidence_count=op.demand_evidence_count,
+            )
+            if op.public_lifecycle == "active"
+            else None,
             gate=PublicOpportunityGateV1(
                 version="v2",
-                status=op.gate_status or "rejected",
+                status=cast(
+                    Literal["passed", "rejected", "failed"],
+                    op.gate_status or "rejected",
+                ),
                 reason=op.gate_reason or "",
-            ),
-            evidence=mapped_evidences,
+            )
+            if op.public_lifecycle == "active"
+            else None,
+            evidence=mapped_evidences if op.public_lifecycle == "active" else None,
             jurypress=JuryPressReadinessV1(
                 ready=ready, reasons=[cast(JuryPressReasonCode, r) for r in reasons]
-            ),
+            )
+            if op.public_lifecycle == "active"
+            else None,
+            enrichment_status=cast(
+                Literal["pending", "completed", "failed"], op.enrichment_status
+            )
+            if op.public_lifecycle == "active"
+            else None,
+            translation_status=cast(
+                Literal["pending", "completed", "failed"], op.translation_status
+            )
+            if op.public_lifecycle == "active"
+            else None,
+            retired_at=op.retired_at if op.public_lifecycle == "retired" else None,
+            retired_reason=op.retired_reason if op.public_lifecycle == "retired" else None,
         )
+
+        stable_hash = calculate_opportunity_detail_canonical_hash(detail_model)
+
+        # Update revision and content hash in DB if changed or initial publish
+        if op.public_content_hash is None:
+            op.public_revision = 1
+            op.public_content_hash = stable_hash
+            op.first_published_at = gen_time
+            op.last_published_at = gen_time
+        elif op.public_content_hash != stable_hash:
+            op.public_revision += 1
+            op.public_content_hash = stable_hash
+            op.last_published_at = gen_time
+
+        # Update model with finalized DB hash and revision values
+        detail_model.content_hash = op.public_content_hash
+        detail_model.revision = op.public_revision
+        detail_model.first_published_at = op.first_published_at
+        detail_model.last_published_at = op.last_published_at
 
         # Write detail file
         with open(os.path.join(opps_dir, f"{op.public_id}.json"), "w") as f:
@@ -364,17 +418,21 @@ def generate_public_contract(
         if op.public_lifecycle == "active":
             summary_model = PublicOpportunitySummaryV1(
                 public_id=op.public_id,
-                public_lifecycle=op.public_lifecycle,
+                public_lifecycle=cast(Literal["active", "merged", "retired"], op.public_lifecycle),
                 revision=op.public_revision,
                 content_hash=op.public_content_hash,
                 first_published_at=op.first_published_at,
                 last_published_at=op.last_published_at,
                 localization=PublicOpportunityLocalizationListV1(
                     ja=PublicOpportunityLocalizationItemV1(
-                        status=loc_ja_status, title=op.title_ja, summary=op.summary_ja
+                        status=cast(Literal["pending", "completed", "failed"], loc_ja_status),
+                        title=op.title_ja,
+                        summary=op.summary_ja,
                     ),
                     en=PublicOpportunityLocalizationItemV1(
-                        status=loc_en_status, title=op.title_en, summary=op.summary_en
+                        status=cast(Literal["pending", "completed", "failed"], loc_en_status),
+                        title=op.title_en,
+                        summary=op.summary_en,
                     ),
                 ),
                 score=PublicOpportunityScoreListV1(
@@ -385,7 +443,7 @@ def generate_public_contract(
                         if hasattr(op.confidence, "value")
                         else str(op.confidence),
                     ),
-                    version="v2",
+                    version=op.current_scoring_version or "unknown",
                 ),
                 evidence=PublicOpportunityEvidenceMetricsV1(
                     total=len(ev_signals),
@@ -422,9 +480,25 @@ def generate_public_contract(
                     )
                 )
 
+    # 4. Generate Merged Detail JSONs (Aliases)
+    aliases = session.query(OpportunityPublicAlias).all()
+    for alias in aliases:
+        merged_model = PublicOpportunityDetailV1(
+            public_id=alias.old_public_id,
+            public_lifecycle="merged",
+            revision=1,
+            content_hash="",
+            canonical_public_id=alias.canonical_public_id,
+            canonical_detail_url=f"{base_path}/data/v1/opportunities/{alias.canonical_public_id}.json",
+        )
+        stable_hash = calculate_opportunity_detail_canonical_hash(merged_model)
+        merged_model.content_hash = stable_hash
+        with open(os.path.join(opps_dir, f"{alias.old_public_id}.json"), "w") as f:
+            f.write(merged_model.model_dump_json(indent=2))
+
     session.flush()
 
-    # 4. Write List JSON
+    # 5. Write List JSON
     list_model = PublicOpportunityListV1(
         schema_version="1.0.0",
         generated_at=gen_time,
@@ -434,21 +508,73 @@ def generate_public_contract(
     with open(os.path.join(data_v1_dir, "opportunities.json"), "w") as f:
         f.write(list_model.model_dump_json(indent=2))
 
-    # Calculate dataset/manifest content hash (stable, sorted by public_id ASC)
-    sorted_summaries = sorted(summary_items, key=lambda x: x.public_id)
-    hash_payload = [
-        f"{item.public_id}:{item.revision}:{item.content_hash}"
-        for item in sorted_summaries
-    ]
-    manifest_raw_str = ",".join(hash_payload)
-    manifest_content_hash = hashlib.sha256(manifest_raw_str.encode("utf-8")).hexdigest()
+    # Calculate dataset/manifest content hash on the entire Canonical Dataset
+    dataset = {
+        "opportunities": [],
+        "jurypress_feed": [],
+        "aliases": [],
+        "tombstones": [],
+    }
+
+    # Populate active opportunities
+    for item in sorted(summary_items, key=lambda x: x.public_id):
+        dataset["opportunities"].append(
+            {
+                "public_id": item.public_id,
+                "revision": item.revision,
+                "content_hash": item.content_hash,
+                "public_lifecycle": item.public_lifecycle,
+                "jurypress_ready": item.jurypress.ready,
+                "jurypress_reasons": [str(r) for r in item.jurypress.reasons],
+            }
+        )
+
+    # Populate JuryPress ready feed items
+    for item in sorted(jurypress_ready_items, key=lambda x: x.public_id):
+        dataset["jurypress_feed"].append(
+            {
+                "public_id": item.public_id,
+                "revision": item.revision,
+                "content_hash": item.content_hash,
+            }
+        )
+
+    # Populate aliases (merged)
+    for alias in sorted(aliases, key=lambda x: x.old_public_id):
+        dataset["aliases"].append(
+            {
+                "old_public_id": alias.old_public_id,
+                "canonical_public_id": alias.canonical_public_id,
+            }
+        )
+
+    # Populate retired (tombstones)
+    retired_items = [o for o in sorted_opps if o.public_lifecycle == "retired"]
+    for op in sorted(retired_items, key=lambda x: x.public_id):
+        dataset["tombstones"].append(
+            {
+                "public_id": op.public_id,
+                "revision": op.public_revision,
+                "content_hash": op.public_content_hash,
+                "retired_at": op.retired_at.isoformat()
+                if isinstance(op.retired_at, datetime)
+                else str(op.retired_at),
+                "retired_reason": op.retired_reason,
+            }
+        )
+
+    # Serialize to deterministic JSON
+    dataset_serialized = json.dumps(
+        dataset, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
+    manifest_content_hash = hashlib.sha256(dataset_serialized.encode("utf-8")).hexdigest()
 
     # Sort JuryPress Feed items by score DESC, then public_id ASC for deterministic feed
     sorted_jurypress_ready_items = sorted(
         jurypress_ready_items, key=lambda item: (-item.score, item.public_id)
     )
 
-    # 5. Write JuryPress Feed JSON
+    # 6. Write JuryPress Feed JSON
     feed_model = JuryPressFeedV1(
         schema_version="1.0.0",
         generated_at=gen_time,
@@ -459,7 +585,7 @@ def generate_public_contract(
     with open(os.path.join(feeds_dir, "jurypress.json"), "w") as f:
         f.write(feed_model.model_dump_json(indent=2))
 
-    # 6. Write Manifest
+    # 7. Write Manifest
     git_commit = get_git_commit()
     manifest_model = PublicManifestV1(
         contract="glintory-public-data",

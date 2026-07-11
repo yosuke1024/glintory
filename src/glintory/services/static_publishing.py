@@ -140,7 +140,8 @@ def build_static_site(
     from glintory.services.public_contract_generator import generate_public_contract
 
     valid_site_url = validate_site_url(site_url)
-    gen_time = generated_at or datetime.now(UTC)
+    gen_time = (generated_at or datetime.now(UTC)).replace(tzinfo=None)
+    session.expire_all()
 
     # 1. Start PublishingRun auditing
     pub_run = PublishingRun(
@@ -191,7 +192,7 @@ def build_static_site(
                 Opportunity.status != OpportunityStatus.REJECTED,
                 Opportunity.status != OpportunityStatus.ARCHIVED,
                 Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH]),
-                Opportunity.public_lifecycle == "active",
+                (Opportunity.public_lifecycle.is_(None) | (Opportunity.public_lifecycle == "active")),
             )
             .order_by(
                 Opportunity.total_score.desc(),

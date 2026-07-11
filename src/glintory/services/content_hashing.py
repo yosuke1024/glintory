@@ -1,7 +1,9 @@
 import hashlib
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal, cast
+
+from glintory.domain.public_contract import PublicOpportunityDetailV1
 
 
 def generate_content_hash(
@@ -29,16 +31,43 @@ def generate_content_hash(
         "metadata": metadata,
     }
 
-    # Compact, sorted keys for deterministic JSON serialization
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
+
+def calculate_opportunity_detail_canonical_hash(
+    detail: PublicOpportunityDetailV1,
+) -> str:
+    """Calculate deterministic SHA-256 hash for a PublicOpportunityDetailV1,
+
+    excluding metadata management fields.
+    """
+    # Dump to dictionary representation
+    data = detail.model_dump(mode="json")
+
+    # Exclude metadata fields that are dynamically assigned after hashing
+    exclude_fields = {
+        "content_hash",
+        "revision",
+        "first_published_at",
+        "last_published_at",
+        "generated_at",
+    }
+    for f in exclude_fields:
+        data.pop(f, None)
+
+    # Serialize to deterministic JSON (compact, sorted keys)
+    serialized = json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def calculate_opportunity_content_hash(
     opp: Any, evidences: list[dict[str, Any]]
 ) -> str:
-    """Calculate deterministic SHA-256 hash for an opportunity's content and its evidence."""
+    """Calculate deterministic SHA-256 hash for an opportunity's content and its evidence
+
+    by converting it to a Canonical PublicOpportunityDetailV1 representation.
+    """
 
     # Stable evidence sort key: relevance_score DESC, published_at ASC, signal_id ASC
     def get_sort_key(ev: dict[str, Any]) -> tuple[float, str, str]:
@@ -53,62 +82,129 @@ def calculate_opportunity_content_hash(
 
     sorted_ev = sorted(evidences, key=get_sort_key)
 
-    serialized_ev = []
+    from glintory.domain.public_contract import (
+        PublicEvidenceV1,
+        PublicOpportunityDetailV1,
+        PublicOpportunityGateV1,
+        PublicOpportunityLocalizationDetailItemV1,
+        PublicOpportunityLocalizationDetailV1,
+        PublicOpportunityScoreDetailV1,
+        JuryPressReadinessV1,
+    )
+
+    mapped_ev = []
     for ev in sorted_ev:
         pub_at = ev.get("published_at")
-        if isinstance(pub_at, datetime):
-            pub_at_str = pub_at.isoformat()
-        else:
-            pub_at_str = str(pub_at) if pub_at else None
+        if not isinstance(pub_at, datetime):
+            if isinstance(pub_at, str) and pub_at:
+                try:
+                    pub_at = datetime.fromisoformat(pub_at.replace("Z", "+00:00"))
+                except ValueError:
+                    pub_at = datetime(1970, 1, 1)
+            else:
+                pub_at = datetime(1970, 1, 1)
 
         exc = ev.get("excerpt") or ""
         exc_limit = exc[:500] if exc else None
 
-        serialized_ev.append(
-            {
-                "signal_id": ev.get("signal_id"),
-                "role": ev.get("role"),
-                "title": ev.get("title"),
-                "url": ev.get("url"),
-                "published_at": pub_at_str,
-                "relevance_score": ev.get("relevance_score"),
-                "summary_ja": ev.get("summary_ja"),
-                "summary_en": ev.get("summary_en"),
-                "excerpt": exc_limit,
-            }
+        mapped_ev.append(
+            PublicEvidenceV1(
+                signal_id=str(ev.get("signal_id") or ""),
+                role=cast(
+                    Literal["demand", "supply", "context", "unknown"],
+                    ev.get("role") or "unknown",
+                ),
+                source_type=str(ev.get("source_type") or "unknown"),
+                source_name=str(ev.get("source_name") or "unknown"),
+                title=str(ev.get("title") or ""),
+                url=str(ev.get("url") or ""),
+                published_at=pub_at,
+                relevance_score=float(ev.get("relevance_score") or 0.0),
+                summary_ja=ev.get("summary_ja"),
+                summary_en=ev.get("summary_en"),
+                excerpt=exc_limit,
+            )
         )
 
-    payload = {
-        "title_ja": opp.title_ja,
-        "title_en": opp.title_en,
-        "summary_ja": opp.summary_ja,
-        "summary_en": opp.summary_en,
-        "problem_ja": opp.problem_ja,
-        "problem_en": opp.problem_en,
-        "target_user_ja": opp.target_user_ja,
-        "target_user_en": opp.target_user_en,
-        "current_workaround_ja": opp.current_workaround_ja,
-        "current_workaround_en": opp.current_workaround_en,
-        "existing_solution_gap_ja": opp.existing_solution_gap_ja,
-        "existing_solution_gap_en": opp.existing_solution_gap_en,
-        "mvp_direction_ja": opp.mvp_direction_ja,
-        "mvp_direction_en": opp.mvp_direction_en,
-        "why_selected_ja": opp.why_selected_ja,
-        "why_selected_en": opp.why_selected_en,
-        "risks_ja": opp.risks_ja,
-        "risks_en": opp.risks_en,
-        "total_score": int(opp.total_score or 0),
-        "evidence_score": int(opp.evidence_score or 0),
-        "feasibility_score": int(opp.feasibility_score or 0),
-        "penalty_score": int(opp.penalty_score or 0),
-        "confidence": opp.confidence.value
-        if hasattr(opp.confidence, "value")
-        else str(opp.confidence or ""),
-        "gate_status": opp.gate_status,
-        "evidences": serialized_ev,
-    }
+    # Determine localization status
+    loc_ja_status = "completed" if (opp.title_ja and opp.summary_ja) else "pending"
+    loc_en_status = "completed" if (opp.title_en and opp.summary_en) else "pending"
 
-    serialized = json.dumps(
-        payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    lifecycle = getattr(opp, "public_lifecycle", "active") or "active"
+    if hasattr(lifecycle, "value"):
+        lifecycle = lifecycle.value
+
+    detail = PublicOpportunityDetailV1(
+        public_id=opp.public_id
+        if hasattr(opp, "public_id")
+        else "opp_00000000000000000000000000000000",
+        public_lifecycle=cast(Literal["active", "merged", "retired"], lifecycle),
+        revision=getattr(opp, "public_revision", 1) or 1,
+        content_hash="",
+        first_published_at=getattr(opp, "first_published_at", None),
+        last_published_at=getattr(opp, "last_published_at", None),
+        localization=PublicOpportunityLocalizationDetailV1(
+            ja=PublicOpportunityLocalizationDetailItemV1(
+                status=cast(Literal["pending", "completed", "failed"], loc_ja_status),
+                title=opp.title_ja,
+                summary=opp.summary_ja,
+                target_user=getattr(opp, "target_user_ja", None),
+                problem=getattr(opp, "problem_ja", None),
+                current_workaround=getattr(opp, "current_workaround_ja", None),
+                existing_solution_gap=getattr(opp, "existing_solution_gap_ja", None),
+                mvp_direction=getattr(opp, "mvp_direction_ja", None),
+                why_selected=getattr(opp, "why_selected_ja", None),
+                risks=getattr(opp, "risks_ja", None),
+            ),
+            en=PublicOpportunityLocalizationDetailItemV1(
+                status=cast(Literal["pending", "completed", "failed"], loc_en_status),
+                title=opp.title_en,
+                summary=opp.summary_en,
+                target_user=getattr(opp, "target_user_en", None),
+                problem=getattr(opp, "problem_en", None),
+                current_workaround=getattr(opp, "current_workaround_en", None),
+                existing_solution_gap=getattr(opp, "existing_solution_gap_en", None),
+                mvp_direction=getattr(opp, "mvp_direction_en", None),
+                why_selected=getattr(opp, "why_selected_en", None),
+                risks=getattr(opp, "risks_en", None),
+            ),
+        ),
+        score=PublicOpportunityScoreDetailV1(
+            total=int(opp.total_score or 0),
+            evidence=int(getattr(opp, "evidence_score", 0) or 0),
+            feasibility=int(getattr(opp, "feasibility_score", 0) or 0),
+            penalty=int(getattr(opp, "penalty_score", 0) or 0),
+            confidence=cast(
+                Literal["low", "medium", "high"],
+                opp.confidence.value
+                if hasattr(opp.confidence, "value")
+                else str(opp.confidence or "low"),
+            ),
+            version="v2",
+            components=[],
+            independent_evidence_count=int(
+                getattr(opp, "independent_evidence_count", 0) or 0
+            ),
+            demand_evidence_count=int(getattr(opp, "demand_evidence_count", 0) or 0),
+        ),
+        gate=PublicOpportunityGateV1(
+            version="v2",
+            status=cast(
+                Literal["passed", "rejected", "failed"],
+                getattr(opp, "gate_status", "rejected") or "rejected",
+            ),
+            reason=getattr(opp, "gate_reason", "") or "",
+        ),
+        evidence=mapped_ev,
+        jurypress=JuryPressReadinessV1(ready=False, reasons=[]),
+        enrichment_status=cast(
+            Literal["pending", "completed", "failed"],
+            getattr(opp, "enrichment_status", "pending") or "pending",
+        ),
+        translation_status=cast(
+            Literal["pending", "completed", "failed"],
+            getattr(opp, "translation_status", "pending") or "pending",
+        ),
     )
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+    return calculate_opportunity_detail_canonical_hash(detail)
