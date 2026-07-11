@@ -149,7 +149,7 @@ async def test_collection_partial(db_session, registry, db_session_factory):
     assert db_src.last_failure_at is not None
     assert db_src.consecutive_failures == 2
     assert db_src.last_error is not None
-    assert "Failed to fetch item 2" in db_src.last_error
+    assert "Collection failed unexpectedly." in db_src.last_error
 
 
 @pytest.mark.asyncio
@@ -170,7 +170,7 @@ async def test_collection_failed_result(db_session, registry, db_session_factory
     assert db_src.last_failure_at is not None
     assert db_src.consecutive_failures == 2
     assert db_src.last_error is not None
-    assert "Failed to connect to source" in db_src.last_error
+    assert "Collection failed unexpectedly." in db_src.last_error
 
 
 @pytest.mark.asyncio
@@ -184,13 +184,13 @@ async def test_collection_exception_fatal(db_session, registry, db_session_facto
 
     assert result.status == CollectionRunStatus.FAILED
     assert result.error_summary is not None
-    assert "Collector fatal exception" in result.error_summary
+    assert "Collection failed unexpectedly." in result.error_summary
 
     db_session.expire_all()
     db_src = db_session.get(Source, src.id)
     assert db_src.last_failure_at is not None
     assert db_src.last_error is not None
-    assert "Collector fatal exception" in db_src.last_error
+    assert "Collection failed unexpectedly." in db_src.last_error
     # No stacktrace should leak
     assert "Traceback" not in db_src.last_error
 

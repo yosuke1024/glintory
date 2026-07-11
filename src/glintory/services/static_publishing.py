@@ -766,7 +766,7 @@ tr:hover td {
         target_site_url = valid_site_url.rstrip("/")
 
         def make_loc(path: str) -> str:
-            full_url = f"{target_site_url}{base_path}{path}"
+            full_url = f"{target_site_url}{path}"
             return xml_escape(full_url)
 
         sitemap_items.append(f"""  <url>

@@ -434,4 +434,4 @@ async def test_scheduler_security_sanitization_regression(
     assert exec_rec is not None
     assert "token=secret" not in exec_rec.error_summary
     assert "Bearer secret" not in exec_rec.error_summary
-    assert "[MASKED]" in exec_rec.error_summary
+    assert "Scheduled collection failed unexpectedly." in exec_rec.error_summary

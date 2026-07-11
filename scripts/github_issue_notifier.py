@@ -20,6 +20,10 @@ def run_gh(args: list[str]) -> str:
         raise GitHubAPIError("gh command execution failed") from None
 
 
+class NotificationError(Exception):
+    pass
+
+
 def get_open_failure_issues() -> list[dict]:
     try:
         out = run_gh(
@@ -37,8 +41,9 @@ def get_open_failure_issues() -> list[dict]:
         if not out.strip():
             return []
         return json.loads(out)
-    except Exception:
-        return []
+    except Exception as e:
+        sys.stderr.write("FAILURE_ISSUE_LOOKUP_FAILED\n")
+        raise NotificationError("FAILURE_ISSUE_LOOKUP_FAILED") from e
 
 
 def ensure_label_exists() -> None:
@@ -56,8 +61,9 @@ def ensure_label_exists() -> None:
                 "--force",
             ]
         )
-    except Exception:
-        sys.stderr.write("LABEL_CREATION_FAILED\n")
+    except Exception as e:
+        sys.stderr.write("FAILURE_LABEL_SETUP_FAILED\n")
+        raise NotificationError("FAILURE_LABEL_SETUP_FAILED") from e
 
 
 def handle_success(automation_result: str, deploy_pages_result: str) -> None:
@@ -163,10 +169,15 @@ def main():
         # Idempotently ensure the label exists before anything else
         ensure_label_exists()
 
-        if args.automation_result == "success" and args.deploy_pages_result == "success":
+        if (
+            args.automation_result == "success"
+            and args.deploy_pages_result == "success"
+        ):
             handle_success(args.automation_result, args.deploy_pages_result)
         else:
             handle_failure(args.automation_result, args.deploy_pages_result)
+    except NotificationError:
+        sys.exit(1)
     except Exception:
         sys.stderr.write("NOTIFICATION_FAILED\n")
         sys.exit(1)

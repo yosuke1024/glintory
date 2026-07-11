@@ -652,8 +652,8 @@ async def _run_source_sync_manifest(args: argparse.Namespace, runtime: Any) -> i
                 f"Source manifest synced successfully. Created: {res['created_count']}, Updated: {res['updated_count']}."
             )
         return 0
-    except Exception as e:
-        sys.stderr.write(f"Sync manifest failed: {e}\n")
+    except Exception:
+        sys.stderr.write("SOURCE_MANIFEST_SYNC_FAILED\n")
         return 1
     finally:
         session.close()
@@ -1256,30 +1256,34 @@ async def run_scheduler_command(args: argparse.Namespace, runtime: Any) -> int:
         scheduler_service=scheduler_service,
     )
 
-    res = await runner.run_once()
-    if args.json:
-        tick_data = None
-        if res.tick_result:
-            tick_data = {
-                "due_schedule_count": res.tick_result.due_schedule_count,
-                "claimed_execution_count": res.tick_result.claimed_execution_count,
-                "succeeded_count": res.tick_result.succeeded_count,
-                "partial_count": res.tick_result.partial_count,
-                "failed_count": res.tick_result.failed_count,
-                "skipped_busy_count": res.tick_result.skipped_busy_count,
-                "skipped_disabled_count": res.tick_result.skipped_disabled_count,
-                "abandoned_count": res.tick_result.abandoned_count,
-                "execution_ids": list(res.tick_result.execution_ids),
-            }
-        print(
-            json.dumps(
-                {
-                    "exit_code": res.exit_code,
-                    "tick": tick_data,
+    try:
+        res = await runner.run_once()
+        if args.json:
+            tick_data = None
+            if res.tick_result:
+                tick_data = {
+                    "due_schedule_count": res.tick_result.due_schedule_count,
+                    "claimed_execution_count": res.tick_result.claimed_execution_count,
+                    "succeeded_count": res.tick_result.succeeded_count,
+                    "partial_count": res.tick_result.partial_count,
+                    "failed_count": res.tick_result.failed_count,
+                    "skipped_busy_count": res.tick_result.skipped_busy_count,
+                    "skipped_disabled_count": res.tick_result.skipped_disabled_count,
+                    "abandoned_count": res.tick_result.abandoned_count,
+                    "execution_ids": list(res.tick_result.execution_ids),
                 }
+            print(
+                json.dumps(
+                    {
+                        "exit_code": res.exit_code,
+                        "tick": tick_data,
+                    }
+                )
             )
-        )
-    return res.exit_code
+        return res.exit_code
+    except Exception:
+        sys.stderr.write("SCHEDULER_RUN_FAILED\n")
+        return 1
 
 
 async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
@@ -1336,11 +1340,8 @@ async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
             else:
                 print(f"Archive '{args.input}' is valid.")
             return 0
-        except Exception as e:
-            if args.json:
-                print(json.dumps({"valid": False, "error": str(e)}, indent=2))
-            else:
-                sys.stderr.write(f"Verification failed: {e}\n")
+        except Exception:
+            sys.stderr.write("STATE_VERIFY_FAILED\n")
             return 1
 
     elif args.subcommand == "inspect":
@@ -1362,8 +1363,8 @@ async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
             }
             print(json.dumps(output, indent=2))
             return 0
-        except Exception as e:
-            sys.stderr.write(f"Inspection failed: {e}\n")
+        except Exception:
+            sys.stderr.write("STATE_INSPECT_FAILED\n")
             return 1
 
     return 0

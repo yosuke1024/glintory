@@ -18,7 +18,6 @@ from glintory.domain.operations import (
     SourceDisabledError,
     SourceNotFoundError,
 )
-from glintory.infrastructure.error_sanitizer import sanitize_error
 from glintory.infrastructure.http import HttpxHttpClient
 from glintory.infrastructure.repositories import (
     CollectionRunRepository,
@@ -27,6 +26,19 @@ from glintory.infrastructure.repositories import (
 from glintory.services.signal_ingestion import SignalIngestionService
 
 logger = logging.getLogger(__name__)
+
+
+def safe_error_summary(error: Exception | str) -> str:
+    msg = str(error)
+    allowlist = [
+        "Source is already running.",
+        "Source is disabled.",
+        "Collection was rate limited.",
+    ]
+    for allowed in allowlist:
+        if allowed in msg:
+            return allowed
+    return "Collection failed unexpectedly."
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,7 +218,10 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "CANCEL", "run_id": run_id, "source_id": source_id})
+                logger.error(
+                    "COLLECTION_EXECUTION_FAILED",
+                    extra={"stage": "CANCEL", "run_id": run_id, "source_id": source_id},
+                )
             finally:
                 session.close()
 
@@ -229,14 +244,21 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "TERMINATE", "run_id": run_id, "source_id": source_id})
+                logger.error(
+                    "COLLECTION_EXECUTION_FAILED",
+                    extra={
+                        "stage": "TERMINATE",
+                        "run_id": run_id,
+                        "source_id": source_id,
+                    },
+                )
             finally:
                 session.close()
             raise e
         except Exception as e:
             # Fatal collector exceptions
             finished_at = self.clock()
-            error_summary = sanitize_error(str(e))
+            error_summary = safe_error_summary(e)
 
             session = self.session_factory()
             try:
@@ -252,7 +274,14 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "COLLECTOR_FAILURE", "run_id": run_id, "source_id": source_id})
+                logger.error(
+                    "COLLECTION_EXECUTION_FAILED",
+                    extra={
+                        "stage": "COLLECTOR_FAILURE",
+                        "run_id": run_id,
+                        "source_id": source_id,
+                    },
+                )
             finally:
                 session.close()
 
@@ -279,7 +308,14 @@ class CollectionService:
                 collected_at=items_collected_at,
             )
         except Exception:
-            logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "INGESTION_FATAL", "run_id": run_id, "source_id": source_id})
+            logger.error(
+                "COLLECTION_EXECUTION_FAILED",
+                extra={
+                    "stage": "INGESTION_FATAL",
+                    "run_id": run_id,
+                    "source_id": source_id,
+                },
+            )
             finished_at = self.clock()
             error_summary = "Signal ingestion failed."
 
@@ -303,7 +339,14 @@ class CollectionService:
                 session.commit()
             except Exception:
                 session.rollback()
-                logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "INGESTION_FAILURE", "run_id": run_id, "source_id": source_id})
+                logger.error(
+                    "COLLECTION_EXECUTION_FAILED",
+                    extra={
+                        "stage": "INGESTION_FAILURE",
+                        "run_id": run_id,
+                        "source_id": source_id,
+                    },
+                )
                 raise
             finally:
                 session.close()
@@ -334,7 +377,7 @@ class CollectionService:
         all_errors = list(result.errors) + list(ingest_result.errors)
         if all_errors:
             raw_errors = ", ".join(err.message for err in all_errors)
-            error_summary = sanitize_error(raw_errors)
+            error_summary = safe_error_summary(raw_errors)
         else:
             error_summary = None
 
@@ -407,7 +450,10 @@ class CollectionService:
             # Failure Mode: If finalization itself fails (e.g. DB unavailable),
             # propagate the exception and let the run remain in 'running' state
             # so that it gets recovered by the stale-run recovery next time.
-            logger.error("COLLECTION_EXECUTION_FAILED", extra={"stage": "FINALIZE", "run_id": run_id, "source_id": source_id})
+            logger.error(
+                "COLLECTION_EXECUTION_FAILED",
+                extra={"stage": "FINALIZE", "run_id": run_id, "source_id": source_id},
+            )
             raise
         finally:
             session.close()

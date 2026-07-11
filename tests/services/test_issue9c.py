@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tarfile
 from datetime import UTC, datetime
@@ -420,7 +421,7 @@ def test_static_publishing_conformance(test_db, tmp_path):
         session=session,
         output_dir=str(dist_dir),
         base_path="/glintory",
-        site_url="https://public.example.com",
+        site_url="https://public.example.com/glintory",
         generated_at=fixed_time,
     )
 
@@ -750,7 +751,7 @@ def test_github_state_store_db_url_and_assets(test_db, tmp_path):
             self.assets_list = []
             self.deleted_ids = []
 
-        def run_gh(self, args: list[str]) -> str:
+        def run_gh(self, args: list[str], stage_code: str = "GITHUB_API_ERROR") -> str:
             if args[0] == "api" and "releases/tags/glintory-state" in args[1]:
                 return json.dumps({"assets": self.assets_list})
             return ""

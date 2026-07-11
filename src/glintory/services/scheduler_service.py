@@ -165,12 +165,10 @@ class SchedulerService:
                 status = ScheduleExecutionStatus.SKIPPED_BUSY
                 skipped_busy_count += 1
                 err_summary = "Source is already running."
-            except Exception as e:
-                from glintory.infrastructure.error_sanitizer import sanitize_error
-
+            except Exception:
                 status = ScheduleExecutionStatus.FAILED
                 failed_count += 1
-                err_summary = sanitize_error(f"Unexpected error: {str(e)}")
+                err_summary = "Scheduled collection failed unexpectedly."
                 logger.error(
                     "operation=scheduler_execution_error execution_id=%s source_id=%s stage_code=COLLECTION_EXECUTION_FAILED",
                     cl.execution_id,
