@@ -73,7 +73,9 @@ class ScheduleExecutionRepository:
         if not force:
             query = query.filter(SourceSchedule.next_run_at <= now)
 
-        query = query.order_by(SourceSchedule.next_run_at.asc(), SourceSchedule.source_id.asc()).limit(max_due)
+        query = query.order_by(
+            SourceSchedule.next_run_at.asc(), SourceSchedule.source_id.asc()
+        ).limit(max_due)
 
         due_schedules = query.all()
         claimed = []

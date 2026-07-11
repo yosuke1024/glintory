@@ -41,6 +41,7 @@ class OpportunityScoringRepository:
                     source_id=src.id,
                     source_type=src.source_type,
                     signal_type=sig.signal_type,
+                    signal_role=sig.signal_role,
                     relation_type=opp_sig.relation_type,
                     relevance_score=opp_sig.relevance_score,
                     evidence_origin=origin,
@@ -48,6 +49,7 @@ class OpportunityScoringRepository:
                     collected_at=sig.collected_at,
                     title=sig.title,
                     excerpt=sig.excerpt or "",
+                    canonical_url=sig.canonical_url,
                     tags=tags_tuple,
                     raw_metadata=sig.raw_metadata or {},
                 )

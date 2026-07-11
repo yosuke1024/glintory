@@ -110,14 +110,14 @@ class LlamaServerContext:
             "--jinja",
             "--no-warmup",
         ]
-        
+
         # Write server output to a log file for debugging on failure
         binary_dir = os.path.dirname(os.path.abspath(self.binary_path))
         build_dir = os.path.abspath("build")
         os.makedirs(build_dir, exist_ok=True)
         log_path = os.path.join(build_dir, "llama_server.log")
         log_file = open(log_path, "w", encoding="utf-8")
-        
+
         env = os.environ.copy()
         ld_path = env.get("LD_LIBRARY_PATH", "")
         if ld_path:
@@ -241,7 +241,13 @@ BILINGUAL_ENRICHMENT_JSON_SCHEMA = {
         "evidence_refs": {"type": "array", "items": {"type": "string"}},
         "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
     },
-    "required": ["english", "japanese", "evidence_summaries", "evidence_refs", "confidence"],
+    "required": [
+        "english",
+        "japanese",
+        "evidence_summaries",
+        "evidence_refs",
+        "confidence",
+    ],
     "additionalProperties": False,
 }
 
@@ -329,7 +335,9 @@ class LocalLlmProvider:
                 commit_to_save = expected_commit
 
             self.runtime_descriptor = LocalLlmRuntimeDescriptor(
-                version=version_str, commit=commit_to_save, binary_sha256=self.binary_sha256
+                version=version_str,
+                commit=commit_to_save,
+                binary_sha256=self.binary_sha256,
             )
         except Exception as e:
             if isinstance(e, ValueError) and str(e) == "LLM_RUNTIME_START_FAILED":

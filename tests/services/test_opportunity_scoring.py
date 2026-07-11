@@ -9,6 +9,7 @@ from glintory.domain.enums import (
     Confidence,
     EvidenceRelationType,
     OpportunityStatus,
+    SignalRole,
     SignalType,
 )
 from glintory.domain.models import (
@@ -65,6 +66,7 @@ def test_deterministic_scoring_hash():
         source_id="src-1",
         source_type="github",
         signal_type=SignalType.PAIN,
+        signal_role=SignalRole.UNKNOWN,
         relation_type=EvidenceRelationType.SUPPORTING,
         relevance_score=0.9,
         evidence_origin="owner/repo-a",
@@ -72,6 +74,7 @@ def test_deterministic_scoring_hash():
         collected_at=collected,
         title="Pain point 1",
         excerpt="Important excerpt",
+        canonical_url=None,
         tags=("python", "ml"),
         raw_metadata={
             "full_name": "owner/repo-a",
@@ -84,6 +87,7 @@ def test_deterministic_scoring_hash():
         source_id="src-2",
         source_type="hackernews",
         signal_type=SignalType.LAUNCH,
+        signal_role=SignalRole.UNKNOWN,
         relation_type=EvidenceRelationType.RELATED,
         relevance_score=0.7,
         evidence_origin="hackernews",
@@ -91,6 +95,7 @@ def test_deterministic_scoring_hash():
         collected_at=collected,
         title="Launch 1",
         excerpt="Launch excerpt",
+        canonical_url=None,
         tags=(),
         raw_metadata={"outbound_host": "hackernews"},
     )
@@ -116,6 +121,7 @@ def test_deterministic_scoring_hash():
         source_id="src-1",
         source_type="github",
         signal_type=SignalType.PAIN,
+        signal_role=SignalRole.UNKNOWN,
         relation_type=EvidenceRelationType.SUPPORTING,
         relevance_score=0.8,  # changed
         evidence_origin="owner/repo-a",
@@ -123,6 +129,7 @@ def test_deterministic_scoring_hash():
         collected_at=collected,
         title="Pain point 1",
         excerpt="Important excerpt",
+        canonical_url=None,
         tags=("python", "ml"),
         raw_metadata={
             "full_name": "owner/repo-a",
@@ -151,6 +158,7 @@ def test_scoring_engine_basic_rules():
         source_id="src-1",
         source_type="github",
         signal_type=SignalType.PAIN,
+        signal_role=SignalRole.UNKNOWN,
         relation_type=EvidenceRelationType.SUPPORTING,
         relevance_score=1.0,
         evidence_origin="owner/repo-a",
@@ -158,6 +166,7 @@ def test_scoring_engine_basic_rules():
         collected_at=collected,
         title="Pain point",
         excerpt="Excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text excerpt text",  # >= 120 chars
+        canonical_url=None,
         tags=("python", "ml"),
         raw_metadata={"full_name": "owner/repo-a"},
     )

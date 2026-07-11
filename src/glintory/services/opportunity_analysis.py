@@ -33,18 +33,24 @@ class OpportunityAnalysisService:
         self.engine = engine
         self.config = config or OpportunityClusteringConfig()
 
-    def _calculate_metrics_and_gate(self, cluster_signals: list[dict]) -> tuple[dict, bool, str]:
+    def _calculate_metrics_and_gate(
+        self, cluster_signals: list[dict]
+    ) -> tuple[dict, bool, str]:
         import re
         from urllib.parse import urlparse
 
         signals = [item["signal"] for item in cluster_signals]
         if not signals:
-            return {
-                "independent_evidence_count": 0,
-                "demand_evidence_count": 0,
-                "source_type_count": 0,
-                "source_domain_count": 0,
-            }, False, "No signals in cluster."
+            return (
+                {
+                    "independent_evidence_count": 0,
+                    "demand_evidence_count": 0,
+                    "source_type_count": 0,
+                    "source_domain_count": 0,
+                },
+                False,
+                "No signals in cluster.",
+            )
 
         # Thread grouping
         def get_thread_key(sig) -> str:
@@ -52,9 +58,13 @@ class OpportunityAnalysisService:
             hn_match = re.search(r"news\.ycombinator\.com/item\?id=(\d+)", url)
             if hn_match:
                 return f"hn_thread_{hn_match.group(1)}"
-            gh_issue_match = re.search(r"github\.com/([^/]+/[^/]+)/(issues|pull)/(\d+)", url)
+            gh_issue_match = re.search(
+                r"github\.com/([^/]+/[^/]+)/(issues|pull)/(\d+)", url
+            )
             if gh_issue_match:
-                return f"github_issue_{gh_issue_match.group(1)}_{gh_issue_match.group(3)}"
+                return (
+                    f"github_issue_{gh_issue_match.group(1)}_{gh_issue_match.group(3)}"
+                )
             gh_repo_match = re.search(r"github\.com/([^/]+/[^/]+)", url)
             if gh_repo_match:
                 return f"github_repo_{gh_repo_match.group(1)}"
@@ -90,31 +100,114 @@ class OpportunityAnalysisService:
         if independent_count == 1:
             single_thread_sigs = list(threads.values())[0]
             is_show_hn = any(
-                (sig.source_id == "hackernews" and (sig.title or "").lower().startswith("show hn:"))
+                (
+                    sig.source_id == "hackernews"
+                    and (sig.title or "").lower().startswith("show hn:")
+                )
                 for sig in single_thread_sigs
             )
             if is_show_hn:
-                return metrics, False, "Rejected: Single Show HN submission cannot be promoted."
+                return (
+                    metrics,
+                    False,
+                    "Rejected: Single Show HN submission cannot be promoted.",
+                )
 
         has_demand = demand_count > 0
 
         # Condition A: 2+ independent evidences, >= 1 demand
         if independent_count >= 2:
             if has_demand:
-                return metrics, True, "Passed Condition A: Multiple independent evidences with demand."
-            return metrics, False, "Rejected Condition A: Multiple independent evidences but no demand."
+                return (
+                    metrics,
+                    True,
+                    "Passed Condition A: Multiple independent evidences with demand.",
+                )
+            return (
+                metrics,
+                False,
+                "Rejected Condition A: Multiple independent evidences but no demand.",
+            )
 
         # Condition B: Single independent evidence, must be strong demand
         single_sig = signals[0]
         if single_sig.signal_role != SignalRole.DEMAND:
-            return metrics, False, "Rejected Condition B: Single evidence is not demand."
+            return (
+                metrics,
+                False,
+                "Rejected Condition B: Single evidence is not demand.",
+            )
 
         text_to_check = f"{single_sig.title or ''}\n{single_sig.excerpt or ''}".lower()
-        user_kws = ["user", "customer", "who", "for", "team", "developer", "users", "ユーザー", "顧客", "開発者"]
-        problem_kws = ["problem", "pain", "issue", "difficult", "annoy", "error", "fail", "broken", "limit", "課題", "問題", "困っ", "痛手", "バグ", "エラー"]
-        workaround_kws = ["workaround", "instead", "alternative", "current", "manually", "excel", "scripts", "回避", "代替", "手動", "スプレッドシート"]
-        gap_kws = ["why", "but", "limit", "lack", "cannot", "expensive", "slow", "不足", "できない", "高価", "遅い"]
-        mvp_kws = ["mvp", "solution", "feature", "idea", "should", "want", "need", "wish", "提案", "欲しい", "必要", "機能"]
+        user_kws = [
+            "user",
+            "customer",
+            "who",
+            "for",
+            "team",
+            "developer",
+            "users",
+            "ユーザー",
+            "顧客",
+            "開発者",
+        ]
+        problem_kws = [
+            "problem",
+            "pain",
+            "issue",
+            "difficult",
+            "annoy",
+            "error",
+            "fail",
+            "broken",
+            "limit",
+            "課題",
+            "問題",
+            "困っ",
+            "痛手",
+            "バグ",
+            "エラー",
+        ]
+        workaround_kws = [
+            "workaround",
+            "instead",
+            "alternative",
+            "current",
+            "manually",
+            "excel",
+            "scripts",
+            "回避",
+            "代替",
+            "手動",
+            "スプレッドシート",
+        ]
+        gap_kws = [
+            "why",
+            "but",
+            "limit",
+            "lack",
+            "cannot",
+            "expensive",
+            "slow",
+            "不足",
+            "できない",
+            "高価",
+            "遅い",
+        ]
+        mvp_kws = [
+            "mvp",
+            "solution",
+            "feature",
+            "idea",
+            "should",
+            "want",
+            "need",
+            "wish",
+            "提案",
+            "欲しい",
+            "必要",
+            "機能",
+        ]
 
         has_user = any(kw in text_to_check for kw in user_kws)
         has_problem = any(kw in text_to_check for kw in problem_kws)
@@ -122,12 +215,18 @@ class OpportunityAnalysisService:
         has_gap = any(kw in text_to_check for kw in gap_kws)
         has_mvp = any(kw in text_to_check for kw in mvp_kws)
 
-        matched_elements = sum([has_user, has_problem, has_workaround, has_gap, has_mvp])
+        matched_elements = sum(
+            [has_user, has_problem, has_workaround, has_gap, has_mvp]
+        )
         # To be robust, let's say >= 2 elements matched or length >= 150
         if matched_elements >= 2 or len(text_to_check) >= 150:
             return metrics, True, "Passed Condition B: Strong detailed single demand."
 
-        return metrics, False, f"Rejected Condition B: Single demand is too brief (matched: {matched_elements}, len: {len(text_to_check)})."
+        return (
+            metrics,
+            False,
+            f"Rejected Condition B: Single demand is too brief (matched: {matched_elements}, len: {len(text_to_check)}).",
+        )
 
     def analyze_and_cluster(
         self, *, dry_run: bool = False
@@ -239,13 +338,24 @@ class OpportunityAnalysisService:
                 if any_linked and not dry_run:
                     opp = self.session.get(Opportunity, matched_opp_id)
                     if opp:
-                        metrics, passed, reason = self._calculate_metrics_and_gate(cluster["signals"])
-                        opp.independent_evidence_count = metrics["independent_evidence_count"]
+                        metrics, passed, reason = self._calculate_metrics_and_gate(
+                            cluster["signals"]
+                        )
+                        opp.independent_evidence_count = metrics[
+                            "independent_evidence_count"
+                        ]
                         opp.demand_evidence_count = metrics["demand_evidence_count"]
                         opp.source_type_count = metrics["source_type_count"]
                         opp.source_domain_count = metrics["source_domain_count"]
-                        if opp.status in (OpportunityStatus.INBOX, OpportunityStatus.REJECTED):
-                            opp.status = OpportunityStatus.INBOX if passed else OpportunityStatus.REJECTED
+                        if opp.status in (
+                            OpportunityStatus.INBOX,
+                            OpportunityStatus.REJECTED,
+                        ):
+                            opp.status = (
+                                OpportunityStatus.INBOX
+                                if passed
+                                else OpportunityStatus.REJECTED
+                            )
                         opp.evidence_updated_at = now
             else:
                 # Create a new opportunity
@@ -254,14 +364,18 @@ class OpportunityAnalysisService:
                 if len(title) > 200:
                     title = title[:197] + "..."
 
-                metrics, passed, reason = self._calculate_metrics_and_gate(cluster["signals"])
+                metrics, passed, reason = self._calculate_metrics_and_gate(
+                    cluster["signals"]
+                )
 
                 opp = Opportunity(
                     title=title,
                     generation_method="deterministic_cluster",
                     cluster_version=self.config.cluster_version,
                     last_clustered_at=now,
-                    status=OpportunityStatus.INBOX if passed else OpportunityStatus.REJECTED,
+                    status=OpportunityStatus.INBOX
+                    if passed
+                    else OpportunityStatus.REJECTED,
                     evidence_updated_at=now,
                     independent_evidence_count=metrics["independent_evidence_count"],
                     demand_evidence_count=metrics["demand_evidence_count"],

@@ -34,7 +34,9 @@ class SchedulerService:
         self.collection_service = collection_service
         self.clock = clock or (lambda: datetime.now(UTC))
 
-    async def run_tick(self, *, owner_token: str, force: bool = False) -> SchedulerTickResult:
+    async def run_tick(
+        self, *, owner_token: str, force: bool = False
+    ) -> SchedulerTickResult:
         tick_start = self.clock()
 
         # 1. Recover stale executions & claim due ones

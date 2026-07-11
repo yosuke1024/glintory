@@ -91,4 +91,3 @@ class BilingualOpportunityBrief(BaseModel):
         for ref in v:
             validate_string_safety(ref)
         return v
-

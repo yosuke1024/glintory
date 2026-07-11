@@ -667,4 +667,3 @@ DIAGNOSTICS_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>
 """
-

@@ -8,7 +8,9 @@ def test_entrypoint_validation_error_leak():
     env["GLINTORY_GITHUB_TOKEN"] = "TOKEN_SECRET_12345"
     env["GLINTORY_DATABASE_URL"] = "sqlite:///private-secret-db.sqlite3"
     env["GLINTORY_LOCAL_LLM_ENABLED"] = "true"
-    env["GLINTORY_LOCAL_LLM_MODEL_REVISION"] = ""  # Trigger ValidationError since revision is empty
+    env["GLINTORY_LOCAL_LLM_MODEL_REVISION"] = (
+        ""  # Trigger ValidationError since revision is empty
+    )
 
     # 1. Non-JSON mode
     res_non_json = subprocess.run(
@@ -63,7 +65,7 @@ def test_entrypoint_runtime_start_leak(tmp_path):
     fake_server_path = tmp_path / "fake-llama-server"
     script_content = (
         "#!/bin/sh\n"
-        "if [ \"$1\" = \"--version\" ]; then\n"
+        'if [ "$1" = "--version" ]; then\n'
         "    echo 'version: b5092 (d3bd7193)'\n"
         "    exit 0\n"
         "fi\n"
@@ -86,15 +88,15 @@ def test_entrypoint_runtime_start_leak(tmp_path):
 
     from glintory.config import settings
     from glintory.infrastructure.database import reset_db_connections
-    
+
     db_path = tmp_path / "test.db"
     db_url = f"sqlite:///{db_path}"
-    
+
     original_url = settings.database_url
     settings.database_url = db_url
     os.environ["GLINTORY_DATABASE_URL"] = db_url
     reset_db_connections()
-    
+
     try:
         project_root = pathlib.Path(__file__).parent.parent
         alembic_cfg = Config(str(project_root / "alembic.ini"))
@@ -206,14 +208,26 @@ def test_entrypoint_runtime_start_leak(tmp_path):
     env["GLINTORY_LOCAL_LLM_BINARY_PATH"] = str(fake_server_path)
     env["GLINTORY_LOCAL_LLM_BINARY_SHA256"] = get_sha256(fake_server_path)
     env["GLINTORY_LOCAL_LLM_MODEL_PATH"] = str(dummy_model_path)
-    env["GLINTORY_LOCAL_LLM_MODEL_REVISION"] = "90862c4b9d2787eaed51d12237eafdfe7c5f6077"
+    env["GLINTORY_LOCAL_LLM_MODEL_REVISION"] = (
+        "90862c4b9d2787eaed51d12237eafdfe7c5f6077"
+    )
     env["GLINTORY_LOCAL_LLM_MODEL_SHA256"] = get_sha256(dummy_model_path)
     env["GLINTORY_LOCAL_LLM_RUNTIME_VERSION"] = "b5092"
-    env["GLINTORY_LOCAL_LLM_RUNTIME_COMMIT"] = "d3bd7193ba66c15963fd1c59448f22019a8caf6e"
+    env["GLINTORY_LOCAL_LLM_RUNTIME_COMMIT"] = (
+        "d3bd7193ba66c15963fd1c59448f22019a8caf6e"
+    )
 
     # 3. Run enrich run CLI (non-JSON mode)
     res_non_json = subprocess.run(
-        [sys.executable, "-m", "glintory.entrypoint", "enrich", "run", "--opportunity", "smoke_opp"],
+        [
+            sys.executable,
+            "-m",
+            "glintory.entrypoint",
+            "enrich",
+            "run",
+            "--opportunity",
+            "smoke_opp",
+        ],
         env=env,
         capture_output=True,
         text=True,
@@ -236,7 +250,10 @@ def test_entrypoint_runtime_start_leak(tmp_path):
         assert marker not in res_non_json.stderr, f"Marker '{marker}' leaked in stderr"
 
     # Verify that the expected error code is outputted on failure
-    assert "LLM_RUNTIME_START_FAILED" in res_non_json.stderr or "LLM_RUNTIME_START_FAILED" in res_non_json.stdout
+    assert (
+        "LLM_RUNTIME_START_FAILED" in res_non_json.stderr
+        or "LLM_RUNTIME_START_FAILED" in res_non_json.stdout
+    )
 
 
 def test_bilingual_summary_injection_prevention():
@@ -260,5 +277,8 @@ def test_bilingual_summary_injection_prevention():
     assert "<tr>" not in output_html
     assert "<td>" not in output_html
     assert "## Workflow Status" in output_html  # The text itself remains readable
-    assert "&lt;table&gt;&lt;tr&gt;&lt;td&gt;Injected&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" in output_html
+    assert (
+        "&lt;table&gt;&lt;tr&gt;&lt;td&gt;Injected&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;"
+        in output_html
+    )
     assert "[malicious link](https://example.invalid)" in output_html

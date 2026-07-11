@@ -261,6 +261,7 @@ def test_migration_runtime_audit_fields(temp_db_path):
 
     # 4. Check if other nonsense error_code is rejected
     from sqlalchemy.exc import IntegrityError
+
     with pytest.raises(IntegrityError), engine.begin() as conn:
         conn.execute(
             text(
@@ -277,7 +278,9 @@ def test_migration_runtime_audit_fields(temp_db_path):
     command.downgrade(alembic_cfg, "9d9d5e869311")
 
     inspector = inspect(engine)
-    columns_after = [c["name"] for c in inspector.get_columns("opportunity_enrichments")]
+    columns_after = [
+        c["name"] for c in inspector.get_columns("opportunity_enrichments")
+    ]
     # Check if the 2 columns are deleted
     assert "runtime_commit" not in columns_after
     assert "runtime_binary_sha256" not in columns_after

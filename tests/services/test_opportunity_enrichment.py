@@ -55,6 +55,7 @@ class FakeEnrichmentProvider(OpportunityEnrichmentProvider):
         self.response = response
         self.calls: list[OpportunityEnrichmentRequest] = []
         from glintory.infrastructure.local_llm_client import LocalLlmRuntimeDescriptor
+
         self.runtime_descriptor = LocalLlmRuntimeDescriptor(
             version="b5092",
             commit="d3bd7193ba66c15963fd1c59448f22019a8caf6e",
@@ -200,7 +201,10 @@ def test_enrichment_skips_same_input_hash(db_session_factory, mock_opportunity_d
     assert enrich is not None
     assert enrich.runtime_version == "b5092"
     assert enrich.runtime_commit == "d3bd7193ba66c15963fd1c59448f22019a8caf6e"
-    assert enrich.runtime_binary_sha256 == "f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e"
+    assert (
+        enrich.runtime_binary_sha256
+        == "f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e"
+    )
     assert enrich.model_revision == settings.local_llm_model_revision
     assert enrich.model_sha256 == settings.local_llm_model_sha256
     assert enrich.prompt_version == PROMPT_VERSION
@@ -529,6 +533,7 @@ def test_static_site_fallback_and_rendering(
 
     # Sync localization fields directly to Opportunity
     from glintory.domain.models import Opportunity
+
     opp = session.get(Opportunity, opp_id)
     opp.title_en = "AI Eng Title"
     opp.summary_en = "AI Eng Summary"
@@ -1009,7 +1014,9 @@ def test_leak_prevention_on_failures(db_session_factory, mock_opportunity_data, 
     with caplog.at_level(logging.ERROR):
         from unittest.mock import patch
 
-        with patch("glintory.infrastructure.local_llm_client.LocalLlmProvider", LeakingProvider):
+        with patch(
+            "glintory.infrastructure.local_llm_client.LocalLlmProvider", LeakingProvider
+        ):
             exit_code = pytest.importorskip("asyncio").run(
                 run_enrich_command(args, runtime)
             )

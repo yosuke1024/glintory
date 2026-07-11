@@ -391,7 +391,9 @@ class CollectionService:
         if all_errors:
             first_err = all_errors[0]
             first_err_type = getattr(first_err, "code", "UnknownError")
-            first_err_msg = sanitize_error(getattr(first_err, "message", "An error occurred during collection."))
+            first_err_msg = sanitize_error(
+                getattr(first_err, "message", "An error occurred during collection.")
+            )
 
         skipped_count = max(0, fetched_count - (inserted_count + updated_count))
         total_saved = inserted_count + updated_count + duplicate_count

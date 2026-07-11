@@ -322,7 +322,7 @@ class OpportunityEnrichmentService:
                     evidence_refs=res.evidence_refs,
                     llm_confidence=res.llm_confidence,
                 )
-                
+
                 # Copy multilingual fields to Opportunity and OpportunitySignal columns
                 if res.status == "succeeded":
                     opp = session.get(Opportunity, item["opp_id"])
@@ -331,21 +331,41 @@ class OpportunityEnrichmentService:
                         opp.title_ja = res.japanese.title if res.japanese else None
                         opp.summary_en = res.english.summary if res.english else None
                         opp.summary_ja = res.japanese.summary if res.japanese else None
-                        opp.target_user_en = res.english.target_user if res.english else None
-                        opp.target_user_ja = res.japanese.target_user if res.japanese else None
+                        opp.target_user_en = (
+                            res.english.target_user if res.english else None
+                        )
+                        opp.target_user_ja = (
+                            res.japanese.target_user if res.japanese else None
+                        )
                         opp.problem_en = res.english.problem if res.english else None
                         opp.problem_ja = res.japanese.problem if res.japanese else None
-                        opp.current_workaround_en = res.english.current_workaround if res.english else None
-                        opp.current_workaround_ja = res.japanese.current_workaround if res.japanese else None
-                        opp.existing_solution_gap_en = res.english.existing_solution_gap if res.english else None
-                        opp.existing_solution_gap_ja = res.japanese.existing_solution_gap if res.japanese else None
-                        opp.mvp_direction_en = res.english.mvp_direction if res.english else None
-                        opp.mvp_direction_ja = res.japanese.mvp_direction if res.japanese else None
-                        opp.why_selected_en = res.english.why_selected if res.english else None
-                        opp.why_selected_ja = res.japanese.why_selected if res.japanese else None
+                        opp.current_workaround_en = (
+                            res.english.current_workaround if res.english else None
+                        )
+                        opp.current_workaround_ja = (
+                            res.japanese.current_workaround if res.japanese else None
+                        )
+                        opp.existing_solution_gap_en = (
+                            res.english.existing_solution_gap if res.english else None
+                        )
+                        opp.existing_solution_gap_ja = (
+                            res.japanese.existing_solution_gap if res.japanese else None
+                        )
+                        opp.mvp_direction_en = (
+                            res.english.mvp_direction if res.english else None
+                        )
+                        opp.mvp_direction_ja = (
+                            res.japanese.mvp_direction if res.japanese else None
+                        )
+                        opp.why_selected_en = (
+                            res.english.why_selected if res.english else None
+                        )
+                        opp.why_selected_ja = (
+                            res.japanese.why_selected if res.japanese else None
+                        )
                         opp.risks_en = res.english.risks if res.english else None
                         opp.risks_ja = res.japanese.risks if res.japanese else None
-                        
+
                         opp.enrichment_status = "succeeded"
                         opp.translation_status = "succeeded"
                         opp.enriched_at = completed_at
@@ -358,7 +378,8 @@ class OpportunityEnrichmentService:
                                 .join(Signal, OpportunitySignal.signal_id == Signal.id)
                                 .filter(
                                     OpportunitySignal.opportunity_id == item["opp_id"],
-                                    (Signal.id == ev_sum.id) | (Signal.external_id == ev_sum.id)
+                                    (Signal.id == ev_sum.id)
+                                    | (Signal.external_id == ev_sum.id),
                                 )
                                 .first()
                             )

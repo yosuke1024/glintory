@@ -120,7 +120,11 @@ def classify_signal_role(
     if source_type_lower == "hackernews":
         if title_lower.startswith("show hn:") or signal_type == SignalType.LAUNCH:
             return SignalRole.SUPPLY
-        if title_lower.startswith("ask hn:") or signal_type == SignalType.REQUEST or "ask hn" in title_lower:
+        if (
+            title_lower.startswith("ask hn:")
+            or signal_type == SignalType.REQUEST
+            or "ask hn" in title_lower
+        ):
             return SignalRole.DEMAND
     elif source_type_lower == "github":
         if signal_type == SignalType.PROJECT:
@@ -134,10 +138,16 @@ def classify_signal_role(
     if source_type_lower == "rss":
         if signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT):
             return SignalRole.DEMAND
-        if signal_type in (sa_type for sa_type in (SignalType.PROJECT, SignalType.LAUNCH, SignalType.HACKATHON_PROJECT)):
+        if signal_type in (
+            sa_type
+            for sa_type in (
+                SignalType.PROJECT,
+                SignalType.LAUNCH,
+                SignalType.HACKATHON_PROJECT,
+            )
+        ):
             return SignalRole.SUPPLY
         if signal_type == SignalType.TREND:
             return SignalRole.CONTEXT
 
     return SignalRole.UNKNOWN
-

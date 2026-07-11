@@ -292,10 +292,16 @@ class Opportunity(Base):
     enrichment_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     translation_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     enrichment_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    enriched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
-    independent_evidence_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    demand_evidence_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    independent_evidence_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    demand_evidence_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
     source_type_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     source_domain_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

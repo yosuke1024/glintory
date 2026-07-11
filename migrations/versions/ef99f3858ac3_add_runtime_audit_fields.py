@@ -20,8 +20,14 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('opportunity_enrichments', sa.Column('runtime_commit', sa.String(length=100), nullable=True))
-    op.add_column('opportunity_enrichments', sa.Column('runtime_binary_sha256', sa.String(length=64), nullable=True))
+    op.add_column(
+        "opportunity_enrichments",
+        sa.Column("runtime_commit", sa.String(length=100), nullable=True),
+    )
+    op.add_column(
+        "opportunity_enrichments",
+        sa.Column("runtime_binary_sha256", sa.String(length=64), nullable=True),
+    )
     with op.batch_alter_table("opportunity_enrichments", schema=None) as batch_op:
         batch_op.drop_constraint(
             "chk_opportunity_enrichments_error_code", type_="check"
@@ -42,5 +48,5 @@ def downgrade() -> None:
             "chk_opportunity_enrichments_error_code",
             condition="error_code IN ('LLM_MODEL_DOWNLOAD_FAILED', 'LLM_MODEL_CHECKSUM_FAILED', 'LLM_RUNTIME_START_FAILED', 'LLM_TIMEOUT', 'LLM_INVALID_JSON', 'LLM_SCHEMA_VALIDATION_FAILED', 'LLM_INFERENCE_FAILED', 'LLM_INPUT_BUDGET_EXCEEDED') OR error_code IS NULL",
         )
-    op.drop_column('opportunity_enrichments', 'runtime_binary_sha256')
-    op.drop_column('opportunity_enrichments', 'runtime_commit')
+    op.drop_column("opportunity_enrichments", "runtime_binary_sha256")
+    op.drop_column("opportunity_enrichments", "runtime_commit")

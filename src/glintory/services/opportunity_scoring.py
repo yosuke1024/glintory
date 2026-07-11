@@ -623,9 +623,13 @@ class OpportunityScoringEngine:
             hn_match = re.search(r"news\.ycombinator\.com/item\?id=(\d+)", url)
             if hn_match:
                 return f"hn_thread_{hn_match.group(1)}"
-            gh_issue_match = re.search(r"github\.com/([^/]+/[^/]+)/(issues|pull)/(\d+)", url)
+            gh_issue_match = re.search(
+                r"github\.com/([^/]+/[^/]+)/(issues|pull)/(\d+)", url
+            )
             if gh_issue_match:
-                return f"github_issue_{gh_issue_match.group(1)}_{gh_issue_match.group(3)}"
+                return (
+                    f"github_issue_{gh_issue_match.group(1)}_{gh_issue_match.group(3)}"
+                )
             gh_repo_match = re.search(r"github\.com/([^/]+/[^/]+)", url)
             if gh_repo_match:
                 return f"github_repo_{gh_repo_match.group(1)}"
@@ -637,7 +641,9 @@ class OpportunityScoringEngine:
             threads.setdefault(key, []).append(sig)
 
         independent_evidence_count = len(threads)
-        demand_evidence_count = sum(1 for sig in positive_signals if sig.signal_role == SignalRole.DEMAND)
+        demand_evidence_count = sum(
+            1 for sig in positive_signals if sig.signal_role == SignalRole.DEMAND
+        )
 
         source_types = {sig.source_type for sig in positive_signals if sig.source_type}
         distinct_source_type_count = len(source_types)
@@ -801,7 +807,9 @@ class OpportunityScoringEngine:
         ).lower()
 
         # Penalty check helper
-        def check_penalty(name: str, keywords: list[str], penalty_val: int, explanation: str) -> ScoreComponent:
+        def check_penalty(
+            name: str, keywords: list[str], penalty_val: int, explanation: str
+        ) -> ScoreComponent:
             has_penalty = any(kw in combined_text for kw in keywords)
             score_val = penalty_val if has_penalty else 0
             return ScoreComponent(
@@ -814,39 +822,111 @@ class OpportunityScoringEngine:
 
         # 1. Continuous AI Cost
         penalty_components.append(
-            check_penalty("continuous_ai_cost", ["openai api", "llm cost", "expensive api", "gpt-4 cost", "token consumption"], -20, "High continuous API runtime cost.")
+            check_penalty(
+                "continuous_ai_cost",
+                [
+                    "openai api",
+                    "llm cost",
+                    "expensive api",
+                    "gpt-4 cost",
+                    "token consumption",
+                ],
+                -20,
+                "High continuous API runtime cost.",
+            )
         )
         # 2. Sales Required
         penalty_components.append(
-            check_penalty("sales_required", ["enterprise sales", "outbound sales", "contact sales", "b2b sales cycle"], -20, "Needs outbound or direct sales effort.")
+            check_penalty(
+                "sales_required",
+                [
+                    "enterprise sales",
+                    "outbound sales",
+                    "contact sales",
+                    "b2b sales cycle",
+                ],
+                -20,
+                "Needs outbound or direct sales effort.",
+            )
         )
         # 3. Heavy Backend
         penalty_components.append(
-            check_penalty("heavy_backend", ["database cluster", "high bandwidth", "infra cost", "heavy processing", "gpu cluster"], -15, "Requires heavy backend resources or high infrastructure cost.")
+            check_penalty(
+                "heavy_backend",
+                [
+                    "database cluster",
+                    "high bandwidth",
+                    "infra cost",
+                    "heavy processing",
+                    "gpu cluster",
+                ],
+                -15,
+                "Requires heavy backend resources or high infrastructure cost.",
+            )
         )
         # 4. Support High Load
         penalty_components.append(
-            check_penalty("high_support_load", ["high support", "customer ticket", "24/7 support", "support overhead"], -15, "Expected high support or operations load.")
+            check_penalty(
+                "high_support_load",
+                ["high support", "customer ticket", "24/7 support", "support overhead"],
+                -15,
+                "Expected high support or operations load.",
+            )
         )
         # 5. Strong Competitors
         penalty_components.append(
-            check_penalty("strong_competitors", ["strong competitor", "highly saturated", "crowded market", "incumbents"], -10, "Crowded or highly competitive space.")
+            check_penalty(
+                "strong_competitors",
+                [
+                    "strong competitor",
+                    "highly saturated",
+                    "crowded market",
+                    "incumbents",
+                ],
+                -10,
+                "Crowded or highly competitive space.",
+            )
         )
         # 6. Abstract Problem
         penalty_components.append(
-            check_penalty("abstract_problem", ["generic problem", "abstract issue", "vague request"], -10, "Problem statement is abstract or generic.")
+            check_penalty(
+                "abstract_problem",
+                ["generic problem", "abstract issue", "vague request"],
+                -10,
+                "Problem statement is abstract or generic.",
+            )
         )
         # 7. Tech Demo
         penalty_components.append(
-            check_penalty("tech_demo", ["proof of concept only", "toy project", "experimental demo", "just a demo"], -20, "Signal is primarily a technical demo rather than a real-world demand.")
+            check_penalty(
+                "tech_demo",
+                [
+                    "proof of concept only",
+                    "toy project",
+                    "experimental demo",
+                    "just a demo",
+                ],
+                -20,
+                "Signal is primarily a technical demo rather than a real-world demand.",
+            )
         )
         # 8. Unknown Target User
         penalty_components.append(
-            check_penalty("unknown_target_user", ["unknown user", "target unclear", "who is this for"], -15, "Target audience or user segment is unclear.")
+            check_penalty(
+                "unknown_target_user",
+                ["unknown user", "target unclear", "who is this for"],
+                -15,
+                "Target audience or user segment is unclear.",
+            )
         )
         # 9. Copycat
         penalty_components.append(
-            check_penalty("copycat", ["clone of", "copycat", "duplicate features"], -10, "Simple clone without meaningful differentiator.")
+            check_penalty(
+                "copycat",
+                ["clone of", "copycat", "duplicate features"],
+                -10,
+                "Simple clone without meaningful differentiator.",
+            )
         )
 
         penalty_score = sum(c.score for c in penalty_components)
@@ -857,7 +937,11 @@ class OpportunityScoringEngine:
         # ----------------------------------------------------
         # Confidence Version 2
         # ----------------------------------------------------
-        if independent_evidence_count >= 3 and demand_evidence_count >= 2 and distinct_source_type_count >= 2:
+        if (
+            independent_evidence_count >= 3
+            and demand_evidence_count >= 2
+            and distinct_source_type_count >= 2
+        ):
             confidence = Confidence.HIGH
         elif independent_evidence_count >= 2 and demand_evidence_count >= 1:
             confidence = Confidence.MEDIUM
@@ -889,4 +973,3 @@ class OpportunityScoringEngine:
             distinct_origin_count=distinct_origin_count,
             distinct_source_type_count=distinct_source_type_count,
         )
-

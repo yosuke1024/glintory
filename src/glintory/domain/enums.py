@@ -51,4 +51,3 @@ class SignalRole(StrEnum):
     SUPPLY = "supply"
     CONTEXT = "context"
     UNKNOWN = "unknown"
-

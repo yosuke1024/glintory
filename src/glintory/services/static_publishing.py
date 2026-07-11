@@ -80,7 +80,8 @@ def get_localized_data(
             "problem": op.problem_ja or op.problem_en,
             "target_user": op.target_user_ja or op.target_user_en,
             "current_workaround": op.current_workaround_ja or op.current_workaround_en,
-            "existing_solution_gap": op.existing_solution_gap_ja or op.existing_solution_gap_en,
+            "existing_solution_gap": op.existing_solution_gap_ja
+            or op.existing_solution_gap_en,
             "mvp_direction": op.mvp_direction_ja or op.mvp_direction_en,
             "why_selected": op.why_selected_ja or op.why_selected_en,
             "risks": op.risks_ja or op.risks_en,
@@ -159,6 +160,7 @@ def build_static_site(
         )
 
         from glintory.domain.enums import OpportunityStatus
+
         opportunities = (
             session.query(Opportunity)
             .filter(
@@ -374,7 +376,6 @@ def build_static_site(
                 if enrichment.input_hash != current_llm_hash:
                     llm_is_stale = True
 
-
             # Render English (Default)
             loc_data_en = get_localized_data(op, "en")
             translation_available_en = op.title_en is not None
@@ -425,6 +426,7 @@ def build_static_site(
 
         # Render diagnostics page
         from glintory.domain.models import CollectionRun
+
         runs = (
             session.query(CollectionRun, Source.name)
             .join(Source, CollectionRun.source_id == Source.id)
@@ -434,21 +436,25 @@ def build_static_site(
         )
         diagnostics_data = []
         for run, source_name in runs:
-            diagnostics_data.append({
-                "source_name": source_name,
-                "started_at": run.started_at,
-                "completed_at": run.completed_at,
-                "status": run.status.value if hasattr(run.status, "value") else str(run.status),
-                "fetched_count": run.fetched_count,
-                "inserted_count": run.inserted_count,
-                "updated_count": run.updated_count,
-                "duplicate_count": run.duplicate_count,
-                "skipped_count": run.skipped_count,
-                "warning_count": run.warning_count,
-                "error_count": run.error_count,
-                "error_type": run.error_type,
-                "sanitized_error_message": run.sanitized_error_message,
-            })
+            diagnostics_data.append(
+                {
+                    "source_name": source_name,
+                    "started_at": run.started_at,
+                    "completed_at": run.completed_at,
+                    "status": run.status.value
+                    if hasattr(run.status, "value")
+                    else str(run.status),
+                    "fetched_count": run.fetched_count,
+                    "inserted_count": run.inserted_count,
+                    "updated_count": run.updated_count,
+                    "duplicate_count": run.duplicate_count,
+                    "skipped_count": run.skipped_count,
+                    "warning_count": run.warning_count,
+                    "error_count": run.error_count,
+                    "error_type": run.error_type,
+                    "sanitized_error_message": run.sanitized_error_message,
+                }
+            )
         diagnostics_template = env.from_string(DIAGNOSTICS_TEMPLATE)
         rendered_diagnostics = diagnostics_template.render(
             base_path=base_path,
