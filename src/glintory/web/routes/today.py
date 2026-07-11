@@ -89,6 +89,59 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
             "%Y-%m-%d %H:%M:%S UTC"
         )
 
+    # Scheduler Summary
+    from glintory.domain.models import SourceSchedule, SchedulerLease, ScheduleExecution
+    from glintory.domain.scheduling import ScheduleExecutionStatus
+    from glintory.domain.operations import CollectionTriggerType
+
+    scheduled_sources_count = db.query(SourceSchedule).count()
+    enabled_schedules_count = db.query(SourceSchedule).filter(SourceSchedule.enabled == True).count()
+
+    due_schedules_count = (
+        db.query(SourceSchedule)
+        .join(Source, SourceSchedule.source_id == Source.id)
+        .filter(SourceSchedule.enabled == True)
+        .filter(Source.enabled == True)
+        .filter(SourceSchedule.next_run_at <= now)
+        .count()
+    )
+
+    lease = db.query(SchedulerLease).filter_by(lease_name="default").first()
+    scheduler_active = False
+    if lease:
+        lease_expires = lease.expires_at
+        if lease_expires and lease_expires.tzinfo is None:
+            lease_expires = lease_expires.replace(tzinfo=UTC)
+        scheduler_active = lease_expires > now
+
+    last_scheduled_collection = (
+        db.query(func.max(CollectionRun.completed_at))
+        .filter(
+            CollectionRun.status.in_([CollectionRunStatus.SUCCEEDED, CollectionRunStatus.PARTIAL]),
+            CollectionRun.trigger_type == CollectionTriggerType.SCHEDULED.value,
+        )
+        .scalar()
+    )
+    last_scheduled_collection_str = "—"
+    if last_scheduled_collection:
+        if last_scheduled_collection.tzinfo is None:
+            last_scheduled_collection = last_scheduled_collection.replace(tzinfo=UTC)
+        last_scheduled_collection_str = last_scheduled_collection.astimezone(UTC).strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        )
+
+    failed_scheduled_executions_24h_count = (
+        db.query(ScheduleExecution)
+        .filter(
+            ScheduleExecution.status.in_([
+                ScheduleExecutionStatus.FAILED.value,
+                ScheduleExecutionStatus.ABANDONED.value,
+            ]),
+            ScheduleExecution.started_at >= last_24h,
+        )
+        .count()
+    )
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -104,5 +157,11 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
             "running_sources_count": running_sources_count,
             "failed_runs_24h_count": failed_runs_24h_count,
             "last_success_run_str": last_success_run_str,
+            "scheduled_sources_count": scheduled_sources_count,
+            "enabled_schedules_count": enabled_schedules_count,
+            "due_schedules_count": due_schedules_count,
+            "scheduler_active": scheduler_active,
+            "last_scheduled_collection_str": last_scheduled_collection_str,
+            "failed_scheduled_executions_24h_count": failed_scheduled_executions_24h_count,
         },
     )

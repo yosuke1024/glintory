@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+
+{% block title %}Schedules - Glintory{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 30px;">
+    <h1>Schedules</h1>
+    <p class="tagline">Manage periodic local interval schedules for all sources.</p>
+</header>
+
+<div class="filter-panel card" style="padding: 15px; margin-bottom: 25px; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.03);">
+    <form method="GET" action="/schedules" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="source" style="font-size: 0.8em; color: var(--text-muted);">Source Name:</label>
+            <input type="text" name="source" id="source" value="{{ selected_source or '' }}" placeholder="Filter by source..." style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-color); padding: 6px; border-radius: 4px; font-size: 0.9em;">
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="enabled" style="font-size: 0.8em; color: var(--text-muted);">Schedule Status:</label>
+            <select name="enabled" id="enabled" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-color); padding: 6px; border-radius: 4px; font-size: 0.9em;">
+                <option value="">All</option>
+                <option value="true" {% if selected_enabled == True %}selected{% endif %}>Enabled Only</option>
+                <option value="false" {% if selected_enabled == False %}selected{% endif %}>Disabled Only</option>
+            </select>
+        </div>
+
+        <div style="margin-top: 18px;">
+            <button type="submit" class="btn btn-primary" style="padding: 6px 15px; font-size: 0.9em;">Apply Filters</button>
+            <a href="/schedules" class="btn btn-secondary" style="padding: 6px 15px; font-size: 0.9em; text-decoration: none; display: inline-block;">Clear</a>
+        </div>
+    </form>
+</div>
+
+{% if schedules %}
+<div class="table-responsive card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Source Name</th>
+                <th>Type</th>
+                <th>Source Enabled</th>
+                <th>Schedule Enabled</th>
+                <th>Interval</th>
+                <th>Next Run At</th>
+                <th>Last Status</th>
+                <th>Last Run At</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in schedules %}
+            <tr>
+                <td>
+                    <a href="/sources/{{ s.source_id }}" class="text-link" style="font-weight: bold;">{{ s.source_name }}</a>
+                </td>
+                <td>{{ s.source_type }}</td>
+                <td>
+                    <span class="badge {% if s.source_enabled %}badge-status-enabled{% else %}badge-status-disabled{% endif %}">
+                        {% if s.source_enabled %}Yes{% else %}No{% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge {% if s.schedule_enabled %}badge-status-enabled{% else %}badge-status-disabled{% endif %}">
+                        {% if s.schedule_enabled %}Enabled{% else %}Disabled{% endif %}
+                    </span>
+                </td>
+                <td>{{ s.interval_minutes }}m</td>
+                <td>
+                    {% if s.next_run_at %}
+                        {{ s.next_run_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if s.last_execution_status %}
+                        <span class="badge badge-status-{{ s.last_execution_status.value }}">
+                            {{ s.last_execution_status.value }}
+                        </span>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if s.last_execution_at %}
+                        {{ s.last_execution_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="text-muted">No schedules found matching the filters.</p>
+{% endif %}
+{% endblock %}

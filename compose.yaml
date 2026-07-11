@@ -13,5 +13,16 @@ services:
       - glintory-data:/data
     restart: unless-stopped
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["glintory", "scheduler", "run"]
+    environment:
+      - GLINTORY_DATABASE_URL=sqlite:////data/glintory.sqlite3
+    volumes:
+      - glintory-data:/data
+    restart: unless-stopped
+
 volumes:
   glintory-data:

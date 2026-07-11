@@ -16,6 +16,8 @@
                 <a href="/opportunities" class="nav-link {% if request.url.path.startswith('/opportunities') %}active{% endif %}">Opportunities</a>
                 <a href="/watchlist" class="nav-link {% if request.url.path == '/watchlist' %}active{% endif %}">Watchlist</a>
                 <a href="/sources" class="nav-link {% if request.url.path.startswith('/sources') or request.url.path.startswith('/collection-runs') %}active{% endif %}">Sources</a>
+                <a href="/schedules" class="nav-link {% if request.url.path.startswith('/schedules') %}active{% endif %}">Schedules</a>
+                <a href="/schedule-executions" class="nav-link {% if request.url.path.startswith('/schedule-executions') %}active{% endif %}">Executions</a>
             </div>
         </div>
     </nav>

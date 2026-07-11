@@ -40,14 +40,12 @@ class SourceOperationsService:
         session = self.session_factory()
         try:
             repo = SourceOperationsRepository(session)
-            items = repo.list_sources()
+            items_with_config = repo.list_sources_with_config()
 
             enriched_items = []
-            for item in items:
+            for item, config in items_with_config:
                 try:
                     collector = self.registry.get(item.source_type)
-                    raw_source = repo.get_source_detail(item.id)
-                    config = raw_source.config if raw_source else {}
                     summary = collector.get_config_summary(config)
                 except Exception:
                     summary = {}

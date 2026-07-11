@@ -26,3 +26,12 @@ def test_settings_validation():
     # Score < 0.0
     with pytest.raises(ValidationError):
         Settings(signal_default_source_quality_score=-0.1)
+
+    # Invalid scheduler lease relation: heartbeat*2 >= lease
+    with pytest.raises(ValidationError):
+        Settings(scheduler_heartbeat_seconds=30, scheduler_lease_seconds=50)
+
+    # Invalid schedule interval limits: max < min
+    with pytest.raises(ValidationError):
+        Settings(schedule_min_interval_minutes=30, schedule_max_interval_minutes=20)
+

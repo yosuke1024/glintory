@@ -15,6 +15,8 @@ from glintory.domain.operations import (
     SourceNotFoundError,
 )
 from glintory.services.source_operations import SourceOperationsService
+from glintory.services.schedule_management import ScheduleManagementService
+from glintory.domain.scheduling import ScheduleNotFoundError, InvalidScheduleError
 from glintory.web.csrf import generate_csrf_token, set_csrf_cookie, validate_csrf
 from glintory.web.forms import parse_urlencoded_form
 
@@ -51,6 +53,13 @@ def get_source_ops_service(request: Request) -> SourceOperationsService:
     )
 
 
+def get_schedule_management_service(request: Request) -> ScheduleManagementService:
+    app = request.app
+    return ScheduleManagementService(
+        session_factory=app.state.session_factory,
+    )
+
+
 @router.get("", response_class=HTMLResponse)
 async def list_sources(
     request: Request,
@@ -76,11 +85,19 @@ async def get_source_detail(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
+    # Retrieve schedule info if any
+    schedule_service = get_schedule_management_service(request)
+    schedule = None
+    try:
+        schedule = schedule_service.get_schedule(source_id)
+    except ScheduleNotFoundError:
+        pass
+
     csrf_token = generate_csrf_token()
     response = templates.TemplateResponse(
         request=request,
         name="sources/detail.html",
-        context={"source": source, "runs": runs, "csrf_token": csrf_token},
+        context={"source": source, "runs": runs, "schedule": schedule, "csrf_token": csrf_token},
     )
     set_csrf_cookie(response, csrf_token, request)
     return response
@@ -250,4 +267,83 @@ async def get_collection_run_detail(
 
     return templates.TemplateResponse(
         request=request, name="collection_runs/detail.html", context={"run": detail}
+    )
+
+
+@router.post("/{source_id}/schedule")
+async def set_source_schedule(
+    request: Request,
+    source_id: str,
+    service: ScheduleManagementService = Depends(get_schedule_management_service),
+):
+    form = await parse_urlencoded_form(request, max_bytes=settings.web_max_form_bytes)
+    csrf_token = form.get("csrf_token", "")
+    validate_csrf(request, csrf_token)
+
+    interval_str = form.get("interval_minutes", "")
+    try:
+        interval_minutes = int(interval_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid interval_minutes")
+
+    try:
+        service.set_schedule(
+            source_id=source_id,
+            interval_minutes=interval_minutes,
+            enabled=True,
+        )
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except InvalidScheduleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return RedirectResponse(
+        url=f"/sources/{source_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/{source_id}/schedule/enable")
+async def enable_source_schedule(
+    request: Request,
+    source_id: str,
+    service: ScheduleManagementService = Depends(get_schedule_management_service),
+):
+    form = await parse_urlencoded_form(request, max_bytes=settings.web_max_form_bytes)
+    csrf_token = form.get("csrf_token", "")
+    validate_csrf(request, csrf_token)
+
+    try:
+        service.enable_schedule(source_id)
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ScheduleNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return RedirectResponse(
+        url=f"/sources/{source_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/{source_id}/schedule/disable")
+async def disable_source_schedule(
+    request: Request,
+    source_id: str,
+    service: ScheduleManagementService = Depends(get_schedule_management_service),
+):
+    form = await parse_urlencoded_form(request, max_bytes=settings.web_max_form_bytes)
+    csrf_token = form.get("csrf_token", "")
+    validate_csrf(request, csrf_token)
+
+    try:
+        service.disable_schedule(source_id)
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ScheduleNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return RedirectResponse(
+        url=f"/sources/{source_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
     )

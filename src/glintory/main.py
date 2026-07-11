@@ -12,6 +12,8 @@ from glintory.web.routes import (
     signals,
     sources,
     today,
+    schedules,
+    api_scheduler,
 )
 
 
@@ -66,6 +68,8 @@ def create_app() -> FastAPI:
 
     app.include_router(sources.router)
     app.include_router(sources.runs_router)
+    app.include_router(schedules.router)
+    app.include_router(api_scheduler.router)
 
     app.include_router(api.router)
     app.include_router(api.sources_router)

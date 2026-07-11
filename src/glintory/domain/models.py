@@ -485,3 +485,91 @@ class Note(Base):
         # Reject empty or whitespace-only bodies to ensure notes have meaningful content.
         CheckConstraint("length(trim(body)) > 0", name="chk_notes_body_nonempty"),
     )
+
+
+class SourceSchedule(Base):
+    __tablename__ = "source_schedules"
+
+    source_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("idx_source_schedules_enabled_next_run", "enabled", "next_run_at"),
+        Index("idx_source_schedules_next_run", "next_run_at"),
+        CheckConstraint(
+            "interval_minutes >= 5 AND interval_minutes <= 525600",
+            name="chk_source_schedules_interval_minutes",
+        ),
+    )
+
+
+class SchedulerLease(Base):
+    __tablename__ = "scheduler_leases"
+
+    lease_name: Mapped[str] = mapped_column(String(50), primary_key=True)
+    owner_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "expires_at >= heartbeat_at AND heartbeat_at >= acquired_at",
+            name="chk_scheduler_leases_timestamps",
+        ),
+    )
+
+
+class ScheduleExecution(Base):
+    __tablename__ = "schedule_executions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    source_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("sources.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    collection_run_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("collection_runs.id", ondelete="SET NULL"),
+        unique=True,
+        nullable=True,
+    )
+    coalesced_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("source_id", "scheduled_for", name="uq_schedule_executions_source_scheduled"),
+        Index("idx_schedule_executions_status_started", "status", "started_at"),
+        Index("idx_schedule_executions_source_scheduled", "source_id", "scheduled_for"),
+        Index("idx_schedule_executions_scheduled_for", "scheduled_for"),
+        CheckConstraint("coalesced_count >= 0", name="chk_schedule_executions_coalesced_nonnegative"),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'partial', 'failed', 'skipped_busy', 'skipped_disabled', 'abandoned')",
+            name="chk_schedule_executions_status_allowed",
+        ),
+    )

@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+
+{% block title %}Schedule Executions - Glintory{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 30px;">
+    <h1>Schedule Executions</h1>
+    <p class="tagline">Review past execution history of interval collection tasks.</p>
+</header>
+
+<div class="filter-panel card" style="padding: 15px; margin-bottom: 25px; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.03);">
+    <form method="GET" action="/schedule-executions" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="source" style="font-size: 0.8em; color: var(--text-muted);">Source:</label>
+            <input type="text" name="source" id="source" value="{{ selected_source or '' }}" placeholder="Filter by source..." style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-color); padding: 6px; border-radius: 4px; font-size: 0.9em;">
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="status" style="font-size: 0.8em; color: var(--text-muted);">Execution Status:</label>
+            <select name="status" id="status" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-color); padding: 6px; border-radius: 4px; font-size: 0.9em;">
+                <option value="">All</option>
+                <option value="running" {% if selected_status == 'running' %}selected{% endif %}>Running</option>
+                <option value="succeeded" {% if selected_status == 'succeeded' %}selected{% endif %}>Succeeded</option>
+                <option value="partial" {% if selected_status == 'partial' %}selected{% endif %}>Partial</option>
+                <option value="failed" {% if selected_status == 'failed' %}selected{% endif %}>Failed</option>
+                <option value="skipped_busy" {% if selected_status == 'skipped_busy' %}selected{% endif %}>Skipped (Busy)</option>
+                <option value="skipped_disabled" {% if selected_status == 'skipped_disabled' %}selected{% endif %}>Skipped (Disabled)</option>
+                <option value="abandoned" {% if selected_status == 'abandoned' %}selected{% endif %}>Abandoned</option>
+            </select>
+        </div>
+
+        <div style="margin-top: 18px;">
+            <button type="submit" class="btn btn-primary" style="padding: 6px 15px; font-size: 0.9em;">Apply Filters</button>
+            <a href="/schedule-executions" class="btn btn-secondary" style="padding: 6px 15px; font-size: 0.9em; text-decoration: none; display: inline-block;">Clear</a>
+        </div>
+    </form>
+</div>
+
+{% if executions %}
+<div class="table-responsive card" style="margin-bottom: 20px;">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Source</th>
+                <th>Scheduled For</th>
+                <th>Started At</th>
+                <th>Completed At</th>
+                <th>Coalesced</th>
+                <th>Collection Run</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for x in executions %}
+            <tr>
+                <td>
+                    <span class="badge badge-status-{{ x.status.value }}">
+                        {{ x.status.value }}
+                    </span>
+                </td>
+                <td>
+                    <a href="/sources/{{ x.source_id }}" class="text-link" style="font-weight: bold;">{{ x.source_name }}</a>
+                </td>
+                <td>{{ x.scheduled_for.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td>
+                <td>{{ x.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td>
+                <td>
+                    {% if x.completed_at %}
+                        {{ x.completed_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if x.coalesced_count > 0 %}
+                        <span style="color: #f59e0b; font-weight: bold;">+{{ x.coalesced_count }}</span>
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+                <td>
+                    {% if x.collection_run_id %}
+                        <a href="/collection-runs/{{ x.collection_run_id }}" class="text-link">Run Details</a>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/schedule-executions/{{ x.id }}" class="text-link">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination" style="display: flex; justify-content: center; gap: 10px; align-items: center; margin-top: 20px;">
+    {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&per_page={{ per_page }}&source={{ selected_source or '' }}&status={{ selected_status or '' }}" class="btn btn-secondary" style="text-decoration: none;">&larr; Prev</a>
+    {% endif %}
+    <span style="color: var(--text-muted);">Page {{ page }} of {{ total_pages }} (Total: {{ total_count }})</span>
+    {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&per_page={{ per_page }}&source={{ selected_source or '' }}&status={{ selected_status or '' }}" class="btn btn-secondary" style="text-decoration: none;">Next &rarr;</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<p class="text-muted">No schedule executions found matching the filters.</p>
+{% endif %}
+{% endblock %}

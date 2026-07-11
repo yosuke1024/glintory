@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+
+{% block title %}Execution Details - Glintory{% endblock %}
+
+{% block content %}
+<div class="back-link-container" style="margin-bottom: 20px;">
+    <a href="/schedule-executions" class="back-link" style="color: var(--text-muted); text-decoration: none;">&larr; Back to Executions</a>
+</div>
+
+<div class="execution-detail-container" style="max-width: 800px; margin: 0 auto;">
+    <section class="card" style="padding: 20px; margin-bottom: 30px;">
+        <header style="border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 style="margin: 0; font-size: 1.6rem;">Schedule Execution</h1>
+                <p style="margin: 5px 0 0 0; color: var(--text-muted); font-family: monospace; font-size: 0.9em;">ID: {{ execution.id }}</p>
+            </div>
+            <span class="badge badge-status-{{ execution.status.value }}">
+                {{ execution.status.value }}
+            </span>
+        </header>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.95rem;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 8px;">
+                <span style="color: var(--text-muted);">Source:</span>
+                <span style="font-weight: bold;">
+                    <a href="/sources/{{ execution.source_id }}" class="text-link">{{ execution.source_name }}</a>
+                </span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 8px;">
+                <span style="color: var(--text-muted);">Source Type:</span>
+                <span style="font-weight: bold; text-transform: uppercase;">{{ execution.source_type }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 8px;">
+                <span style="color: var(--text-muted);">Scheduled For (Due Slot):</span>
+                <span style="font-weight: bold;">{{ execution.scheduled_for.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 8px;">
+                <span style="color: var(--text-muted);">Started At:</span>
+                <span style="font-weight: bold;">{{ execution.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 8px;">
+                <span style="color: var(--text-muted);">Completed At:</span>
+                <span style="font-weight: bold;">
+                    {% if execution.completed_at %}
+                        {{ execution.completed_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 8px;">
+                <span style="color: var(--text-muted);">Coalesced Inactive Run Count:</span>
+                <span style="font-weight: bold;">
+                    {% if execution.coalesced_count > 0 %}
+                        <span style="color: #f59e0b;">+{{ execution.coalesced_count }}</span>
+                    {% else %}
+                        0
+                    {% endif %}
+                </span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 8px;">
+                <span style="color: var(--text-muted);">Collection Run Link:</span>
+                <span style="font-weight: bold;">
+                    {% if execution.collection_run_id %}
+                        <a href="/collection-runs/{{ execution.collection_run_id }}" class="text-link">View Collection Run Details</a>
+                    {% else %}
+                        —
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        {% if execution.safe_error_summary %}
+        <div style="margin-top: 25px; padding: 15px; background: rgba(248, 113, 113, 0.05); border: 1px solid rgba(248, 113, 113, 0.15); border-radius: 6px;">
+            <h3 style="margin-top: 0; margin-bottom: 10px; font-size: 1.05rem; color: #f87171;">Error/Warning Summary</h3>
+            <p style="margin: 0; font-family: monospace; white-space: pre-wrap; font-size: 0.9em; line-height: 1.4; color: #fca5a5;">{{ execution.safe_error_summary }}</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

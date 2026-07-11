@@ -173,6 +173,44 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Output in JSON format",
     )
+    # Setup schedule command
+    schedule_parser = subparsers.add_parser("schedule", help="Manage source schedules")
+    schedule_subparsers = schedule_parser.add_subparsers(dest="subcommand", required=True)
+
+    # schedule list
+    sched_list_parser = schedule_subparsers.add_parser("list", help="List all schedules")
+    sched_list_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+
+    # schedule show
+    sched_show_parser = schedule_subparsers.add_parser("show", help="Show details of a schedule")
+    sched_show_parser.add_argument("--source", required=True, help="Source Name or UUID")
+    sched_show_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+
+    # schedule set
+    sched_set_parser = schedule_subparsers.add_parser("set", help="Create or update a schedule")
+    sched_set_parser.add_argument("--source", required=True, help="Source Name or UUID")
+    sched_set_parser.add_argument("--every-minutes", type=int, required=True, help="Interval in minutes")
+    sched_set_parser.add_argument("--first-run-at", help="Start time in ISO-8601 format (UTC)")
+    sched_set_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+
+    # schedule enable
+    sched_enable_parser = schedule_subparsers.add_parser("enable", help="Enable a schedule")
+    sched_enable_parser.add_argument("--source", required=True, help="Source Name or UUID")
+    sched_enable_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+
+    # schedule disable
+    sched_disable_parser = schedule_subparsers.add_parser("disable", help="Disable a schedule")
+    sched_disable_parser.add_argument("--source", required=True, help="Source Name or UUID")
+    sched_disable_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+
+    # Setup scheduler command
+    scheduler_parser = subparsers.add_parser("scheduler", help="Run the local scheduler process")
+    scheduler_subparsers = scheduler_parser.add_subparsers(dest="subcommand", required=True)
+
+    scheduler_run_parser = scheduler_subparsers.add_parser("run", help="Run the scheduler")
+    scheduler_run_parser.add_argument("--once", action="store_true", help="Run a single tick and exit")
+    scheduler_run_parser.add_argument("--poll-seconds", type=int, help="Override default poll interval")
+    scheduler_run_parser.add_argument("--json", action="store_true", help="Output results in JSON format (only with --once)")
 
     return parser
 
@@ -200,6 +238,10 @@ async def run_cli(args: argparse.Namespace) -> int:
             return await run_analyze_command(args, runtime)
         if args.command == "score":
             return await run_score_command(args, runtime)
+        if args.command == "schedule":
+            return await run_schedule_command(args, runtime)
+        if args.command == "scheduler":
+            return await run_scheduler_command(args, runtime)
 
     return 0
 
@@ -846,6 +888,185 @@ async def run_score_command(args: argparse.Namespace, runtime: Any) -> int:
     except Exception as e:
         sys.stderr.write(f"Unexpected internal error during scoring: {e}\n")
         return 1
+
+
+async def run_schedule_command(args: argparse.Namespace, runtime: Any) -> int:
+    from glintory.services.schedule_management import ScheduleManagementService
+    from glintory.infrastructure.repositories import SourceRepository
+    from glintory.domain.scheduling import ScheduleNotFoundError, InvalidScheduleError
+    from glintory.domain.operations import SourceNotFoundError
+
+    service = ScheduleManagementService(runtime.session_factory)
+
+    session = runtime.session_factory()
+    try:
+        source_repo = SourceRepository(session)
+
+        if args.subcommand == "list":
+            schedules = service.list_schedules()
+            if args.json:
+                print(json.dumps([
+                    {
+                        "source_id": s.source_id,
+                        "source_name": s.source_name,
+                        "source_type": s.source_type,
+                        "source_enabled": s.source_enabled,
+                        "schedule_enabled": s.schedule_enabled,
+                        "interval_minutes": s.interval_minutes,
+                        "next_run_at": s.next_run_at.isoformat() if s.next_run_at else None,
+                        "last_execution_status": s.last_execution_status.value if s.last_execution_status else None,
+                        "last_execution_at": s.last_execution_at.isoformat() if s.last_execution_at else None,
+                    }
+                    for s in schedules
+                ]))
+            else:
+                if not schedules:
+                    print("No schedules configured.")
+                else:
+                    for s in schedules:
+                        print(f"Source: {s.source_name} ({s.source_id})")
+                        print(f"  Enabled: {'yes' if s.schedule_enabled else 'no'}")
+                        print(f"  Interval: {s.interval_minutes} minutes")
+                        print(f"  Next run: {s.next_run_at.isoformat() if s.next_run_at else 'none'}")
+                        print(f"  Last status: {s.last_execution_status.value if s.last_execution_status else 'none'}")
+                        print()
+            return 0
+
+        # Commands requiring source identifier
+        source = source_repo.get_by_identifier(args.source)
+        if not source:
+            sys.stderr.write(f"Source not found: {args.source}\n")
+            return 2
+        source_id = source.id
+
+        if args.subcommand == "show":
+            try:
+                sched = service.get_schedule(source_id)
+                if args.json:
+                    print(json.dumps({
+                        "source_id": sched.source_id,
+                        "source_name": sched.source_name,
+                        "source_type": sched.source_type,
+                        "source_enabled": sched.source_enabled,
+                        "schedule_enabled": sched.schedule_enabled,
+                        "interval_minutes": sched.interval_minutes,
+                        "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
+                        "last_execution_status": sched.last_execution_status.value if sched.last_execution_status else None,
+                        "last_execution_at": sched.last_execution_at.isoformat() if sched.last_execution_at else None,
+                    }))
+                else:
+                    print(f"Source: {sched.source_name}")
+                    print(f"Enabled: {'yes' if sched.schedule_enabled else 'no'}")
+                    print(f"Interval: {sched.interval_minutes} minutes")
+                    print(f"Next run: {sched.next_run_at.isoformat() if sched.next_run_at else 'none'}")
+            except ScheduleNotFoundError:
+                sys.stderr.write(f"Schedule for Source {args.source} not found.\n")
+                return 2
+            return 0
+
+        elif args.subcommand == "set":
+            first_run = None
+            if args.first_run_at:
+                try:
+                    val = args.first_run_at
+                    if val.endswith("Z"):
+                        val = val[:-1] + "+00:00"
+                    first_run = datetime.fromisoformat(val)
+                    if first_run.tzinfo is None:
+                        sys.stderr.write("first-run-at must include timezone offset (e.g. Z or +00:00).\n")
+                        return 2
+                except ValueError:
+                    sys.stderr.write("Invalid first-run-at format. Must be ISO-8601 (e.g. 2026-07-12T00:00:00Z).\n")
+                    return 2
+
+            try:
+                sched = service.set_schedule(
+                    source_id=source_id,
+                    interval_minutes=args.every_minutes,
+                    first_run_at=first_run,
+                )
+                if args.json:
+                    print(json.dumps({
+                        "source_id": sched.source_id,
+                        "source_name": sched.source_name,
+                        "interval_minutes": sched.interval_minutes,
+                        "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
+                    }))
+                else:
+                    print("Schedule updated.")
+                    print(f"Source: {sched.source_name}")
+                    print(f"Enabled: {'yes' if sched.schedule_enabled else 'no'}")
+                    print(f"Interval: {sched.interval_minutes} minutes")
+                    print(f"Next run: {sched.next_run_at.isoformat() if sched.next_run_at else 'none'}")
+            except InvalidScheduleError as e:
+                sys.stderr.write(f"Invalid Schedule Error: {e}\n")
+                return 2
+            return 0
+
+        elif args.subcommand == "enable":
+            try:
+                sched = service.enable_schedule(source_id)
+                if args.json:
+                    print(json.dumps({"source_id": source_id, "enabled": True}))
+                else:
+                    print(f"Schedule for source '{sched.source_name}' enabled.")
+            except ScheduleNotFoundError:
+                sys.stderr.write(f"Schedule for Source {args.source} not found.\n")
+                return 2
+            return 0
+
+        elif args.subcommand == "disable":
+            try:
+                sched = service.disable_schedule(source_id)
+                if args.json:
+                    print(json.dumps({"source_id": source_id, "enabled": False}))
+                else:
+                    print(f"Schedule for source '{sched.source_name}' disabled.")
+            except ScheduleNotFoundError:
+                sys.stderr.write(f"Schedule for Source {args.source} not found.\n")
+                return 2
+            return 0
+
+    finally:
+        session.close()
+
+
+async def run_scheduler_command(args: argparse.Namespace, runtime: Any) -> int:
+    from glintory.services.scheduler_runner import SchedulerRunner
+    from glintory.services.scheduler_service import SchedulerService
+    from glintory.services.collection import CollectionService
+
+    if args.subcommand == "run":
+        if args.json and not args.once:
+            sys.stderr.write("Argument Error: --json can only be used with --once mode.\n")
+            return 2
+
+    if args.poll_seconds is not None:
+        if not (5 <= args.poll_seconds <= 300):
+            sys.stderr.write("poll-seconds must be between 5 and 300.\n")
+            return 2
+        runtime.settings.scheduler_poll_seconds = args.poll_seconds
+
+    collection_service = CollectionService(
+        session_factory=runtime.session_factory,
+        registry=runtime.registry,
+    )
+    scheduler_service = SchedulerService(
+        session_factory=runtime.session_factory,
+        collection_service=collection_service,
+    )
+    runner = SchedulerRunner(
+        session_factory=runtime.session_factory,
+        scheduler_service=scheduler_service,
+    )
+
+    if args.once:
+        exit_code = await runner.run_once()
+        if args.json:
+            print(json.dumps({"exit_code": exit_code, "owner_token_hidden": True}))
+        return exit_code
+    else:
+        return await runner.run_continuous()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
