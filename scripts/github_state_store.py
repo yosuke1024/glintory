@@ -276,11 +276,11 @@ def handle_download_latest(
             os.makedirs(db_parent, exist_ok=True)
 
         # 1. Targetと同じDirectoryへTemporary DBを作成
+        import uuid
+
         temp_db_path = os.path.join(
-            db_parent or ".", os.path.basename(db_path) + ".tmp"
+            db_parent or ".", f".{os.path.basename(db_path)}.{uuid.uuid4().hex}.tmp"
         )
-        if os.path.exists(temp_db_path):
-            os.remove(temp_db_path)
 
         try:
             # 2. Temporary DBへAlembic upgrade head (明示的な接続を使用)
@@ -340,9 +340,14 @@ def handle_download_latest(
                 os.close(fd)
 
             # 8. os.replaceでTargetへ配置
-            if os.path.exists(db_path):
-                os.remove(db_path)
             os.replace(temp_db_path, db_path)
+
+            # 9. 親Directoryをfsync
+            dir_fd = os.open(db_parent or ".", os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
 
             print("Database initialized successfully.")
             write_to_github_output("restored_asset_id", "")

@@ -664,8 +664,11 @@ async def _run_source_sync_manifest(args: argparse.Namespace, runtime: Any) -> i
                 f"Source manifest synced successfully. Created: {res['created_count']}, Updated: {res['updated_count']}."
             )
         return 0
-    except Exception:
-        sys.stderr.write("SOURCE_MANIFEST_SYNC_FAILED\n")
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        sys.stderr.write(f"SOURCE_MANIFEST_SYNC_FAILED: {e}\n")
         return 1
     finally:
         session.close()
@@ -1460,11 +1463,34 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
     return 0
 
 
+def run_publish_config_validation(args: argparse.Namespace) -> int:
+    try:
+        import os
+        import sys
+
+        from glintory.services.static_publishing import validate_site_url
+
+        site_url = args.site_url or os.environ.get("GLINTORY_PUBLIC_SITE_URL")
+        validate_site_url(site_url)
+        print("Configuration URL is valid.")
+        return 0
+    except ValueError as exc:
+        import sys
+
+        if getattr(args, "debug", False):
+            sys.stderr.write(f"CONFIGURATION_PREFLIGHT_FAILED: {exc}\n")
+        else:
+            sys.stderr.write("CONFIGURATION_PREFLIGHT_FAILED\n")
+        return 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = None
     try:
         args = parser.parse_args(argv)
+        if args.command == "publish" and args.subcommand == "validate-config":
+            return run_publish_config_validation(args)
         return asyncio.run(run_cli(args))
     except KeyboardInterrupt:
         sys.stderr.write("Execution interrupted.\n")

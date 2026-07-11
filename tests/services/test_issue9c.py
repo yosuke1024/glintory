@@ -1577,3 +1577,563 @@ def test_state_cli_exception_masking(tmp_path):
         stderr_debug_val = f_err_debug.getvalue()
         assert "STATE_SNAPSHOT_FAILED" not in stderr_debug_val
         assert "SECRET_TOKEN_abc" in stderr_debug_val  # Exposed in debug mode
+
+
+def test_publish_validate_config_db_independent(tmp_path):
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+
+    from glintory.cli import main
+
+    missing_db_dir = tmp_path / "missing"
+    missing_db_file = missing_db_dir / "preflight.sqlite3"
+    db_url = f"sqlite:///{missing_db_file}"
+
+    # Setup environment
+    original_env = os.environ.get("GLINTORY_DATABASE_URL")
+    os.environ["GLINTORY_DATABASE_URL"] = db_url
+
+    try:
+        # 1. Test valid URL
+        argv_valid = [
+            "publish",
+            "validate-config",
+            "--site-url",
+            "https://example.github.io/glintory",
+        ]
+        f_out = io.StringIO()
+        f_err = io.StringIO()
+        with redirect_stdout(f_out), redirect_stderr(f_err):
+            code = main(argv_valid)
+
+        assert code == 0
+        assert not missing_db_file.exists()
+        assert not missing_db_dir.exists()
+
+        # 2. Test invalid URL
+        argv_invalid = [
+            "publish",
+            "validate-config",
+            "--site-url",
+            "http://example.com",
+        ]
+        f_out = io.StringIO()
+        f_err = io.StringIO()
+        with redirect_stdout(f_out), redirect_stderr(f_err):
+            code = main(argv_invalid)
+
+        assert code == 1
+        assert "CONFIGURATION_PREFLIGHT_FAILED" in f_err.getvalue()
+        assert not missing_db_file.exists()
+        assert not missing_db_dir.exists()
+
+    finally:
+        if original_env is None:
+            os.environ.pop("GLINTORY_DATABASE_URL", None)
+        else:
+            os.environ["GLINTORY_DATABASE_URL"] = original_env
+
+
+@pytest.mark.parametrize(
+    "exit_code,operational_status,tick,should_pass",
+    [
+        # valid success
+        (0, "success", None, True),
+        (0, "success", {"failed_count": 0, "partial_count": 0}, True),
+        # valid partial
+        (3, "partial", {"partial_count": 1}, True),
+        # valid failed
+        (4, "failed", None, True),
+        (4, "failed", {"failed_count": 1}, True),
+        # valid lease_busy
+        (6, "lease_busy", None, True),
+        # valid lease_lost
+        (7, "lease_lost", None, True),
+        # valid infrastructure_failed
+        (1, "infrastructure_failed", None, True),
+        # mismatch exit_code / operational_status
+        (0, "failed", None, False),
+        (4, "success", None, False),
+        (3, "failed", None, False),
+        # invalid operational_status
+        (0, "invalid_status", None, False),
+        # invalid tick relation
+        (
+            3,
+            "partial",
+            None,
+            False,
+        ),  # partial requires tick not null & partial_count > 0
+        (3, "partial", {"partial_count": 0}, False),
+        (
+            4,
+            "failed",
+            {"failed_count": 0},
+            False,
+        ),  # failed with tick must have failed_count > 0
+        (0, "success", {"failed_count": 1}, False),
+        (0, "success", {"partial_count": 1}, False),
+    ],
+)
+def test_scheduler_metadata_contract(exit_code, operational_status, tick, should_pass):
+    from glintory.services.state_management import validate_metadata
+
+    data = {
+        "exit_code": exit_code,
+        "operational_status": operational_status,
+    }
+    if tick is not None:
+        data["tick"] = tick
+
+    if should_pass:
+        validate_metadata(data)
+    else:
+        with pytest.raises(ValueError):
+            validate_metadata(data)
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        "success",
+        "partial",
+        "failed",
+        "lease_busy",
+        "lease_lost",
+        "infrastructure_failed",
+    ],
+)
+def test_snapshot_integration_with_scheduler_metadata(status, test_db, tmp_path):
+    session, db_file, db_url = test_db
+    from glintory.services.state_management import (
+        create_state_snapshot,
+        verify_state_archive,
+    )
+
+    # Create scheduler metadata JSON
+    status_map = {
+        "success": (0, {"failed_count": 0, "partial_count": 0}),
+        "partial": (3, {"partial_count": 1}),
+        "failed": (4, {"failed_count": 1}),
+        "lease_busy": (6, None),
+        "lease_lost": (7, None),
+        "infrastructure_failed": (1, None),
+    }
+    ec, tick = status_map[status]
+    meta = {
+        "exit_code": ec,
+        "operational_status": status,
+    }
+    if tick is not None:
+        meta["tick"] = tick
+
+    metadata_file = tmp_path / "scheduler_metadata.json"
+    with open(metadata_file, "w") as f:
+        json.dump(meta, f)
+
+    archive_path = str(tmp_path / "snapshot.tar.gz")
+
+    # Run create_state_snapshot
+    manifest = create_state_snapshot(
+        output_path=archive_path,
+        database_url=db_url,
+        metadata_file=str(metadata_file),
+        profile="public",
+    )
+
+    # Verify
+    assert manifest["scheduler_result"]["operational_status"] == status
+
+    verify_manifest = verify_state_archive(archive_path)
+    assert verify_manifest["scheduler_result"]["operational_status"] == status
+
+
+def test_github_issue_notifier_resilience(tmp_path):
+    # Test helper parse_non_negative_int
+    assert issue_notifier.parse_non_negative_int(None) == 0
+    assert issue_notifier.parse_non_negative_int("") == 0
+    assert issue_notifier.parse_non_negative_int("   ") == 0
+    assert issue_notifier.parse_non_negative_int("invalid") == 0
+    assert issue_notifier.parse_non_negative_int("-1") == 0
+    assert issue_notifier.parse_non_negative_int("12") == 12
+
+    # Test Notifier CLI run with empty string numeric arguments
+    # Mock run_gh to bypass actual commands
+    mock_run_gh = MagicMock(return_value="[]")
+    original_run_gh = issue_notifier.run_gh
+
+    # Setup GITHUB_STEP_SUMMARY environment
+    summary_file = tmp_path / "step_summary.md"
+    os.environ["GITHUB_STEP_SUMMARY"] = str(summary_file)
+
+    try:
+        issue_notifier.run_gh = mock_run_gh
+
+        # Mock argv with empty string numeric inputs
+        # automation_result=failure, deploy_pages_result=skipped, all numeric = ""
+        argv = [
+            "--automation-result",
+            "failure",
+            "--deploy-pages-result",
+            "skipped",
+            "--collection-status",
+            "failed",
+            "--pruned-deleted-count",
+            "",
+            "--source-count",
+            "",
+            "--signal-count",
+            "",
+            "--opportunity-count",
+            "",
+            "--due-count",
+            "",
+            "--succeeded-count",
+            "",
+            "--partial-count",
+            "",
+            "--failed-count",
+            "",
+        ]
+
+        with mock.patch("sys.argv", ["scripts/github_issue_notifier.py"] + argv):
+            issue_notifier.main()
+
+        # Check if handle_failure was called
+        mock_run_gh.assert_any_call(
+            [
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                "automation-failure",
+                "--json",
+                "number,title",
+            ]
+        )
+
+        # Summary file should exist and contain automation details
+        assert summary_file.exists()
+        summary_content = summary_file.read_text()
+        assert "Glintory Execution Summary" in summary_content
+        assert "| **Source Count** | 0 |" in summary_content
+        assert "| **Signal Count** | 0 |" in summary_content
+        assert "| **Opportunity Count** | 0 |" in summary_content
+
+    finally:
+        issue_notifier.run_gh = original_run_gh
+        os.environ.pop("GITHUB_STEP_SUMMARY", None)
+
+
+def test_github_state_store_atomic_first_run(tmp_path):
+    from unittest.mock import patch
+
+    import scripts.github_state_store as state_store
+
+    db_path = tmp_path / "test_first_run.sqlite3"
+    db_url = f"sqlite:///{db_path}"
+
+    # 1. Write existing-state to target path
+    db_path.write_bytes(b"existing-state")
+
+    # Mock client that raises ReleaseNotFound to trigger empty first-run DB creation
+    mock_client = MagicMock()
+    from scripts.github_state_store import GitHubReleaseNotFoundError
+
+    mock_client.get_release_assets.side_effect = GitHubReleaseNotFoundError(
+        "Release not found"
+    )
+
+    # Mock os.replace to raise OSError (simulate failure)
+    original_replace = os.replace
+
+    def mock_replace(src, dst):
+        if str(dst) == str(db_path):
+            raise OSError("Mock replace failure")
+        return original_replace(src, dst)
+
+    with patch("os.replace", side_effect=mock_replace):
+        # We expect SystemExit(1) due to STATE_RESTORE_FAILED
+        with pytest.raises(SystemExit) as excinfo:
+            state_store.handle_download_latest(mock_client, str(tmp_path), db_url)
+        assert excinfo.value.code == 1
+
+    # Expect: Target remains and keeps "existing-state"
+    assert db_path.exists()
+    assert db_path.read_bytes() == b"existing-state"
+
+    # Expect: No temporary files are left in the directory
+    leftover_temps = [f for f in os.listdir(tmp_path) if f.endswith(".tmp")]
+    assert len(leftover_temps) == 0
+
+
+def test_workflow_contract(tmp_path):
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+
+    import scripts.github_state_store as state_store
+    from glintory.cli import main
+    from glintory.config import settings
+    from glintory.infrastructure.database import reset_db_connections
+
+    db_file = tmp_path / "workflow_contract.sqlite3"
+    db_url = f"sqlite:///{db_file}"
+    original_env = os.environ.get("GLINTORY_DATABASE_URL")
+    original_settings_url = settings.database_url
+
+    os.environ["GLINTORY_DATABASE_URL"] = db_url
+    settings.database_url = db_url
+    reset_db_connections()
+
+    try:
+        # 1. DB does not exist
+        assert not db_file.exists()
+
+        # 2. publish validate-config success
+        argv_preflight = [
+            "publish",
+            "validate-config",
+            "--site-url",
+            "https://example.github.io/glintory",
+        ]
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(argv_preflight)
+        assert code == 0
+
+        # 3. DB still does not exist
+        assert not db_file.exists()
+
+        # 4. Mock GitHub client and ReleaseNotFound
+        mock_client = MagicMock()
+        from scripts.github_state_store import GitHubReleaseNotFoundError
+
+        mock_client.get_release_assets.side_effect = GitHubReleaseNotFoundError(
+            "Release not found"
+        )
+
+        # 5. download-latest creates First-run DB
+        state_store.handle_download_latest(mock_client, str(tmp_path), db_url)
+        assert db_file.exists()
+
+        # 6. Verify alembic version is at Head
+        conn = sqlite3.connect(str(db_file))
+        cursor = conn.cursor()
+        cursor.execute("SELECT version_num FROM alembic_version")
+        ver = cursor.fetchone()[0]
+        assert ver is not None
+        conn.close()
+
+        # 7. Manifest Sync (source sync-manifest)
+        config_file = tmp_path / "github-source.public.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository_queries": [
+                        {
+                            "query": "topic:self-hosted",
+                            "sort": "stars",
+                            "order": "desc",
+                            "max_items": 10,
+                        }
+                    ],
+                    "issue_queries": [],
+                    "per_page": 20,
+                    "max_pages_per_query": 1,
+                    "include_forks": False,
+                    "include_archived": False,
+                }
+            )
+        )
+
+        manifest_file = tmp_path / "sources.json"
+        manifest_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "sources": [
+                        {
+                            "name": "github-opportunity-signals",
+                            "source_type": "github",
+                            "enabled": True,
+                            "config_file": "github-source.public.json",
+                            "schedule": {"enabled": True, "interval_minutes": 1440},
+                        }
+                    ],
+                }
+            )
+        )
+        argv_sync = [
+            "source",
+            "sync-manifest",
+            "--file",
+            str(manifest_file),
+            "--json",
+        ]
+        code = main(argv_sync)
+        assert code == 0
+
+        # 8. Create Scheduler Metadata JSON (Exit Code 0, Success, with a dummy tick)
+        metadata_file = tmp_path / "scheduler_metadata.json"
+        meta_data = {
+            "exit_code": 0,
+            "operational_status": "success",
+            "tick": {
+                "due_schedule_count": 0,
+                "claimed_execution_count": 0,
+                "succeeded_count": 0,
+                "partial_count": 0,
+                "failed_count": 0,
+                "skipped_busy_count": 0,
+                "skipped_disabled_count": 0,
+                "abandoned_count": 0,
+                "execution_ids": [],
+            },
+        }
+        with open(metadata_file, "w") as f:
+            json.dump(meta_data, f)
+
+        # 9. Static Site Build
+        output_dir = tmp_path / "dist"
+        argv_build = [
+            "publish",
+            "build",
+            "--output-dir",
+            str(output_dir),
+            "--site-url",
+            "https://example.github.io/glintory",
+            "--json",
+        ]
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(argv_build)
+        assert code == 0
+        assert (output_dir / "index.html").exists()
+
+        # 10. State Snapshot
+        archive_path = str(tmp_path / "snapshot.tar.gz")
+        argv_snapshot = [
+            "state",
+            "snapshot",
+            "--output",
+            archive_path,
+            "--metadata-file",
+            str(metadata_file),
+            "--profile",
+            "public",
+            "--json",
+        ]
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(argv_snapshot)
+        assert code == 0
+
+        # 11. State Verify
+        argv_verify = [
+            "state",
+            "verify",
+            "--input",
+            archive_path,
+            "--json",
+        ]
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(argv_verify)
+        assert code == 0
+
+        # 12. State Restore
+        restored_db_file = tmp_path / "restored.sqlite3"
+        argv_restore = [
+            "state",
+            "restore",
+            "--input",
+            archive_path,
+            "--target",
+            str(restored_db_file),
+            "--force",
+            "--json",
+        ]
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(argv_restore)
+        assert code == 0
+        assert restored_db_file.exists()
+
+        # Check restored DB has Alembic Head
+        conn_res = sqlite3.connect(str(restored_db_file))
+        c_res = conn_res.cursor()
+        c_res.execute("SELECT version_num FROM alembic_version")
+        ver_res = c_res.fetchone()[0]
+        assert ver_res == ver
+        conn_res.close()
+
+    finally:
+        if original_env is None:
+            os.environ.pop("GLINTORY_DATABASE_URL", None)
+        else:
+            os.environ["GLINTORY_DATABASE_URL"] = original_env
+        settings.database_url = original_settings_url
+        reset_db_connections()
+
+
+def test_workflow_early_failure(tmp_path):
+    mock_run_gh = MagicMock(return_value="[]")
+    original_run_gh = issue_notifier.run_gh
+
+    # Setup GITHUB_STEP_SUMMARY environment
+    summary_file = tmp_path / "step_summary.md"
+    os.environ["GITHUB_STEP_SUMMARY"] = str(summary_file)
+
+    try:
+        issue_notifier.run_gh = mock_run_gh
+
+        argv = [
+            "--automation-result",
+            "failure",
+            "--deploy-pages-result",
+            "skipped",
+            "--collection-status",
+            "infrastructure_failed",
+            "--pruned-deleted-count",
+            "",
+            "--source-count",
+            "",
+            "--signal-count",
+            "",
+            "--opportunity-count",
+            "",
+            "--due-count",
+            "",
+            "--succeeded-count",
+            "",
+            "--partial-count",
+            "",
+            "--failed-count",
+            "",
+        ]
+
+        with mock.patch("sys.argv", ["scripts/github_issue_notifier.py"] + argv):
+            issue_notifier.main()
+
+        # Check if handle_failure was reached (issues: list, create)
+        mock_run_gh.assert_any_call(
+            [
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                "automation-failure",
+                "--json",
+                "number,title",
+            ]
+        )
+
+        # Verify that Actions Summary has been generated
+        assert summary_file.exists()
+        summary_content = summary_file.read_text()
+        assert "Glintory Execution Summary" in summary_content
+        assert "| **Automation Result** | failure |" in summary_content
+        assert "| **Deploy Pages Result** | skipped |" in summary_content
+        assert "| **Collection Status** | infrastructure_failed |" in summary_content
+        assert "| **Notification Result** | success |" in summary_content
+
+    finally:
+        issue_notifier.run_gh = original_run_gh
+        os.environ.pop("GITHUB_STEP_SUMMARY", None)

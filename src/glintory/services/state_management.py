@@ -60,10 +60,24 @@ def validate_metadata(data: Any) -> None:
         raise ValueError("Metadata must be a JSON object.")
 
     # Check top-level keys
-    allowed_top_keys = {"exit_code", "tick"}
+    allowed_top_keys = {"exit_code", "operational_status", "tick"}
     unknown_keys = set(data.keys()) - allowed_top_keys
     if unknown_keys:
         raise ValueError(f"Unknown keys in metadata: {unknown_keys}")
+
+    # validate operational_status
+    if "operational_status" in data:
+        status = data["operational_status"]
+        allowed_statuses = {
+            "success",
+            "partial",
+            "failed",
+            "lease_busy",
+            "lease_lost",
+            "infrastructure_failed",
+        }
+        if status not in allowed_statuses:
+            raise ValueError(f"Invalid operational_status: {status}")
 
     # validate exit_code
     if "exit_code" in data:
@@ -72,6 +86,24 @@ def validate_metadata(data: Any) -> None:
             raise ValueError("exit_code must be an integer.")
         if ec < 0 or ec > 255:
             raise ValueError("exit_code out of range.")
+
+    # validate relation between exit_code and operational_status
+    if "exit_code" in data and "operational_status" in data:
+        ec = data["exit_code"]
+        status = data["operational_status"]
+        status_map = {
+            0: "success",
+            3: "partial",
+            4: "failed",
+            6: "lease_busy",
+            7: "lease_lost",
+            1: "infrastructure_failed",
+        }
+        expected_status = status_map.get(ec)
+        if expected_status != status:
+            raise ValueError(
+                f"Exit code {ec} and operational_status '{status}' are inconsistent."
+            )
 
     # validate tick
     if "tick" in data:
@@ -130,6 +162,36 @@ def validate_metadata(data: Any) -> None:
                         raise ValueError(
                             "execution_id string length exceeded limit of 256."
                         )
+
+    # validate relation between tick and operational_status
+    if "operational_status" in data:
+        status = data["operational_status"]
+        tick = data.get("tick")
+
+        if status == "failed":
+            if tick is not None:
+                failed_count = tick.get("failed_count", 0)
+                if failed_count <= 0:
+                    raise ValueError(
+                        "failed operational_status requires failed_count > 0 when tick is present."
+                    )
+        elif status == "partial":
+            if tick is None:
+                raise ValueError(
+                    "partial operational_status requires tick not to be null."
+                )
+            partial_count = tick.get("partial_count", 0)
+            if partial_count <= 0:
+                raise ValueError(
+                    "partial operational_status requires partial_count > 0."
+                )
+        elif status == "success" and tick is not None:
+            failed_count = tick.get("failed_count", 0)
+            partial_count = tick.get("partial_count", 0)
+            if failed_count != 0 or partial_count != 0:
+                raise ValueError(
+                    "success operational_status requires failed_count == 0 and partial_count == 0."
+                )
 
 
 def audit_dict_for_secrets(data: Any, secret_values: list[str]) -> None:

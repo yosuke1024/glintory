@@ -149,6 +149,25 @@ def handle_failure(
         )
 
 
+def parse_non_negative_int(
+    value: str | None,
+    *,
+    default: int = 0,
+) -> int:
+    if value is None or value.strip() == "":
+        return default
+
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+
+    if parsed < 0:
+        return default
+
+    return parsed
+
+
 def write_step_summary(args) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
@@ -159,8 +178,10 @@ def write_step_summary(args) -> None:
     completed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     prune_res = "N/A"
-    if args.prune_status:
-        prune_res = f"{args.prune_status} (Deleted: {args.pruned_deleted_count or 0})"
+    if getattr(args, "prune_status", None):
+        prune_res = (
+            f"{args.prune_status} (Deleted: {getattr(args, 'pruned_deleted_count', 0)})"
+        )
 
     lines = [
         "## Glintory Execution Summary",
@@ -169,28 +190,31 @@ def write_step_summary(args) -> None:
         "| --- | --- |",
         f"| **Run ID** | {run_id} |",
         f"| **Run Attempt** | {run_attempt} |",
-        f"| **Started At** | {args.started_at or 'N/A'} |",
+        f"| **Started At** | {getattr(args, 'started_at', '') or 'N/A'} |",
         f"| **Completed At** | {completed_at} |",
-        f"| **Restored Asset Name** | {args.restored_asset_name or 'N/A'} |",
-        f"| **Restored Asset ID** | {args.restored_asset_id or 'N/A'} |",
-        f"| **Collection Status** | {args.collection_status or 'N/A'} |",
-        f"| **Due Count** | {args.due_count or 0} |",
-        f"| **Succeeded Count** | {args.succeeded_count or 0} |",
-        f"| **Partial Count** | {args.partial_count or 0} |",
-        f"| **Failed Count** | {args.failed_count or 0} |",
-        f"| **New State Asset Name** | {args.uploaded_asset_name or 'N/A'} |",
-        f"| **New State Asset ID** | {args.uploaded_asset_id or 'N/A'} |",
+        f"| **Automation Result** | {getattr(args, 'automation_result', '') or 'N/A'} |",
+        f"| **Deploy Pages Result** | {getattr(args, 'deploy_pages_result', '') or 'N/A'} |",
+        f"| **Collection Status** | {getattr(args, 'collection_status', '') or 'N/A'} |",
+        f"| **Notification Result** | {getattr(args, 'notification_result', '') or 'N/A'} |",
+        f"| **Restored Asset Name** | {getattr(args, 'restored_asset_name', '') or 'N/A'} |",
+        f"| **Restored Asset ID** | {getattr(args, 'restored_asset_id', '') or 'N/A'} |",
+        f"| **Due Count** | {getattr(args, 'due_count', 0)} |",
+        f"| **Succeeded Count** | {getattr(args, 'succeeded_count', 0)} |",
+        f"| **Partial Count** | {getattr(args, 'partial_count', 0)} |",
+        f"| **Failed Count** | {getattr(args, 'failed_count', 0)} |",
+        f"| **New State Asset Name** | {getattr(args, 'uploaded_asset_name', '') or 'N/A'} |",
+        f"| **New State Asset ID** | {getattr(args, 'uploaded_asset_id', '') or 'N/A'} |",
         f"| **Prune Result** | {prune_res} |",
-        f"| **Database Size** | {args.database_size or 'N/A'} |",
-        f"| **Source Count** | {args.source_count or 0} |",
-        f"| **Signal Count** | {args.signal_count or 0} |",
-        f"| **Opportunity Count** | {args.opportunity_count or 0} |",
-        f"| **Pages Deployment Result** | {args.pages_deployment_result or 'N/A'} |",
-        f"| **Pages URL** | {args.pages_url or 'N/A'} |",
+        f"| **Database Size** | {getattr(args, 'database_size', '') or 'N/A'} |",
+        f"| **Source Count** | {getattr(args, 'source_count', 0)} |",
+        f"| **Signal Count** | {getattr(args, 'signal_count', 0)} |",
+        f"| **Opportunity Count** | {getattr(args, 'opportunity_count', 0)} |",
+        f"| **Pages Deployment Result** | {getattr(args, 'pages_deployment_result', '') or 'N/A'} |",
+        f"| **Pages URL** | {getattr(args, 'pages_url', '') or 'N/A'} |",
         "",
     ]
 
-    if args.collection_status == "partial":
+    if getattr(args, "collection_status", None) == "partial":
         lines.extend(
             [
                 "### :warning: Warning: Partial Collection Success",
@@ -199,7 +223,7 @@ def write_step_summary(args) -> None:
             ]
         )
 
-    with open(summary_path, "a") as f:
+    with open(summary_path, "w") as f:
         f.write("\n".join(lines))
 
 
@@ -227,20 +251,30 @@ def main():
     parser.add_argument("--restored-asset-id", default="")
     parser.add_argument("--uploaded-asset-name", default="")
     parser.add_argument("--uploaded-asset-id", default="")
-    parser.add_argument("--pruned-deleted-count", type=int, default=0)
+    parser.add_argument("--pruned-deleted-count", default="0")
     parser.add_argument("--prune-status", default="")
     parser.add_argument("--database-size", default="")
-    parser.add_argument("--source-count", type=int, default=0)
-    parser.add_argument("--signal-count", type=int, default=0)
-    parser.add_argument("--opportunity-count", type=int, default=0)
+    parser.add_argument("--source-count", default="0")
+    parser.add_argument("--signal-count", default="0")
+    parser.add_argument("--opportunity-count", default="0")
     parser.add_argument("--pages-deployment-result", default="")
     parser.add_argument("--pages-url", default="")
-    parser.add_argument("--due-count", type=int, default=0)
-    parser.add_argument("--succeeded-count", type=int, default=0)
-    parser.add_argument("--partial-count", type=int, default=0)
-    parser.add_argument("--failed-count", type=int, default=0)
+    parser.add_argument("--due-count", default="0")
+    parser.add_argument("--succeeded-count", default="0")
+    parser.add_argument("--partial-count", default="0")
+    parser.add_argument("--failed-count", default="0")
 
     args = parser.parse_args()
+
+    # Normalize integer inputs
+    args.pruned_deleted_count = parse_non_negative_int(args.pruned_deleted_count)
+    args.source_count = parse_non_negative_int(args.source_count)
+    args.signal_count = parse_non_negative_int(args.signal_count)
+    args.opportunity_count = parse_non_negative_int(args.opportunity_count)
+    args.due_count = parse_non_negative_int(args.due_count)
+    args.succeeded_count = parse_non_negative_int(args.succeeded_count)
+    args.partial_count = parse_non_negative_int(args.partial_count)
+    args.failed_count = parse_non_negative_int(args.failed_count)
 
     # Ensure GITHUB_TOKEN is available in env (needed by gh CLI)
     if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
@@ -248,24 +282,37 @@ def main():
             "Warning: GITHUB_TOKEN or GH_TOKEN not set in environment.", file=sys.stderr
         )
 
+    # Success conditions
+    is_success = (
+        args.automation_result == "success"
+        and args.deploy_pages_result == "success"
+        and args.collection_status == "success"
+    )
+
+    # Failure conditions
+    is_failure = (
+        args.automation_result != "success"
+        or args.deploy_pages_result != "success"
+        or args.collection_status in ("failed", "lease_lost", "infrastructure_failed")
+    )
+
+    notification_result = "success"
+    if not is_success and not is_failure:
+        notification_result = "skipped"
+
+    # Always write Actions summary initially
+    args.notification_result = notification_result
+    write_step_summary(args)
+
+    if notification_result == "skipped":
+        print(
+            f"Partial or non-failure condition. No issue state changes. Status: {args.collection_status}"
+        )
+        return
+
     try:
         # Idempotently ensure the label exists before anything else
         ensure_label_exists()
-
-        # Success conditions
-        is_success = (
-            args.automation_result == "success"
-            and args.deploy_pages_result == "success"
-            and args.collection_status == "success"
-        )
-
-        # Failure conditions
-        is_failure = (
-            args.automation_result != "success"
-            or args.deploy_pages_result != "success"
-            or args.collection_status
-            in ("failed", "lease_lost", "infrastructure_failed")
-        )
 
         if is_failure:
             handle_failure(
@@ -275,18 +322,12 @@ def main():
             handle_success(
                 args.automation_result, args.deploy_pages_result, args.collection_status
             )
-        else:
-            print(
-                f"Partial or non-failure condition. No issue state changes. Status: {args.collection_status}"
-            )
 
-        # Always write Actions summary
+    except Exception as e:
+        sys.stderr.write(f"NOTIFICATION_FAILED: {e}\n")
+        # Overwrite Actions summary to show failed notification
+        args.notification_result = "failed"
         write_step_summary(args)
-
-    except NotificationError:
-        sys.exit(1)
-    except Exception:
-        sys.stderr.write("NOTIFICATION_FAILED\n")
         sys.exit(1)
 
 

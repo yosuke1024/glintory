@@ -115,12 +115,14 @@ jobs:
           partial_count=$(jq -r '.tick.partial_count // 0' build/state/scheduler_metadata.json)
           failed_count=$(jq -r '.tick.failed_count // 0' build/state/scheduler_metadata.json)
 
-          echo "collection_exit_code=$exit_code" >> "$GITHUB_OUTPUT"
-          echo "collection_status=$status" >> "$GITHUB_OUTPUT"
-          echo "due_count=$due_count" >> "$GITHUB_OUTPUT"
-          echo "succeeded_count=$succeeded_count" >> "$GITHUB_OUTPUT"
-          echo "partial_count=$partial_count" >> "$GITHUB_OUTPUT"
-          echo "failed_count=$failed_count" >> "$GITHUB_OUTPUT"
+          {
+            echo "collection_exit_code=$exit_code"
+            echo "collection_status=$status"
+            echo "due_count=$due_count"
+            echo "succeeded_count=$succeeded_count"
+            echo "partial_count=$partial_count"
+            echo "failed_count=$failed_count"
+          } >> "$GITHUB_OUTPUT"
 
           if [ "$exit_code" = "0" ] || [ "$exit_code" = "3" ] || [ "$exit_code" = "4" ]; then
             exit 0
@@ -202,18 +204,18 @@ jobs:
           RESTORED_ASSET_ID: ${{ needs.automation.outputs.restored_asset_id }}
           UPLOADED_ASSET_NAME: ${{ needs.automation.outputs.uploaded_asset_name }}
           UPLOADED_ASSET_ID: ${{ needs.automation.outputs.uploaded_asset_id }}
-          PRUNED_DELETED_COUNT: ${{ needs.automation.outputs.pruned_deleted_count }}
+          PRUNED_DELETED_COUNT: ${{ needs.automation.outputs.pruned_deleted_count || '0' }}
           PRUNE_STATUS: ${{ needs.automation.outputs.prune_status }}
           DATABASE_SIZE: ${{ needs.automation.outputs.database_size }}
-          SOURCE_COUNT: ${{ needs.automation.outputs.source_count }}
-          SIGNAL_COUNT: ${{ needs.automation.outputs.signal_count }}
-          OPPORTUNITY_COUNT: ${{ needs.automation.outputs.opportunity_count }}
+          SOURCE_COUNT: ${{ needs.automation.outputs.source_count || '0' }}
+          SIGNAL_COUNT: ${{ needs.automation.outputs.signal_count || '0' }}
+          OPPORTUNITY_COUNT: ${{ needs.automation.outputs.opportunity_count || '0' }}
           PAGES_DEPLOYMENT_RESULT: ${{ needs.deploy-pages.result }}
           PAGES_URL: ${{ needs.deploy-pages.outputs.page_url }}
-          DUE_COUNT: ${{ needs.automation.outputs.due_count }}
-          SUCCEEDED_COUNT: ${{ needs.automation.outputs.succeeded_count }}
-          PARTIAL_COUNT: ${{ needs.automation.outputs.partial_count }}
-          FAILED_COUNT: ${{ needs.automation.outputs.failed_count }}
+          DUE_COUNT: ${{ needs.automation.outputs.due_count || '0' }}
+          SUCCEEDED_COUNT: ${{ needs.automation.outputs.succeeded_count || '0' }}
+          PARTIAL_COUNT: ${{ needs.automation.outputs.partial_count || '0' }}
+          FAILED_COUNT: ${{ needs.automation.outputs.failed_count || '0' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
