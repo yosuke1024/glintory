@@ -37,8 +37,10 @@ from glintory.domain.models import (
     Signal,
     Source,
     SourceSchedule,
+    OpportunityEnrichment,
 )
 from glintory.infrastructure.opportunity_query import check_stale
+from glintory.infrastructure.opportunity_enrichment_repository import OpportunityEnrichmentRepository
 
 
 def safe_url(url: str | None) -> str:
@@ -583,7 +585,7 @@ tr:hover td {
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>{{ op.title }} - Glintory</title>
+  <title>{% if enrichment and enrichment.generated_title %}{{ enrichment.generated_title }}{% else %}{{ op.title }}{% endif %} - Glintory</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="{{ base_path }}/assets/app.css">
 </head>
@@ -599,17 +601,43 @@ tr:hover td {
   </header>
 
   <div class="container">
-    <div class="card" style="margin-top: 2rem; padding: 2rem;">
+    {% if enrichment %}
+      <div style="background-color: rgba(99, 102, 241, 0.05); border: 1px solid var(--accent); border-radius: 0.5rem; padding: 1rem; margin-top: 2rem; margin-bottom: 1rem;">
+        <p style="margin: 0; font-size: 0.9rem; color: #818cf8; font-weight: 600;">
+          ✨ AI-generated brief based on the evidence below.
+        </p>
+        <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">
+          The opportunity score remains rule-based and deterministic.
+        </p>
+      </div>
+    {% endif %}
+
+    <div class="card" style="margin-top: 1rem; padding: 2rem;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1 style="margin: 0; font-size: 2.25rem;">{{ op.title }}</h1>
+        <h1 style="margin: 0; font-size: 2.25rem;">
+          {% if enrichment and enrichment.generated_title %}
+            {{ enrichment.generated_title }}
+          {% else %}
+            {{ op.title }}
+          {% endif %}
+        </h1>
         <div class="score-value" style="font-size: 3rem;">{{ op.total_score }}</div>
       </div>
       
-      <p style="font-size: 1.15rem; color: var(--text-secondary); margin-top: 1.5rem;">{{ op.proposed_solution }}</p>
+      <p style="font-size: 1.15rem; color: var(--text-secondary); margin-top: 1.5rem;">
+        {% if enrichment and enrichment.generated_summary %}
+          {{ enrichment.generated_summary }}
+        {% else %}
+          {{ op.proposed_solution }}
+        {% endif %}
+      </p>
       
       <div class="meta-info" style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
         <div><strong>Status:</strong> {{ op.status }}</div>
         <div><strong>Confidence:</strong> {{ op.confidence }}</div>
+        {% if enrichment and enrichment.llm_confidence %}
+          <div><strong>AI Confidence:</strong> {{ enrichment.llm_confidence }}</div>
+        {% endif %}
         <div><strong>Scoring Version:</strong> {{ op.current_scoring_version or "N/A" }}</div>
         <div><strong>Score Status:</strong> <span class="badge {% if score_is_stale %}badge-accent{% else %}badge-success{% endif %}">{% if score_is_stale %}Stale{% else %}Current{% endif %}</span></div>
         <div><strong>Evidence Score:</strong> {{ op.evidence_score }}</div>
@@ -619,11 +647,69 @@ tr:hover td {
       </div>
     </div>
 
+    {% if enrichment %}
+      <div class="card" style="margin-top: 1.5rem; padding: 2rem;">
+        <h2 style="margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">AI Enrichment Analysis</h2>
+        
+        {% if enrichment.problem_statement %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">Problem Statement</h3>
+          <p style="color: var(--text-secondary);">{{ enrichment.problem_statement }}</p>
+        {% endif %}
+        
+        {% if enrichment.target_users %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">Target Users</h3>
+          <ul style="color: var(--text-secondary); padding-left: 1.25rem;">
+            {% for user in enrichment.target_users %}
+              <li>{{ user }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        
+        {% if enrichment.why_now %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">Why Now</h3>
+          <p style="color: var(--text-secondary);">{{ enrichment.why_now }}</p>
+        {% endif %}
+        
+        {% if enrichment.evidence_synthesis %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">Evidence Synthesis</h3>
+          <p style="color: var(--text-secondary);">{{ enrichment.evidence_synthesis }}</p>
+        {% endif %}
+        
+        {% if enrichment.build_direction %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">Build Direction</h3>
+          <p style="color: var(--text-secondary);">{{ enrichment.build_direction }}</p>
+        {% endif %}
+        
+        {% if enrichment.risks %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">Risks</h3>
+          <ul style="color: var(--text-secondary); padding-left: 1.25rem;">
+            {% for risk in enrichment.risks %}
+              <li>{{ risk }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        
+        {% if enrichment.tags %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">AI Tags</h3>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+            {% for tag in enrichment.tags %}
+              <span class="badge badge-info">{{ tag }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
     <div class="section-title">Evidence & Signals</div>
     {% for ev in evidences %}
       <div class="card" style="margin-bottom: 1rem; border-left: 4px solid var(--accent);">
         <div style="display: flex; justify-content: space-between;">
-          <h4 style="margin: 0;"><a href="{{ ev.url | safe_url }}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">{{ ev.title }}</a></h4>
+          <h4 style="margin: 0;">
+            <a href="{{ ev.url | safe_url }}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">{{ ev.title }}</a>
+            {% if enrichment and ev.id in enrichment.evidence_refs %}
+              <span class="badge badge-success" style="font-size: 0.65rem; margin-left: 0.5rem;">AI Ref</span>
+            {% endif %}
+          </h4>
           <span class="badge badge-accent">Relevance: {{ ev.relevance_score }}</span>
         </div>
         <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">{{ ev.excerpt }}</p>
@@ -694,6 +780,7 @@ tr:hover td {
             f.write(rendered_list)
 
         # Render Details
+        enrich_repo = OpportunityEnrichmentRepository(session)
         for op in opportunities:
             # Fetch related evidence via opportunity_signals (excluding is_excluded = True)
             ev_signals = (
@@ -734,12 +821,15 @@ tr:hover td {
                 op.evidence_updated_at,
             )
 
+            enrichment = enrich_repo.get_latest_successful_enrichment(op.id)
+
             rendered_detail = detail_template.render(
                 base_path=base_path,
                 op=op,
                 evidences=evidences,
                 score_is_stale=score_is_stale,
                 repo_url=repo_url,
+                enrichment=enrichment,
             )
 
             op_dir = os.path.join(temp_build_dir, "opportunities", op.id)

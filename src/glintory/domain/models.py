@@ -589,3 +589,73 @@ class ScheduleExecution(Base):
             name="chk_schedule_executions_status_allowed",
         ),
     )
+
+
+class OpportunityEnrichment(Base):
+    __tablename__ = "opportunity_enrichments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    opportunity_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("opportunities.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_revision: Mapped[str] = mapped_column(String(100), nullable=False)
+    model_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime: Mapped[str] = mapped_column(String(100), nullable=False)
+    runtime_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    generated_title: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    generated_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    problem_statement: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    target_users: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    why_now: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    evidence_synthesis: Mapped[str | None] = mapped_column(String(800), nullable=True)
+    build_direction: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    risks: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    llm_confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_id",
+            "model_id",
+            "model_revision",
+            "prompt_version",
+            "input_hash",
+            name="uq_opportunity_enrichments_input",
+        ),
+        Index("idx_opportunity_enrichments_opp_id", "opportunity_id"),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed', 'invalid_output', 'skipped')",
+            name="chk_opportunity_enrichments_status",
+        ),
+        CheckConstraint(
+            "llm_confidence IN ('low', 'medium', 'high') OR llm_confidence IS NULL",
+            name="chk_opportunity_enrichments_confidence",
+        ),
+        CheckConstraint(
+            "error_code IN ('LLM_MODEL_DOWNLOAD_FAILED', 'LLM_MODEL_CHECKSUM_FAILED', 'LLM_RUNTIME_START_FAILED', 'LLM_TIMEOUT', 'LLM_INVALID_JSON', 'LLM_SCHEMA_VALIDATION_FAILED', 'LLM_INFERENCE_FAILED') OR error_code IS NULL",
+            name="chk_opportunity_enrichments_error_code",
+        ),
+    )

@@ -66,6 +66,21 @@ class Settings(BaseSettings):
             raise ValueError("history per page must be 10, 25, 50, or 100")
         return v
 
+    local_llm_enabled: bool = False
+    local_llm_binary_path: str = Field(default="./bin/llama-server")
+    local_llm_binary_sha256: str = Field(default="")
+    local_llm_model_path: str = Field(default="./models/model.gguf")
+    local_llm_model_repo: str = Field(default="Qwen/Qwen3-1.7B-GGUF")
+    local_llm_model_file: str = Field(default="Qwen3-1.7B-Q8_0.gguf")
+    local_llm_model_revision: str = Field(default="")
+    local_llm_model_sha256: str = Field(default="")
+    local_llm_max_opportunities: int = Field(default=10, ge=1, le=50)
+    local_llm_timeout_seconds: int = Field(default=120, ge=1)
+    local_llm_max_input_chars: int = Field(default=12000, ge=1)
+    local_llm_max_output_tokens: int = Field(default=512, ge=1)
+    local_llm_port: int = Field(default=8088, ge=1024, le=65535)
+    local_llm_bind_address: str = Field(default="127.0.0.1")
+
     http_connect_timeout_seconds: float = 5.0
     http_read_timeout_seconds: float = 20.0
     http_write_timeout_seconds: float = 10.0

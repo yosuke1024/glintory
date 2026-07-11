@@ -25,6 +25,13 @@ jobs:
       GLINTORY_PUBLIC_SITE_URL: ${{ vars.GLINTORY_PUBLIC_SITE_URL }}
       GLINTORY_REPOSITORY_URL: ${{ vars.GLINTORY_REPOSITORY_URL }}
       GLINTORY_PIXAPPS_URL: ${{ vars.GLINTORY_PIXAPPS_URL }}
+      GLINTORY_LOCAL_LLM_ENABLED: "true"
+      GLINTORY_LOCAL_LLM_MODEL_REPO: "Qwen/Qwen3-1.7B-GGUF"
+      GLINTORY_LOCAL_LLM_MODEL_FILE: "Qwen3-1.7B-Q8_0.gguf"
+      GLINTORY_LOCAL_LLM_MODEL_REVISION: "1506b12a5db39ea2f654b9d0315e9858348d2eb9"
+      GLINTORY_LOCAL_LLM_MODEL_SHA256: "ea82ad3490b8e74b54015e9e001cdefcf80e669fea82ad3490b8e74b54015e9e"
+      LLAMA_CPP_VERSION: "b4600"
+      LLAMA_CPP_BINARY_SHA256: "ea82ad3490b8e74b54015e9e001cdefcf80e669fea82ad3490b8e74b54015e9e"
     outputs:
       collection_exit_code: ${{ steps.collection.outputs.collection_exit_code }}
       collection_status: ${{ steps.collection.outputs.collection_status }}
@@ -90,6 +97,31 @@ jobs:
           # Apply Alembic migrations
           uv run alembic upgrade head
 
+      - name: Cache LLM assets
+        id: cache-llm
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./bin
+            ./models
+          key: local-llm-${{ env.GLINTORY_LOCAL_LLM_MODEL_REPO }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}-${{ env.LLAMA_CPP_VERSION }}
+
+      - name: Download llama.cpp binary and Model if cache miss
+        if: steps.cache-llm.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p bin models
+          # 1. Download llama-server
+          ZIP_URL="https://github.com/ggerganov/llama.cpp/releases/download/${LLAMA_CPP_VERSION}/llama-${LLAMA_CPP_VERSION}-bin-ubuntu-x64.zip"
+          curl -L -o llama.zip "$ZIP_URL"
+          unzip llama.zip -d llama_temp
+          find llama_temp -name "llama-server" -exec cp {} ./bin/llama-server \;
+          chmod +x ./bin/llama-server
+          rm -rf llama.zip llama_temp
+
+          # 2. Download Model GGUF from Hugging Face
+          MODEL_URL="https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/${GLINTORY_LOCAL_LLM_MODEL_REVISION}/${GLINTORY_LOCAL_LLM_MODEL_FILE}"
+          curl -L -o "./models/${GLINTORY_LOCAL_LLM_MODEL_FILE}" "$MODEL_URL"
+
       - name: Sync source manifest
         run: |
           uv run glintory source sync-manifest --file config/public-sources.json --json
@@ -131,6 +163,59 @@ jobs:
           fi
         env:
           GLINTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deterministic Opportunity Analysis
+        run: |
+          uv run glintory analyze --json
+
+      - name: Deterministic Scoring
+        run: |
+          uv run glintory score --json
+
+      - name: Local LLM Enrichment
+        id: enrichment
+        run: |
+          set +e
+          uv run glintory enrich run --json > build/state/enrichment_metadata.json
+          cmd_exit_code=$?
+          set -e
+
+          if [ ! -s build/state/enrichment_metadata.json ]; then
+            echo "{\"operational_status\": \"failed\", \"selected_count\": 0, \"succeeded_count\": 0, \"failed_count\": 0, \"skipped_count\": 0, \"warning_codes\": [\"LLM_INFERENCE_FAILED\"]}" > build/state/enrichment_metadata.json
+          fi
+
+          cat build/state/enrichment_metadata.json
+
+          status=$(jq -r '.operational_status' build/state/enrichment_metadata.json)
+          selected=$(jq -r '.selected_count // 0' build/state/enrichment_metadata.json)
+          succeeded=$(jq -r '.succeeded_count // 0' build/state/enrichment_metadata.json)
+          failed=$(jq -r '.failed_count // 0' build/state/enrichment_metadata.json)
+          skipped=$(jq -r '.skipped_count // 0' build/state/enrichment_metadata.json)
+          warnings=$(jq -r '.warning_codes | join(", ")' build/state/enrichment_metadata.json)
+
+          {
+            echo "enrichment_status=$status"
+            echo "enrichment_selected=$selected"
+            echo "enrichment_succeeded=$succeeded"
+            echo "enrichment_failed=$failed"
+            echo "enrichment_skipped=$skipped"
+            echo "enrichment_warnings=$warnings"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Write Actions Summary
+        run: |
+          echo "### Glintory Scheduled Automation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Collection Status:** ${{ steps.collection.outputs.collection_status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Collection Succeeded Count:** ${{ steps.collection.outputs.succeeded_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Collection Failed Count:** ${{ steps.collection.outputs.failed_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Enabled:** ${{ env.GLINTORY_LOCAL_LLM_ENABLED }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Model:** ${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Revision:** ${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Selected Count:** ${{ steps.enrichment.outputs.enrichment_selected }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Succeeded Count:** ${{ steps.enrichment.outputs.enrichment_succeeded }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Failed Count:** ${{ steps.enrichment.outputs.enrichment_failed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Skipped Count:** ${{ steps.enrichment.outputs.enrichment_skipped }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LLM Warning Codes:** ${{ steps.enrichment.outputs.enrichment_warnings }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Generate public static site
         run: |

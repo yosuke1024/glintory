@@ -6,10 +6,6 @@ Find the signals worth building on.
 
 Glintory はサーバーへの常駐型スケジューラを排し、GitHub Actions の Scheduled Workflow を外部スケジューラとして利用するサーバーレス型アーキテクチャを採用しています。定刻に一度起動し、状態アセットを取得・実行・検証し、静的サイトを生成して終了します。
 
-> [!NOTE]
-> **本フェーズ（Issue 9C）での実行範囲について**
-> 現在は、データの自動収集（Collection）のみをワークフローで自動実行しています。収集したシグナルの分析（Analyze）やスコアリング（Score）などの処理は、次回のフェーズ（Issue 10）以降で自動化される予定です。
-
 ### アーキテクチャの実行順序
 
 一連の自動実行は、以下の整合性のある順序で実行されます：
@@ -19,15 +15,18 @@ Glintory はサーバーへの常駐型スケジューラを排し、GitHub Acti
 3. **Migration**: Alembic を用いたスキーママイグレーションの最新化。
 4. **Manifest Sync**: 公開用インプット設定 (`public-sources.json`) をDBに同期。
 5. **Collection**: スケジュールに基づき、Due（実行期日）に達しているソースのデータ収集を実行。
-6. **Static Site Build**: 最新の状態から Jinja2 を用いて公開用の静的サイトを出力ディレクトリにビルド。
-7. **State Snapshot**: DBをWALチェックポイント化し、現在の状態の SQLite スナップショットおよびマニフェストを含むアーカイブを作成。
-8. **Local Verify**: アーカイブ構成、ファイル名制限、サイズ、およびハッシュのローカル検証。
-9. **Release Upload**: 検証合格したアーカイブを GitHub Release にアップロード（Clobber不可）。
-10. **Post-upload Verify**: アップロードされたリモートアセットを再ダウンロードし、SHA-256一致等の整合性を二重検証。
-11. **Prune**: 検証成功後、過去 of アーカイブのうち古いものを削除し、最新の5世代のみを維持。
-12. **Pages Artifact Upload**: 静的サイトのビルドファイルを Pages アーティファクトとしてアップロード。
-13. **Pages Deploy**: サイトをデプロイ。
-14. **Notify**: ジョブ成否や収集のステータスに基づき、通知を制御。
+6. **Deterministic Opportunity Analysis**: 収集データから重複排除・クラスタリング・証拠紐付け。
+7. **Deterministic Scoring**: 決定論的ルールに基づく優先度スコアリング。
+8. **Local LLM Enrichment**: GitHub Actions 上のローカル LLM による Opportunity の解説・分析の生成。
+9. **Static Site Build**: 最新の状態から Jinja2 を用いて公開用の静的サイトを出力ディレクトリにビルド。
+10. **State Snapshot**: DBをWALチェックポイント化し、現在の状態の SQLite スナップショットおよびマニフェストを含むアーカイブを作成。
+11. **Local Verify**: アーカイブ構成、ファイル名制限、サイズ、およびハッシュのローカル検証。
+12. **Release Upload**: 検証合格したアーカイブを GitHub Release にアップロード（Clobber不可）。
+13. **Post-upload Verify**: アップロードされたリモートアセットを再ダウンロードし、SHA-256一致等の整合性を二重検証。
+14. **Prune**: 検証成功後、過去 of アーカイブのうち古いものを削除し、最新の5世代のみを維持。
+15. **Pages Artifact Upload**: 静的サイトのビルドファイルを Pages アーティファクトとしてアップロード。
+16. **Pages Deploy**: サイトをデプロイ。
+17. **Notify**: ジョブ成否や収集のステータスに基づき、通知を制御。
 
 > [!WARNING]
 > **ビルド失敗時の Fail-Closed 保護**
@@ -574,3 +573,46 @@ uv run glintory score
 7. **セキュリティと保護 (CSRF & Form Limits)**
    - すべての Web 書き込み操作は、Origin / Referer および Cookie トークンを用いた暗号学的に安全な CSRF 検証が行われます。
    - 悪意ある大量データの送信を防ぐため、フォーム送信ボディサイズは最大 50KB に制限されています。
+
+## Local LLM Opportunity Enrichment (AIによるコンテキスト拡張)
+
+Glintory は、収集・クラスタリング・スコアリングされた Opportunity に対して、外部の有償 AI API に依存せず、GitHub Actions の実行環境上でローカル LLM (llama-server) を一時起動してコンテキストを拡張する (Enrichment) 機能を備えています。
+
+### 主な特徴と制約
+
+- **決定論的処理の完全な保護 (Deterministic Isolation)**:
+  LLM Enrichment は、Opportunity のスコア (Deterministic Score)、クラスタリング、エビデンス紐付けなどの正本ではありません。LLM の出力によって、これらの決定論的処理結果を変更することは絶対にありません。
+- **外部 API 非依存 (External-API Free)**:
+  `llama-server` を 127.0.0.1 のローカルポートにバインドして一時的に起動し、完全にローカル環境内で推論を完結させます。外部へのAPIキー露出や従量課金の懸念はありません。
+- **インプットハッシュによる重複防止と Stale 検知**:
+  Opportunity、関連する証拠シグナル、モデルID、プロンプトバージョン、スキーマバージョンなどを結合した SHA-256 ハッシュ（Input Hash）を計算し、前回の推論時と同一であれば処理を自動でスキップ（キャッシュ再利用）します。エビデンスの変更やスコア再計算が行われた場合は、自動的に Stale（不整合）を検知して次回のワークフローで再推論が実行されます。
+- **厳格なバリデーション保護 (Sanitization & Validation)**:
+  LLM の出力は指定された JSON Schema に厳密に適合しているか検証されます。未知のキーの混入や、HTML/Scriptタグ、外部URL等の不正な文字列の混入を検知した場合は出力を拒否し、警告ログを記録した上でフォールバックします。
+- **静的サイト表示とフォールバック**:
+  生成された AI 分析結果（AI タイトル、概要、課題、対象ユーザー、Why Now、証拠合成、構築の方向性、リスク、タグ）は、公開サイトの詳細ページに AI 生成物であることを明記した上で表示されます。データが存在しない場合は、従来の決定論的タイトルおよび概要に安全にフォールバックします。
+  ※ 生プロンプト、生出力、推論思考プロセス（Chain of Thought）は、セキュリティおよび容量保護の観点からデータベースおよび静的ファイルには保存・公開されません。
+
+### 実行方法
+
+#### CLI からの実行
+```bash
+# 未処理または更新されたすべての Opportunity を処理 (最大10件)
+uv run glintory enrich run
+
+# 特定の Opportunity を指定して強制再推論
+uv run glintory enrich run --opportunity <UUID> --force
+
+# JSON フォーマットで結果を表示
+uv run glintory enrich run --json
+```
+
+#### 設定項目 (環境変数)
+- `GLINTORY_LOCAL_LLM_ENABLED`: ローカルLLMを有効化するかどうか (`true` / `false`)
+- `GLINTORY_LOCAL_LLM_MODEL_REPO`: モデルのダウンロード元 Hugging Face リポジトリ (デフォルト: `Qwen/Qwen3-1.7B-GGUF`)
+- `GLINTORY_LOCAL_LLM_MODEL_FILE`: モデルの GGUF ファイル名 (デフォルト: `Qwen3-1.7B-Q8_0.gguf`)
+- `GLINTORY_LOCAL_LLM_MODEL_REVISION`: Hugging Face のコミットハッシュ等によるピン留め指定
+- `GLINTORY_LOCAL_LLM_MODEL_SHA256`: モデル GGUF ファイルの SHA-256 期待値
+- `GLINTORY_LOCAL_LLM_BINARY_PATH`: `llama-server` バイナリの実行パス (デフォルト: `./bin/llama-server`)
+- `GLINTORY_LOCAL_LLM_PORT`: 推論サーバーのバインドポート (デフォルト: `8088`)
+- `GLINTORY_LOCAL_LLM_MAX_INPUT_CHARS`: 推論に入力される最大文字数 (デフォルト: `12000`)
+- `GLINTORY_LOCAL_LLM_MAX_OPPORTUNITIES`: 1回のワークフローで処理する最大 Opportunity 数 (デフォルト: `10`)

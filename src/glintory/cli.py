@@ -350,6 +350,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_val_parser.add_argument("--site-url", help="Public site URL to validate")
 
+    # Setup enrich command
+    enrich_parser = subparsers.add_parser("enrich", help="LLM opportunity enrichment")
+    enrich_subparsers = enrich_parser.add_subparsers(dest="subcommand", required=True)
+    enrich_run_parser = enrich_subparsers.add_parser("run", help="Run LLM enrichment")
+    enrich_run_parser.add_argument("--opportunity", help="UUID of a single opportunity to enrich")
+    enrich_run_parser.add_argument("--max-opportunities", type=int, help="Maximum opportunities to process")
+    enrich_run_parser.add_argument("--model-id", help="Model ID override")
+    enrich_run_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+    enrich_run_parser.add_argument("--force", action="store_true", help="Force reprocessing even if input hash matches")
+
     parser.add_argument(
         "--debug",
         action="store_true",
@@ -387,6 +397,8 @@ async def run_cli(args: argparse.Namespace) -> int:
             return await run_schedule_command(args, runtime)
         if args.command == "scheduler":
             return await run_scheduler_command(args, runtime)
+        if args.command == "enrich":
+            return await run_enrich_command(args, runtime)
         if args.command == "state":
             return await run_state_command(args, runtime)
         if args.command == "publish":
@@ -1464,6 +1476,66 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
             return 1
 
     return 0
+
+
+async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:
+    import json
+    import os
+    import sys
+    from glintory.services.opportunity_enrichment_service import OpportunityEnrichmentService
+    from glintory.infrastructure.local_llm_client import LocalLlmProvider
+
+    provider = LocalLlmProvider()
+
+    # Override model-id if provided
+    if args.model_id:
+        # Override file name
+        provider.model_sha256 = ""  # Disable SHA-256 check when custom model is specified
+        provider.model_sha256 = os.environ.get("GLINTORY_LOCAL_LLM_MODEL_SHA256", "")
+        # Adjust model path based on parent directory
+        model_dir = os.path.dirname(provider.model_path)
+        provider.model_path = os.path.join(model_dir, args.model_id)
+
+    service = OpportunityEnrichmentService(
+        session_factory=runtime.session_factory,
+        provider=provider,
+    )
+
+    try:
+        res = service.run_enrichment(
+            opportunity_id=args.opportunity,
+            max_opportunities=args.max_opportunities,
+            force=args.force,
+        )
+
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "operational_status": res.operational_status,
+                        "selected_count": res.selected_count,
+                        "succeeded_count": res.succeeded_count,
+                        "failed_count": res.failed_count,
+                        "skipped_count": res.skipped_count,
+                        "warning_codes": list(res.warning_codes),
+                    }
+                )
+            )
+        else:
+            print(f"Enrichment completed. Status: {res.operational_status}")
+            print(
+                f"Selected: {res.selected_count}, Succeeded: {res.succeeded_count}, "
+                f"Failed: {res.failed_count}, Skipped: {res.skipped_count}"
+            )
+            if res.warning_codes:
+                print(f"Warnings: {', '.join(res.warning_codes)}")
+
+        return 0
+    except Exception as e:
+        if args.json:
+            print(json.dumps({"operational_status": "failed", "error": str(e)}))
+        sys.stderr.write(f"ENRICHMENT_RUN_FAILED: {e}\n")
+        return 1
 
 
 def run_publish_config_validation(args: argparse.Namespace) -> int:
