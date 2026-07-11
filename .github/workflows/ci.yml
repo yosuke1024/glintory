@@ -57,13 +57,13 @@ jobs:
       - name: Run actionlint
         uses: reviewdog/action-actionlint@5eaffa19a1991ecc52b11eddcdd57760d1ac7e3d # v1.72.0
 
-      - name: Run Pytest
-        run: |
-          uv run pytest -W error
-
       - name: Alembic Upgrade Head
         run: |
           uv run alembic upgrade head
+
+      - name: Run Pytest
+        run: |
+          uv run pytest -W error
 
       - name: Alembic Check
         run: |

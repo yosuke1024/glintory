@@ -2203,6 +2203,8 @@ def test_github_issue_notifier_exception_masking(tmp_path):
 
     summary_file = tmp_path / "summary.md"
     os.environ["GITHUB_STEP_SUMMARY"] = str(summary_file)
+    # Mock GITHUB_TOKEN to suppress warnings in clean CI environments
+    os.environ["GITHUB_TOKEN"] = "fake_token_for_test"
 
     secret_message = (
         "Fake notifier error: TOKEN_xxx, sqlite:///private.db, HTTP response body "
@@ -2253,3 +2255,4 @@ def test_github_issue_notifier_exception_masking(tmp_path):
     finally:
         issue_notifier.ensure_label_exists = original_ensure_label
         os.environ.pop("GITHUB_STEP_SUMMARY", None)
+        os.environ.pop("GITHUB_TOKEN", None)
