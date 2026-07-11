@@ -5,7 +5,7 @@
       "name": "github-opportunity-signals",
       "source_type": "github",
       "enabled": true,
-      "config_file": "/absolute/path/github-source.public.json",
+      "config_file": "github-source.public.json",
       "schedule": {
         "enabled": true,
         "interval_minutes": 1440
