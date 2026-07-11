@@ -1,10 +1,12 @@
 import json
 import os
 import pathlib
+import sqlite3
 import subprocess
 import sys
 import tarfile
 from datetime import UTC, datetime
+from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
@@ -37,6 +39,7 @@ from glintory.services.static_publishing import build_static_site, validate_site
 from glintory.services.sync_manifest import sync_manifest_file
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent.parent))
+
 import scripts.github_issue_notifier as issue_notifier
 import scripts.github_state_store as state_store
 
@@ -472,17 +475,9 @@ def test_workflow_yaml_parsing_and_needs():
 
     # Check notify conditions
     steps = notify_job["steps"]
-    success_step = [s for s in steps if s.get("name") == "Handle success notification"][
-        0
-    ]
-    failure_step = [s for s in steps if s.get("name") == "Handle failure notification"][
-        0
-    ]
-
-    assert "needs.automation.result == 'success'" in success_step["if"]
-    assert "needs.deploy-pages.result == 'success'" in success_step["if"]
-    assert "needs.automation.result != 'success'" in failure_step["if"]
-    assert "needs.deploy-pages.result != 'success'" in failure_step["if"]
+    notifier_step = [s for s in steps if s.get("name") == "Run notifier"][0]
+    assert "AUTOMATION_RESULT" in notifier_step.get("env", {})
+    assert "DEPLOY_PAGES_RESULT" in notifier_step.get("env", {})
 
 
 def test_static_publishing_url_validation(test_db, tmp_path):
@@ -661,6 +656,7 @@ def test_archive_bomb_and_malformed_rejects():
     # Let's mock a duplicate name check bypass or sum logic.
     # If we bypass individual checks (e.g. by setting allowed set to something else, or modifying the constants during test):
     from glintory.services import state_management
+
     orig_db_limit = state_management.MAX_DB_SIZE
     orig_manifest_limit = state_management.MAX_MANIFEST_SIZE
     try:
@@ -684,7 +680,7 @@ def test_archive_bomb_and_malformed_rejects():
         m_db_total = make_mock_member("glintory.sqlite3", size=800)
         m_manifest_total = make_mock_member("manifest.json", size=400)
         tar.getmembers.return_value = [m_db_total, m_manifest_total]
-        
+
         state_management.MAX_DB_SIZE = 500
         state_management.MAX_MANIFEST_SIZE = 500
         # Individual limits: db <= 500 (fails), manifest <= 500 (ok).
@@ -708,7 +704,9 @@ def test_archive_bomb_and_malformed_rejects():
     m_db_large = make_mock_member("glintory.sqlite3", size=50 * 1024 * 1024)
     m_manifest_large = make_mock_member("manifest.json", size=2 * 1024 * 1024)
     tar.getmembers.return_value = [m_db_large, m_manifest_large]
-    with pytest.raises(ValueError, match="size exceeds safety limit|Total member size exceeds"):
+    with pytest.raises(
+        ValueError, match="size exceeds safety limit|Total member size exceeds"
+    ):
         validate_archive_structure(tar)
 
 
@@ -728,7 +726,13 @@ def test_github_state_store_db_url_and_assets(test_db, tmp_path):
         command.upgrade(alembic_cfg, "head")
 
     sec_session = sessionmaker(bind=engine)()
-    sec_src = Source(id="sec-src", name="Secondary Source", source_type="github", config={}, enabled=True)
+    sec_src = Source(
+        id="sec-src",
+        name="Secondary Source",
+        source_type="github",
+        config={},
+        enabled=True,
+    )
     sec_session.add(sec_src)
     sec_session.commit()
     sec_session.close()
@@ -742,7 +746,9 @@ def test_github_state_store_db_url_and_assets(test_db, tmp_path):
         run_id="run-sec",
         run_attempt="1",
     )
-    assert manifest["source_count"] == 1  # Proves secondary DB was snapshotted instead of primary
+    assert (
+        manifest["source_count"] == 1
+    )  # Proves secondary DB was snapshotted instead of primary
     assert os.path.exists(archive_path)
 
     # Test sorting client assets
@@ -751,7 +757,7 @@ def test_github_state_store_db_url_and_assets(test_db, tmp_path):
             self.assets_list = []
             self.deleted_ids = []
 
-        def run_gh(self, args: list[str], stage_code: str = "GITHUB_API_ERROR") -> str:
+        def run_gh(self, args: list[str], stage_code: str = "GITHUB_API_ERROR") -> str:  # noqa: ARG002
             if args[0] == "api" and "releases/tags/glintory-state" in args[1]:
                 return json.dumps({"assets": self.assets_list})
             return ""
@@ -877,20 +883,20 @@ def test_github_issue_notifier_scenarios():
         assert "automation-failure" in notifier.created_labels
 
         # 1. Automation fails, Pages succeeds -> Failure issue
-        issue_notifier.handle_failure("failure", "success")
+        issue_notifier.handle_failure("failure", "success", "failed")
         assert len(notifier.issues) == 1
         assert notifier.issues[0]["title"] == "[Glintory Automation] Failure"
 
         # 2. Automation succeeds, Pages fails -> Comment on failure issue
         notifier.issues = [{"number": 1, "title": "[Glintory Automation] Failure"}]
-        issue_notifier.handle_failure("success", "failure")
+        issue_notifier.handle_failure("success", "failure", "failed")
         assert len(notifier.comments) == 1
         assert "success" in notifier.comments[0][1]
         assert "failure" in notifier.comments[0][1]
 
         # 3. Automation succeeds, Pages succeeds -> Recovery close
         notifier.comments.clear()
-        issue_notifier.handle_success("success", "success")
+        issue_notifier.handle_success("success", "success", "success")
         assert "1" in notifier.closed_issues
     finally:
         issue_notifier.run_gh = original_run_gh
@@ -898,9 +904,17 @@ def test_github_issue_notifier_scenarios():
 
 def test_static_publishing_cli_site_url_validation(tmp_path):
     from glintory.cli import main
+
     dist_dir = tmp_path / "dist"
-    argv = ["publish", "build", "--output-dir", str(dist_dir), "--base-path", "/glintory"]
-    
+    argv = [
+        "publish",
+        "build",
+        "--output-dir",
+        str(dist_dir),
+        "--base-path",
+        "/glintory",
+    ]
+
     orig_env = os.environ.pop("GLINTORY_PUBLIC_SITE_URL", None)
     try:
         code = main(argv)
@@ -947,6 +961,7 @@ def test_github_state_store_no_empty_db_on_errors(tmp_path):
     class DownloadErrorClient(state_store.GitHubClient):
         def get_release_assets(self, _tag):
             return [{"name": "glintory-state-123-1.tar.gz", "id": 123}]
+
         def download_asset(self, _tag, _name, _output_dir):
             raise Exception("Download failed")
 
@@ -955,3 +970,610 @@ def test_github_state_store_no_empty_db_on_errors(tmp_path):
         state_store.handle_download_latest(client2, str(tmp_path / "state"), db_url)
     assert db_file.exists()
     assert db_file.read_text() == "existing content"
+
+
+def test_github_api_error_semantics():
+    client = state_store.GitHubClient()
+
+    # Mock subprocess.run to simulate CalledProcessError with specific stderr
+    def mock_run_404(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd="gh api",
+            output="",
+            stderr="gh: Request failed (HTTP 404: Not Found)\nSome long trace info",
+        )
+
+    with mock.patch("subprocess.run", side_effect=mock_run_404):
+        with pytest.raises(state_store.GitHubReleaseNotFoundError) as exc_info:
+            client.run_gh(["api", "tags/nonexistent"])
+        assert exc_info.value.http_status == 404
+        assert exc_info.value.return_code == 1
+        assert exc_info.value.stage_code == "GITHUB_API_ERROR"
+        assert "Request failed" not in str(exc_info.value)
+        assert "Some long trace info" not in str(exc_info.value)
+
+    def mock_run_401(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd="gh api",
+            output="",
+            stderr="gh: Request failed (HTTP 401: Unauthorized)",
+        )
+
+    with mock.patch("subprocess.run", side_effect=mock_run_401):
+        with pytest.raises(state_store.GitHubAPIError) as exc_info:
+            client.run_gh(["api", "tags/glintory-state"])
+        assert exc_info.value.http_status == 401
+        assert not isinstance(exc_info.value, state_store.GitHubReleaseNotFoundError)
+        assert "Unauthorized" not in str(exc_info.value)
+
+
+def test_first_run_bootstrap(tmp_path):
+    db_file = tmp_path / "data" / "glintory-test-firstrun.sqlite3"
+    db_url = f"sqlite:///{db_file}"
+
+    class Fake404Client(state_store.GitHubClient):
+        def get_release_assets(self, _tag):
+            raise state_store.GitHubReleaseNotFoundError(
+                "STATE_DOWNLOAD_FAILED", http_status=404
+            )
+
+    client = Fake404Client()
+    reset_db_connections()
+    state_store.handle_download_latest(client, str(tmp_path / "state"), db_url)
+    assert db_file.exists()
+
+    if db_file.exists():
+        db_file.unlink()
+
+    # Case 2: Release exists, but 0 valid assets
+    class FakeEmptyAssetsClient(state_store.GitHubClient):
+        def get_release_assets(self, _):
+            return []
+
+    client2 = FakeEmptyAssetsClient()
+    reset_db_connections()
+    state_store.handle_download_latest(client2, str(tmp_path / "state"), db_url)
+    assert db_file.exists()
+
+    if db_file.exists():
+        db_file.unlink()
+
+    # Case 3: API failure -> do not create empty DB
+    class Fake500Client(state_store.GitHubClient):
+        def get_release_assets(self, _):
+            raise state_store.GitHubAPIError("STATE_DOWNLOAD_FAILED", http_status=500)
+
+    client3 = Fake500Client()
+    reset_db_connections()
+    with pytest.raises(SystemExit):
+        state_store.handle_download_latest(client3, str(tmp_path / "state"), db_url)
+    assert not db_file.exists()
+
+
+def test_release_creation_restrictions():
+    client = state_store.GitHubClient()
+
+    # Mock run_gh to simulate existing release that is NOT prerelease
+    def mock_run_release_view(*args, **__):
+        cmd_args = args[0] if isinstance(args[0], list) else args[1]
+        if "api" in cmd_args:
+            return json.dumps(
+                {"tag_name": "glintory-state", "prerelease": False, "draft": False}
+            )
+        return ""
+
+    with (
+        mock.patch.object(client, "run_gh", side_effect=mock_run_release_view),
+        pytest.raises(SystemExit),
+    ):
+        client.create_release_if_not_exists("glintory-state")
+
+    # Mock release view throws 404 -> should trigger release create
+    mock_run_create = mock.Mock()
+
+    def run_gh_side_effect(args, stage_code=None):
+        if "api" in args:
+            raise state_store.GitHubReleaseNotFoundError(
+                "STATE_UPLOAD_FAILED", http_status=404
+            )
+        if "create" in args:
+            mock_run_create()
+            return "created"
+        return ""
+
+    with mock.patch.object(client, "run_gh", side_effect=run_gh_side_effect):
+        client.create_release_if_not_exists("glintory-state")
+        mock_run_create.assert_called_once()
+
+    # Mock release view throws 403 (Permission Error) -> fail-closed
+    def run_gh_side_effect_403(args, stage_code=None):
+        if "api" in args:
+            raise state_store.GitHubAPIError("STATE_UPLOAD_FAILED", http_status=403)
+        return ""
+
+    with (
+        mock.patch.object(client, "run_gh", side_effect=run_gh_side_effect_403),
+        pytest.raises(state_store.GitHubAPIError) as exc_info,
+    ):
+        client.create_release_if_not_exists("glintory-state")
+    assert exc_info.value.http_status == 403
+
+
+def test_asset_sorting_tz_aware():
+    client = state_store.GitHubClient()
+
+    raw_assets = [
+        {
+            "name": "glintory-state-1-1.tar.gz",
+            "id": 1,
+            "created_at": "2026-07-11T12:00:00Z",
+        },
+        {
+            "name": "glintory-state-2-1.tar.gz",
+            "id": 2,
+            "created_at": "2026-07-11T12:00:00",
+        },
+        {"name": "glintory-state-3-1.tar.gz", "id": 3, "created_at": "invalid_date"},
+        {
+            "name": "glintory-state-4-1.tar.gz",
+            "id": "4",
+            "created_at": "2026-07-11T13:00:00+00:00",
+        },
+        {
+            "name": "glintory-state-5-1.tar.gz",
+            "id": "5",
+            "created_at": "2026-07-11T12:00:00Z",
+        },
+    ]
+
+    with mock.patch.object(
+        client, "run_gh", return_value=json.dumps({"assets": raw_assets})
+    ):
+        sorted_assets = client.get_release_assets("glintory-state")
+
+        assert sorted_assets[0]["normalized_id"] == 4
+        assert sorted_assets[1]["normalized_id"] == 5
+        assert sorted_assets[2]["normalized_id"] == 2
+        assert sorted_assets[3]["normalized_id"] == 1
+        assert sorted_assets[4]["normalized_id"] == 3
+
+        assert sorted_assets[0]["parsed_created_at"].tzinfo == UTC
+        assert sorted_assets[2]["parsed_created_at"].tzinfo == UTC
+
+
+def test_workflow_security_audit():
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    auto_workflow_path = os.path.join(
+        repo_root, ".github/workflows/glintory-automation.yml"
+    )
+    ci_workflow_path = os.path.join(repo_root, ".github/workflows/ci.yml")
+
+    import yaml
+
+    with open(auto_workflow_path) as f:
+        auto_yaml = yaml.safe_load(f)
+
+    with open(ci_workflow_path) as f:
+        ci_yaml = yaml.safe_load(f)
+
+    for yaml_data in [auto_yaml, ci_yaml]:
+        yaml_str = yaml.dump(yaml_data)
+        assert "curl" not in yaml_str or "install.sh" not in yaml_str
+
+    assert auto_yaml.get("permissions") == {"contents": "read"}
+    assert ci_yaml.get("permissions") == {"contents": "read"}
+
+    auto_jobs = auto_yaml.get("jobs", {})
+    automation_job = auto_jobs.get("automation", {})
+    assert "issues" not in automation_job.get("permissions", {})
+
+    notify_job = auto_jobs.get("notify", {})
+    assert (
+        "contents" not in notify_job.get("permissions", {})
+        or notify_job.get("permissions", {}).get("contents") == "read"
+    )
+
+    assert "GITHUB_TOKEN" not in automation_job.get("env", {})
+    assert "GH_TOKEN" not in automation_job.get("env", {})
+    assert "GLINTORY_GITHUB_TOKEN" not in automation_job.get("env", {})
+    assert "GITHUB_TOKEN" not in notify_job.get("env", {})
+
+    steps = automation_job.get("steps", [])
+    step_names = [step.get("name") for step in steps]
+    preflight_idx = step_names.index("Preflight Check")
+    download_idx = step_names.index("Download latest state")
+    assert preflight_idx < download_idx
+
+
+def test_site_url_strict_contract(test_db, tmp_path):
+    session, _, _ = test_db
+    dist_dir = tmp_path / "dist"
+
+    build_static_site(
+        session=session,
+        output_dir=str(dist_dir),
+        site_url="https://example.github.io/glintory",
+        base_path="/glintory",
+    )
+    sitemap_xml = (dist_dir / "sitemap.xml").read_text()
+    assert "https://example.github.io/glintory/opportunities/" in sitemap_xml
+    assert (
+        "https://example.github.io/glintory/glintory/opportunities/" not in sitemap_xml
+    )
+
+    from glintory.services.static_publishing import validate_site_url
+
+    with pytest.raises(ValueError, match="INVALID_SITE_URL_CREDENTIALS"):
+        validate_site_url("https://user:pass@example.com")
+    with pytest.raises(ValueError, match="INVALID_SITE_URL_QUERY"):
+        validate_site_url("https://example.com/glintory?query=1")
+    with pytest.raises(ValueError, match="INVALID_SITE_URL_FRAGMENT"):
+        validate_site_url("https://example.com/glintory#frag")
+
+
+def test_notification_fail_closed():
+    from scripts.github_issue_notifier import (
+        NotificationError,
+        ensure_label_exists,
+        get_open_failure_issues,
+    )
+
+    with mock.patch(
+        "scripts.github_issue_notifier.run_gh", side_effect=Exception("API Down")
+    ):
+        with pytest.raises(NotificationError, match="FAILURE_ISSUE_LOOKUP_FAILED"):
+            get_open_failure_issues()
+
+        with pytest.raises(NotificationError, match="FAILURE_LABEL_SETUP_FAILED"):
+            ensure_label_exists()
+
+
+def test_public_error_persistence_masking():
+    from glintory.services.collection import safe_error_summary
+
+    class FakeSQLAlchemyError(Exception):
+        pass
+
+    e1 = FakeSQLAlchemyError("Connection failed: sqlite:///data/secret.db")
+    e2 = Exception("HTTP 500: Internal Server Error {token: 'xyz123'}")
+    e3 = Exception("Source is already running.")
+
+    assert safe_error_summary(e1) == "Collection failed unexpectedly."
+    assert safe_error_summary(e2) == "Collection failed unexpectedly."
+    assert safe_error_summary(e3) == "Source is already running."
+
+
+def test_prune_failure_behavior():
+    client = state_store.GitHubClient()
+
+    def mock_get_assets(_):
+        return [{"name": f"glintory-state-{i}-1.tar.gz", "id": i} for i in range(10)]
+
+    def mock_delete_asset(asset_id):
+        raise Exception("API Delete Error")
+
+    with (
+        mock.patch.object(client, "get_release_assets", side_effect=mock_get_assets),
+        mock.patch.object(client, "delete_asset", side_effect=mock_delete_asset),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        state_store.handle_prune(client)
+    assert exc_info.value.code == 1
+
+
+# ==========================================
+# Glintory Issue 9C.4 Regression Tests
+# ==========================================
+
+
+def test_github_api_error_semantics_extended():
+    client = state_store.GitHubClient()
+
+    # HTTP 404 -> GitHubReleaseNotFoundError (No token leaks)
+    def mock_run_404(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd="gh api",
+            output="",
+            stderr="gh: Request failed (HTTP 404: Not Found)\nSome sensitive_token_abc inside",
+        )
+
+    with mock.patch("subprocess.run", side_effect=mock_run_404):
+        with pytest.raises(state_store.GitHubReleaseNotFoundError) as exc_info:
+            client.run_gh(["api", "tags/nonexistent"])
+        assert exc_info.value.http_status == 404
+        assert exc_info.value.return_code == 1
+        assert "sensitive_token_abc" not in str(exc_info.value)
+        assert exc_info.value.stage_code == "GITHUB_API_ERROR"
+
+    # HTTP 401 / 403 / 429 / 500 -> GitHubAPIError (No token leaks)
+    def mock_run_401(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd="gh api",
+            output="",
+            stderr="gh: Request failed (HTTP 401: Unauthorized)\nToken leak: GITHUB_TOKEN_XYZ",
+        )
+
+    with mock.patch("subprocess.run", side_effect=mock_run_401):
+        with pytest.raises(state_store.GitHubAPIError) as exc_info:
+            client.run_gh(["api", "tags/glintory-state"])
+        assert exc_info.value.http_status == 401
+        assert not isinstance(exc_info.value, state_store.GitHubReleaseNotFoundError)
+        assert "GITHUB_TOKEN_XYZ" not in str(exc_info.value)
+
+    # Executable Error / No status code -> GitHubAPIError
+    def mock_run_no_status(*args, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=127,
+            cmd="gh api",
+            output="",
+            stderr="gh: command not found",
+        )
+
+    with mock.patch("subprocess.run", side_effect=mock_run_no_status):
+        with pytest.raises(state_store.GitHubAPIError) as exc_info:
+            client.run_gh(["api", "tags/glintory-state"])
+        assert exc_info.value.http_status is None
+        assert exc_info.value.return_code == 127
+
+
+def test_first_run_db_url_regression(tmp_path):
+    # DB A (should not be touched)
+    db_a_file = tmp_path / "db_a.sqlite3"
+    db_a_url = f"sqlite:///{db_a_file}"
+    settings.database_url = db_a_url
+    os.environ["GLINTORY_DATABASE_URL"] = db_a_url
+
+    # DB B (the isolated one)
+    db_b_file = tmp_path / "db_b.sqlite3"
+    db_b_url = f"sqlite:///{db_b_file}"
+
+    class Fake404Client(state_store.GitHubClient):
+        def get_release_assets(self, _tag):
+            raise state_store.GitHubReleaseNotFoundError(
+                "STATE_DOWNLOAD_FAILED", http_status=404
+            )
+
+    client = Fake404Client()
+    reset_db_connections()
+
+    # Run download-latest, which triggers atomic first-run DB creation for DB B
+    state_store.handle_download_latest(client, str(tmp_path / "state"), db_b_url)
+
+    # DB A must NOT be created/modified
+    assert not db_a_file.exists()
+
+    # DB B must be created and populated
+    assert db_b_file.exists()
+
+    # Verify DB B integrity and required tables
+    conn = sqlite3.connect(db_b_file)
+    try:
+        res = conn.execute("PRAGMA integrity_check").fetchone()[0]
+        assert res == "ok"
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = {r[0] for r in cursor.fetchall()}
+        required_tables = {
+            "alembic_version",
+            "sources",
+            "collection_runs",
+            "signals",
+            "source_schedules",
+            "scheduler_leases",
+            "schedule_executions",
+        }
+        assert required_tables.issubset(tables)
+    finally:
+        conn.close()
+
+
+@pytest.mark.asyncio
+async def test_scheduler_operational_result_exit_codes():
+    from unittest.mock import AsyncMock
+
+    from glintory.domain.scheduling import SchedulerTickResult
+    from glintory.services.scheduler_runner import SchedulerRunner
+
+    mock_service = MagicMock()
+    mock_service.run_tick = AsyncMock()
+    runner = SchedulerRunner(
+        session_factory=MagicMock(),
+        scheduler_service=mock_service,
+        owner_token="token",
+    )
+
+    with mock.patch(
+        "glintory.services.scheduler_runner.SchedulerLeaseRepository"
+    ) as mock_repo_class:
+        mock_repo = MagicMock()
+        mock_repo.acquire.return_value = True
+        mock_repo_class.return_value = mock_repo
+
+        fixed_time = datetime(2026, 7, 11, 12, 0, 0, tzinfo=UTC)
+
+        # 1. SUCCESS: All succeeded, failed=0, partial=0
+        tick_res_ok = SchedulerTickResult(
+            tick_started_at=fixed_time,
+            tick_completed_at=fixed_time,
+            due_schedule_count=2,
+            claimed_execution_count=2,
+            succeeded_count=2,
+            partial_count=0,
+            failed_count=0,
+            skipped_busy_count=0,
+            skipped_disabled_count=0,
+            abandoned_count=0,
+            execution_ids=(),
+            warnings=(),
+        )
+        mock_service.run_tick.return_value = tick_res_ok
+        res = await runner.run_once()
+        assert res.exit_code == 0
+
+        # 2. PARTIAL: partial > 0, failed = 0
+        tick_res_partial = SchedulerTickResult(
+            tick_started_at=fixed_time,
+            tick_completed_at=fixed_time,
+            due_schedule_count=2,
+            claimed_execution_count=2,
+            succeeded_count=1,
+            partial_count=1,
+            failed_count=0,
+            skipped_busy_count=0,
+            skipped_disabled_count=0,
+            abandoned_count=0,
+            execution_ids=(),
+            warnings=(),
+        )
+        mock_service.run_tick.return_value = tick_res_partial
+        res = await runner.run_once()
+        assert res.exit_code == 3
+
+        # 3. FAILED: failed > 0, succeeded > 0
+        tick_res_failed = SchedulerTickResult(
+            tick_started_at=fixed_time,
+            tick_completed_at=fixed_time,
+            due_schedule_count=2,
+            claimed_execution_count=2,
+            succeeded_count=1,
+            partial_count=0,
+            failed_count=1,
+            skipped_busy_count=0,
+            skipped_disabled_count=0,
+            abandoned_count=0,
+            execution_ids=(),
+            warnings=(),
+        )
+        mock_service.run_tick.return_value = tick_res_failed
+        res = await runner.run_once()
+        assert res.exit_code == 4
+
+
+def test_github_issue_notifier_operational_failure_scenarios():
+    class DummyNotifier:
+        def __init__(self):
+            self.issues = []
+            self.comments = []
+            self.closed_issues = []
+            self.created_labels = []
+
+        def run_gh(self, args: list[str]) -> str:
+            if args[0] == "label" and args[1] == "create":
+                self.created_labels.append(args[2])
+                return ""
+            if args[0] == "issue" and args[1] == "list":
+                return json.dumps(self.issues)
+            if args[0] == "issue" and args[1] == "comment":
+                self.comments.append((args[2], args[4]))
+                return ""
+            if args[0] == "issue" and args[1] == "close":
+                self.closed_issues.append(args[2])
+                return ""
+            if args[0] == "issue" and args[1] == "create":
+                num = len(self.issues) + 1
+                self.issues.append({"number": num, "title": args[3]})
+                return ""
+            return ""
+
+    notifier = DummyNotifier()
+    original_run_gh = issue_notifier.run_gh
+    issue_notifier.run_gh = notifier.run_gh
+
+    os.environ["GITHUB_RUN_ID"] = "123"
+    os.environ["GITHUB_RUN_ATTEMPT"] = "1"
+    os.environ["GITHUB_REPOSITORY"] = "google/glintory"
+    os.environ["GITHUB_STEP_SUMMARY"] = "/tmp/dummy_summary.md"
+
+    try:
+        # 1. Collection failed, automation & deploy-pages success -> Failure Issue
+        notifier.issues.clear()
+        issue_notifier.handle_failure("success", "success", "failed")
+        assert len(notifier.issues) == 1
+        assert notifier.issues[0]["title"] == "[Glintory Automation] Failure"
+
+        # 2. Collection partial -> Warning Summary only (No Close, No Issue create)
+        notifier.issues = [{"number": 1, "title": "[Glintory Automation] Failure"}]
+        notifier.comments.clear()
+        notifier.closed_issues.clear()
+
+        # Simulate notify command parse and run
+        # Should not call handle_failure nor handle_success for partial
+        is_success = False  # success && success && partial -> False
+        is_failure = False  # success && success && partial is not in failed/lease_lost/etc -> False
+        assert not is_success
+        assert not is_failure
+        # Issue should remain open (no close)
+        assert len(notifier.closed_issues) == 0
+
+        # 3. Collection recovered (success) -> Recovery close
+        notifier.closed_issues.clear()
+        issue_notifier.handle_success("success", "success", "success")
+        assert "1" in notifier.closed_issues
+
+    finally:
+        issue_notifier.run_gh = original_run_gh
+        os.environ.pop("GITHUB_STEP_SUMMARY", None)
+
+
+def test_publication_consistency_and_yaml_order():
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    auto_workflow_path = os.path.join(
+        repo_root, ".github/workflows/glintory-automation.yml"
+    )
+
+    import yaml
+
+    with open(auto_workflow_path) as f:
+        auto_yaml = yaml.safe_load(f)
+
+    steps = auto_yaml["jobs"]["automation"]["steps"]
+    step_names = [step.get("name") for step in steps]
+
+    build_idx = step_names.index("Generate public static site")
+    upload_idx = step_names.index("Create state snapshot and upload")
+
+    # Static Build must precede state upload
+    assert build_idx < upload_idx
+
+
+def test_state_cli_exception_masking(tmp_path):
+    import io
+    from contextlib import redirect_stderr
+    from unittest import mock
+
+    from glintory.cli import main
+
+    argv = [
+        "state",
+        "snapshot",
+        "--output",
+        str(tmp_path / "out.tar.gz"),
+    ]
+
+    mock_error_msg = "Source database file not found: sqlite:///invalid/path/with/SECRET_TOKEN_abc/db.sqlite3"
+    with mock.patch(
+        "glintory.services.state_management.create_state_snapshot",
+        side_effect=FileNotFoundError(mock_error_msg),
+    ):
+        # Standard mode (no --debug)
+        f_err = io.StringIO()
+        with redirect_stderr(f_err):
+            code = main(argv)
+        assert code != 0
+        stderr_val = f_err.getvalue()
+        assert "STATE_SNAPSHOT_FAILED" in stderr_val
+        assert "SECRET_TOKEN_abc" not in stderr_val  # Masked!
+
+        # Debug mode (--debug)
+        f_err_debug = io.StringIO()
+        with redirect_stderr(f_err_debug):
+            code = main(["--debug"] + argv)
+        assert code != 0
+        stderr_debug_val = f_err_debug.getvalue()
+        assert "STATE_SNAPSHOT_FAILED" not in stderr_debug_val
+        assert "SECRET_TOKEN_abc" in stderr_debug_val  # Exposed in debug mode

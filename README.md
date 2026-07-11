@@ -6,34 +6,47 @@ Find the signals worth building on.
 
 Glintory はサーバーへの常駐型スケジューラを排し、GitHub Actions の Scheduled Workflow を外部スケジューラとして利用するサーバーレス型アーキテクチャを採用しています。定刻に一度起動し、状態アセットを取得・実行・検証し、静的サイトを生成して終了します。
 
-### アーキテクチャ構成
+> [!NOTE]
+> **本フェーズ（Issue 9C）での実行範囲について**
+> 現在は、データの自動収集（Collection）のみをワークフローで自動実行しています。収集したシグナルの分析（Analyze）やスコアリング（Score）などの処理は、次回のフェーズ（Issue 10）以降で自動化される予定です。
 
-```text
-GitHub Actions Scheduled Workflow (定刻起動: 毎日日本時間 午前6時17分 / UTC 21:17)
-    │
-    ├──> 1. 前回の SQLite State（アーカイブ）を GitHub Release (glintory-state) から取得
-    ├──> 2. SQLite の整合性検証 (PRAGMA integrity_check) & 安全監査 (Public Safety Audit)
-    ├──> 3. Alembic Migration (最新化)
-    ├──> 4. Public Source Manifest (public-sources.json) の同期 (Upsert)
-    ├──> 5. Due Source Collection (収集実行: 各スケジュールによる due に従う)
-    ├──> 6. 静的サイト生成 (Jinja2 / Atomic Build / dist ディレクトリ)
-    │
-    └──> 7. GitHub Pages デプロイ (dist ディレクトリのホスティング) & State Assets の更新・Prune
-```
+### アーキテクチャの実行順序
+
+一連の自動実行は、以下の整合性のある順序で実行されます：
+
+1. **Preflight**: 公開用サイトURLが https スキーマかつ不正なクエリやフラグメントを含まないことをPython上の同一ロジックで完全検証。
+2. **State Restore**: 前回保存された SQLite 状態（アーカイブ）を GitHub Release (`glintory-state`) から取得・展開。
+3. **Migration**: Alembic を用いたスキーママイグレーションの最新化。
+4. **Manifest Sync**: 公開用インプット設定 (`public-sources.json`) をDBに同期。
+5. **Collection**: スケジュールに基づき、Due（実行期日）に達しているソースのデータ収集を実行。
+6. **Static Site Build**: 最新の状態から Jinja2 を用いて公開用の静的サイトを出力ディレクトリにビルド。
+7. **State Snapshot**: DBをWALチェックポイント化し、現在の状態の SQLite スナップショットおよびマニフェストを含むアーカイブを作成。
+8. **Local Verify**: アーカイブ構成、ファイル名制限、サイズ、およびハッシュのローカル検証。
+9. **Release Upload**: 検証合格したアーカイブを GitHub Release にアップロード（Clobber不可）。
+10. **Post-upload Verify**: アップロードされたリモートアセットを再ダウンロードし、SHA-256一致等の整合性を二重検証。
+11. **Prune**: 検証成功後、過去 of アーカイブのうち古いものを削除し、最新の5世代のみを維持。
+12. **Pages Artifact Upload**: 静的サイトのビルドファイルを Pages アーティファクトとしてアップロード。
+13. **Pages Deploy**: サイトをデプロイ。
+14. **Notify**: ジョブ成否や収集のステータスに基づき、通知を制御。
+
+> [!WARNING]
+> **ビルド失敗時の Fail-Closed 保護**
+> 静的サイトのビルド（Static Site Build）が失敗した場合は、新しい State のアップロード、古いアセットの Prune、および Pages のデプロイは一切実行されません。既存の状態アセットは安全に維持されます。
 
 ### GitHub API と State 管理 (`github_state_store.py`)
 
 状態（SQLite データベース）は、GitHub Actions の実行終了時に `glintory-state-{GITHUB_RUN_ID}-{GITHUB_RUN_ATTEMPT}.tar.gz` 形式のアーカイブに圧縮され、GitHub Release `glintory-state` に prerelease 属性付きアセットとしてアップロードされます。
 
 - **最新 State の自動判別**:
-  Release API に登録されたアセット名から `^glintory-state-[0-9]+-[0-9]+\.tar\.gz$` にマッチするものを検索し、`created_at DESC` および `id DESC` でソートして最も新しいアセット1件をダウンロードします。
+  REST API (`repos/:owner/:repo/releases/tags/glintory-state`) に登録されたアセット名から `^glintory-state-[0-9]+-[0-9]+\.tar\.gz$` にマッチするものを検索し、`created_at DESC` および `id DESC` でソートして最も新しいアセット1件をダウンロードします。
 - **堅牢な二重検証 (Double Verification)**:
   アップロード終了後、アップロードされたアセットを別の一時フォルダへ再ダウンロードし、展開検証・マニフェスト照合・ローカルファイルとの SHA-256 ハッシュ値の一致確認を行います。いずれかが失敗した場合は、古い世代のアセットは維持され、デプロイせず Workflow は失敗します。
 - **5世代保持と Prune**:
   検証完了後に、古いアセットは直近5世代（5アセット）を残して自動的に削除（Prune）されます。
+- **First-run（初回実行）のAtomic DB初期化**:
+  DBが存在しない場合（初回実行など）、ターゲットのDBファイルを直接削除・作成するのではなく、ターゲットと同じディレクトリに Temporary DB (`.tmp` 拡張子) を作成し、そこで Alembic migrations、整合性チェック（PRAGMA integrity_check）、必須テーブルの存在確認を行います。合格後、コネクションを閉じて `fsync` を行ったのち、`os.replace` を用いてアトミックに配置します。途中失敗時は既存ターゲットを一切変更せず、Temporary DBを削除して `STATE_RESTORE_FAILED` で安全に終了します。
 - **※ 運用上の注意**:
-  - `glintory-state` タグ・リリースは自動管理されています。**手動で削除したり、不変リリース保護（immutable release protection）を有効にしたりしないでください。**
-  - 初回起動時など、Release自体が存在しない、または有効なアセットが未登録の場合は、自動的に空データベースを作成してマイグレーションを実行します。
+  `glintory-state` タグ・リリースは自動管理されています。**手動で削除したり、不変リリース保護（immutable release protection）を有効にしたりしないでください。**
 
 ### 必要な環境変数と GitHub Actions 設定
 
@@ -54,9 +67,28 @@ GitHub リポジトリの `Settings -> Secrets and variables -> Actions -> Varia
 ### Failure / Recovery 通知 Issue
 
 定時ジョブが失敗した場合は、自動的に `[Glintory Automation] Failure` という件名の Issue が起票され、`automation-failure` ラベルが付与されます。
-- ジョブの再起動手順やエラー概要が記載されますが、セキュリティ監査上の理由から、**データベース接続 URL やシークレット、例外スタックトレースなどの生文字列は露出されません。**
-- 重複起票は防止され、すでに未解決の Issue が存在する場合は新たなコメントのみが追記されます。
-- ジョブが復旧し正常終了すると、該当 Issue に復旧コメントが追記され、自動的にクローズされます。
+
+- **通知およびクローズのポリシー**:
+  * **FAILED (Failed 1件以上、またはインフラエラー、リースの紛失等)**: exit_code 4 などを返し、GitHub Issue を起票または既存の失敗 Issue にコメントを追加します。
+  * **PARTIAL (Partial 1件以上かつ Failed 0件)**: exit_code 3 となり、新しい State は保存・公開（Static Build & Upload）されますが、新規の Failure Issue は作成せず、既存の Failure Issue を Close もしません。また、Actions Summary には Warning が表示されます。
+  * **SUCCESS (正常終了)**: すべての収集が成功した場合、既存の Failure Issue が存在すれば復旧コメントが追記され、自動的にクローズされます。
+- **安全性**:
+  セキュリティ監査上の理由から、**データベース接続 URL やシークレット、例外スタックトレースなどの生文字列は露出されません。**
+
+### 完全な Actions Summary
+
+ワークフローの実行完了後、`notify` ジョブによって以下の項目を含む完全な詳細レポートが Actions Summary に生成されます。
+* Run ID / Run Attempt
+* 開始 / 終了時刻 (UTC)
+* 展開した前回アセット名 / ID
+* 収集ステータス (Collection Status)
+* 収集件数 (Due, Succeeded, Partial, Failed の各カウント)
+* 新規アップロードアセット名 / ID
+* Prune 結果 (削除数、ステータス)
+* データベースサイズ、および各種統計情報 (ソース数、シグナル数、機会数)
+* Pages デプロイ結果 / デプロイ先 URL
+
+※ セキュリティ上の制約から、この Summary や JSON/Markdown レポートには **Error Summary、Source Config、Exception Message、Token、DB URL、HTTP Response** などの機密情報や詳細なエラーは一切含めません。
 
 ### Public State の安全監査と容量制限
 

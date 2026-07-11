@@ -36,9 +36,17 @@ except ImportError:
         verify_state_archive,
     )
 
+from typing import Any
 
 # Regular expression for state assets
 ASSET_PATTERN = re.compile(r"^glintory-state-(\d+)-(\d+)\.tar\.gz$")
+
+
+def write_to_github_output(key: str, value: Any) -> None:
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a") as f:
+            f.write(f"{key}={value}\n")
 
 
 class GitHubAPIError(Exception):
@@ -137,13 +145,13 @@ class GitHubClient:
         """Create the managed state release if it does not exist."""
         try:
             out = self.run_gh(
-                ["release", "view", tag, "--json", "tagName,isPrerelease,isDraft"],
+                ["api", f"repos/:owner/:repo/releases/tags/{tag}"],
                 stage_code="STATE_UPLOAD_FAILED",
             )
             data = json.loads(out)
-            tag_name = data.get("tagName")
-            is_prerelease = data.get("isPrerelease")
-            is_draft = data.get("isDraft")
+            tag_name = data.get("tag_name")
+            is_prerelease = data.get("prerelease")
+            is_draft = data.get("draft")
 
             if tag_name != tag or is_prerelease is not True or is_draft is not False:
                 sys.stderr.write("INVALID_RELEASE_CONFIGURATION\n")
@@ -232,7 +240,9 @@ def compute_sha256(file_path: str) -> str:
     return h.hexdigest()
 
 
-def handle_download_latest(client: GitHubClient, state_dir: str, db_url: str) -> None:
+def handle_download_latest(
+    client: GitHubClient, state_dir: str, db_url: str
+) -> dict | None:
     os.makedirs(state_dir, exist_ok=True)
     db_path = db_url[10:] if db_url.startswith("sqlite:///") else db_url
 
@@ -265,42 +275,89 @@ def handle_download_latest(client: GitHubClient, state_dir: str, db_url: str) ->
         if db_parent:
             os.makedirs(db_parent, exist_ok=True)
 
-        if os.path.exists(db_path):
-            os.remove(db_path)
-
-        # Create empty DB file
-        with open(db_path, "w"):
-            pass
+        # 1. Targetと同じDirectoryへTemporary DBを作成
+        temp_db_path = os.path.join(
+            db_parent or ".", os.path.basename(db_path) + ".tmp"
+        )
+        if os.path.exists(temp_db_path):
+            os.remove(temp_db_path)
 
         try:
-            reset_db_connections()
+            # 2. Temporary DBへAlembic upgrade head (明示的な接続を使用)
+            from glintory.infrastructure.database import get_engine
+
+            temp_db_url = f"sqlite:///{temp_db_path}"
+            engine = get_engine(temp_db_url)
+
             project_root = os.path.abspath(
                 os.path.join(os.path.dirname(__file__), "..")
             )
             alembic_cfg = Config(os.path.join(project_root, "alembic.ini"))
-            command.upgrade(alembic_cfg, "head")
 
-            # Verify alembic current works
-            command.current(alembic_cfg)
+            with engine.connect() as connection:
+                alembic_cfg.attributes["connection"] = connection
+                command.upgrade(alembic_cfg, "head")
 
-            # SQLite integrity check
-            conn = sqlite3.connect(db_path)
+                # 3. Alembic Revision確認
+                command.current(alembic_cfg)
+
+            engine.dispose()
+            reset_db_connections()
+
+            # 4. PRAGMA integrity_check
+            conn = sqlite3.connect(temp_db_path)
             try:
                 res = conn.execute("PRAGMA integrity_check").fetchone()[0]
                 if res != "ok":
                     raise ValueError(f"Integrity check failed: {res}")
+
+                # 5. 必須Tableの存在確認
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = {r[0] for r in cursor.fetchall()}
+
+                required_tables = {
+                    "alembic_version",
+                    "sources",
+                    "collection_runs",
+                    "signals",
+                    "source_schedules",
+                    "scheduler_leases",
+                    "schedule_executions",
+                }
+                missing = required_tables - tables
+                if missing:
+                    raise ValueError(f"Missing required tables: {missing}")
             finally:
+                # 6. Connection Close
                 conn.close()
 
+            # 7. fsync
+            fd = os.open(temp_db_path, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+
+            # 8. os.replaceでTargetへ配置
+            if os.path.exists(db_path):
+                os.remove(db_path)
+            os.replace(temp_db_path, db_path)
+
             print("Database initialized successfully.")
-            return
+            write_to_github_output("restored_asset_id", "")
+            write_to_github_output("restored_asset_name", "")
+            return None
         except Exception:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
             sys.stderr.write("STATE_RESTORE_FAILED\n")
             raise SystemExit(1)
 
     latest_asset = valid_assets[0]
     asset_name = latest_asset["name"]
-    print(f"Latest asset selected (Asset ID: {latest_asset['id']})")
+    asset_id = latest_asset["id"]
+    print(f"Latest asset selected (Asset ID: {asset_id})")
 
     try:
         downloaded_path = client.download_asset("glintory-state", asset_name, state_dir)
@@ -313,6 +370,10 @@ def handle_download_latest(client: GitHubClient, state_dir: str, db_url: str) ->
         verify_state_archive(downloaded_path)
         restore_state_archive(downloaded_path, db_path, force=True)
         print("Database restored successfully.")
+
+        write_to_github_output("restored_asset_id", asset_id)
+        write_to_github_output("restored_asset_name", asset_name)
+        return latest_asset
     except Exception:
         sys.stderr.write("STATE_VERIFY_FAILED\n")
         raise SystemExit(1)
@@ -320,7 +381,7 @@ def handle_download_latest(client: GitHubClient, state_dir: str, db_url: str) ->
 
 def handle_upload_and_verify(
     client: GitHubClient, state_dir: str, db_url: str, metadata_file: str | None
-) -> None:
+) -> tuple[dict, dict]:
     os.makedirs(state_dir, exist_ok=True)
 
     run_id = os.environ.get("GITHUB_RUN_ID")
@@ -335,10 +396,11 @@ def handle_upload_and_verify(
 
     # 1. Create Local Snapshot
     print("Creating local state snapshot...")
+    manifest = {}
     try:
         # Close active connections first to ensure clean snapshot
         reset_db_connections()
-        create_state_snapshot(
+        manifest = create_state_snapshot(
             output_path=local_archive_path,
             database_url=db_url,
             run_id=run_id,
@@ -419,11 +481,23 @@ def handle_upload_and_verify(
 
     print("Double verification succeeded. State uploaded securely.")
 
+    # Write safe statistics to GITHUB_OUTPUT
+    write_to_github_output("uploaded_asset_id", uploaded_asset["id"])
+    write_to_github_output("uploaded_asset_name", uploaded_asset["name"])
+    if manifest:
+        write_to_github_output("database_size", manifest.get("database_size_bytes", 0))
+        write_to_github_output("source_count", manifest.get("source_count", 0))
+        write_to_github_output("signal_count", manifest.get("signal_count", 0))
+        write_to_github_output(
+            "opportunity_count", manifest.get("opportunity_count", 0)
+        )
+
     # 8. Prune old assets (keep latest 5 generations)
-    handle_prune(client)
+    prune_res = handle_prune(client)
+    return uploaded_asset, prune_res
 
 
-def handle_prune(client: GitHubClient) -> None:
+def handle_prune(client: GitHubClient) -> dict:
     print("Pruning old state assets, keeping latest 5...")
     try:
         assets = client.get_release_assets("glintory-state")
@@ -437,6 +511,7 @@ def handle_prune(client: GitHubClient) -> None:
         if ASSET_PATTERN.match(name):
             valid_assets.append(asset)
 
+    deleted_count = 0
     # valid_assets is sorted by created_at DESC, id DESC
     if len(valid_assets) > 5:
         to_delete = valid_assets[5:]
@@ -445,11 +520,16 @@ def handle_prune(client: GitHubClient) -> None:
             print(f"Deleting old state asset (Asset ID: {asset_id})")
             try:
                 client.delete_asset(asset_id)
+                deleted_count += 1
             except Exception:
                 sys.stderr.write(
                     f"STATE_PRUNE_FAILED: Could not delete asset ID {asset_id}\n"
                 )
                 raise SystemExit(1)
+
+    write_to_github_output("pruned_deleted_count", deleted_count)
+    write_to_github_output("prune_status", "succeeded")
+    return {"deleted_count": deleted_count, "status": "succeeded"}
 
 
 def main():
@@ -465,6 +545,11 @@ def main():
         "--db-url",
         default="sqlite:///data/glintory.sqlite3",
         help="Database URL to snapshot or restore",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output in JSON format",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -493,12 +578,32 @@ def main():
     db_url = os.environ.get("GLINTORY_DATABASE_URL", args.db_url)
 
     try:
+        output_data = {}
         if args.command == "download-latest":
-            handle_download_latest(client, args.state_dir, db_url)
+            latest = handle_download_latest(client, args.state_dir, db_url)
+            if latest:
+                output_data["restored_asset"] = {
+                    "id": latest["id"],
+                    "name": latest["name"],
+                }
+            else:
+                output_data["restored_asset"] = None
         elif args.command == "upload-and-verify":
-            handle_upload_and_verify(client, args.state_dir, db_url, args.metadata_file)
+            uploaded, prune_res = handle_upload_and_verify(
+                client, args.state_dir, db_url, args.metadata_file
+            )
+            output_data["uploaded_asset"] = {
+                "id": uploaded["id"],
+                "name": uploaded["name"],
+            }
+            output_data["prune"] = prune_res
         elif args.command == "prune":
-            handle_prune(client)
+            prune_res = handle_prune(client)
+            output_data["prune"] = prune_res
+
+        if args.json:
+            print(json.dumps(output_data, indent=2))
+
     except SystemExit as e:
         sys.exit(e.code)
     except Exception:

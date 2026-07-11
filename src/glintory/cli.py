@@ -345,6 +345,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="Output in JSON format"
     )
 
+    publish_val_parser = publish_subparsers.add_parser(
+        "validate-config", help="Validate site configuration URL"
+    )
+    publish_val_parser.add_argument("--site-url", help="Public site URL to validate")
+
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Show full debug traceback/exception details",
+    )
+
     return parser
 
 
@@ -357,7 +368,8 @@ async def run_cli(args: argparse.Namespace) -> int:
     async with bootstrap(settings) as runtime:
         # Verify database schema status first
         try:
-            check_schema_status(runtime.engine)
+            if args.command != "state":
+                check_schema_status(runtime.engine)
         except DatabaseSchemaError as e:
             sys.stderr.write(f"Database configuration error:\n{e}\n")
             return 5
@@ -1259,6 +1271,15 @@ async def run_scheduler_command(args: argparse.Namespace, runtime: Any) -> int:
     try:
         res = await runner.run_once()
         if args.json:
+            status_map = {
+                0: "success",
+                3: "partial",
+                4: "failed",
+                6: "lease_busy",
+                7: "lease_lost",
+                1: "infrastructure_failed",
+            }
+            operational_status = status_map.get(res.exit_code, "infrastructure_failed")
             tick_data = None
             if res.tick_result:
                 tick_data = {
@@ -1276,6 +1297,7 @@ async def run_scheduler_command(args: argparse.Namespace, runtime: Any) -> int:
                 json.dumps(
                     {
                         "exit_code": res.exit_code,
+                        "operational_status": operational_status,
                         "tick": tick_data,
                     }
                 )
@@ -1297,6 +1319,7 @@ async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
         try:
             manifest = create_state_snapshot(
                 output_path=args.output,
+                database_url=runtime.settings.database_url,
                 run_id=args.run_id,
                 run_attempt=args.run_attempt,
                 metadata_file=args.metadata_file,
@@ -1308,7 +1331,10 @@ async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
                 print(f"Snapshot created successfully at: {args.output}")
             return 0
         except Exception as e:
-            sys.stderr.write(f"Snapshot creation failed: {e}\n")
+            if getattr(args, "debug", False):
+                sys.stderr.write(f"Snapshot creation failed: {e}\n")
+            else:
+                sys.stderr.write("STATE_SNAPSHOT_FAILED\n")
             return 1
 
     elif args.subcommand == "restore":
@@ -1326,10 +1352,16 @@ async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
                 )
             return 0
         except FileExistsError as e:
-            sys.stderr.write(f"Restore failed: {e}\n")
+            if getattr(args, "debug", False):
+                sys.stderr.write(f"Restore failed: {e}\n")
+            else:
+                sys.stderr.write("STATE_RESTORE_FAILED\n")
             return 3
         except Exception as e:
-            sys.stderr.write(f"Restore failed: {e}\n")
+            if getattr(args, "debug", False):
+                sys.stderr.write(f"Restore failed: {e}\n")
+            else:
+                sys.stderr.write("STATE_RESTORE_FAILED\n")
             return 1
 
     elif args.subcommand == "verify":
@@ -1340,8 +1372,11 @@ async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
             else:
                 print(f"Archive '{args.input}' is valid.")
             return 0
-        except Exception:
-            sys.stderr.write("STATE_VERIFY_FAILED\n")
+        except Exception as e:
+            if getattr(args, "debug", False):
+                sys.stderr.write(f"Verify failed: {e}\n")
+            else:
+                sys.stderr.write("STATE_VERIFY_FAILED\n")
             return 1
 
     elif args.subcommand == "inspect":
@@ -1360,11 +1395,15 @@ async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
                 "opportunity_count": manifest.get("opportunity_count"),
                 "collection_run_count": manifest.get("collection_run_count"),
                 "schedule_execution_count": manifest.get("schedule_execution_count"),
+                "scheduler_result": manifest.get("scheduler_result"),
             }
             print(json.dumps(output, indent=2))
             return 0
-        except Exception:
-            sys.stderr.write("STATE_INSPECT_FAILED\n")
+        except Exception as e:
+            if getattr(args, "debug", False):
+                sys.stderr.write(f"Inspect failed: {e}\n")
+            else:
+                sys.stderr.write("STATE_INSPECT_FAILED\n")
             return 1
 
     return 0
@@ -1403,19 +1442,38 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
         finally:
             session.close()
 
+    elif args.subcommand == "validate-config":
+        try:
+            from glintory.services.static_publishing import validate_site_url
+
+            site_url = args.site_url or os.environ.get("GLINTORY_PUBLIC_SITE_URL")
+            validate_site_url(site_url)
+            print("Configuration URL is valid.")
+            return 0
+        except ValueError as e:
+            if getattr(args, "debug", False):
+                sys.stderr.write(f"CONFIGURATION_PREFLIGHT_FAILED: {e}\n")
+            else:
+                sys.stderr.write("CONFIGURATION_PREFLIGHT_FAILED\n")
+            return 1
+
     return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = None
     try:
+        args = parser.parse_args(argv)
         return asyncio.run(run_cli(args))
     except KeyboardInterrupt:
         sys.stderr.write("Execution interrupted.\n")
         return 130
     except Exception as e:
-        sys.stderr.write(f"Unexpected internal error: {e}\n")
+        if args and getattr(args, "debug", False):
+            sys.stderr.write(f"Unexpected internal error: {e}\n")
+        else:
+            sys.stderr.write("CLI_EXECUTION_FAILED\n")
         return 1
 
 

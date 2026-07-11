@@ -25,16 +25,32 @@ jobs:
       GLINTORY_PUBLIC_SITE_URL: ${{ vars.GLINTORY_PUBLIC_SITE_URL }}
       GLINTORY_REPOSITORY_URL: ${{ vars.GLINTORY_REPOSITORY_URL }}
       GLINTORY_PIXAPPS_URL: ${{ vars.GLINTORY_PIXAPPS_URL }}
+    outputs:
+      collection_exit_code: ${{ steps.collection.outputs.collection_exit_code }}
+      collection_status: ${{ steps.collection.outputs.collection_status }}
+      due_count: ${{ steps.collection.outputs.due_count }}
+      succeeded_count: ${{ steps.collection.outputs.succeeded_count }}
+      partial_count: ${{ steps.collection.outputs.partial_count }}
+      failed_count: ${{ steps.collection.outputs.failed_count }}
+      restored_asset_id: ${{ steps.download_state.outputs.restored_asset_id }}
+      restored_asset_name: ${{ steps.download_state.outputs.restored_asset_name }}
+      uploaded_asset_id: ${{ steps.upload_state.outputs.uploaded_asset_id }}
+      uploaded_asset_name: ${{ steps.upload_state.outputs.uploaded_asset_name }}
+      pruned_deleted_count: ${{ steps.upload_state.outputs.pruned_deleted_count }}
+      prune_status: ${{ steps.upload_state.outputs.prune_status }}
+      database_size: ${{ steps.upload_state.outputs.database_size }}
+      source_count: ${{ steps.upload_state.outputs.source_count }}
+      signal_count: ${{ steps.upload_state.outputs.signal_count }}
+      opportunity_count: ${{ steps.upload_state.outputs.opportunity_count }}
+      started_at: ${{ steps.start_time.outputs.started_at }}
     steps:
+      - name: Record start time
+        id: start_time
+        run: |
+          echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: Checkout codebase
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Preflight Check
-        run: |
-          if [ -z "$GLINTORY_PUBLIC_SITE_URL" ]; then
-            echo "CONFIGURATION_PREFLIGHT_FAILED" >&2
-            exit 1
-          fi
 
       - name: Setup Python
         uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
@@ -54,7 +70,12 @@ jobs:
         run: |
           uv sync --frozen
 
+      - name: Preflight Check
+        run: |
+          uv run glintory publish validate-config --site-url "$GLINTORY_PUBLIC_SITE_URL"
+
       - name: Download latest state
+        id: download_state
         run: |
           python scripts/github_state_store.py --state-dir .state --db-url "$GLINTORY_DATABASE_URL" download-latest
         env:
@@ -74,19 +95,39 @@ jobs:
           uv run glintory source sync-manifest --file config/public-sources.json --json
 
       - name: Run due collection
+        id: collection
         run: |
+          set +e
           uv run glintory scheduler run --once --json > build/state/scheduler_metadata.json
-          cat build/state/scheduler_metadata.json
-        env:
-          GLINTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cmd_exit_code=$?
+          set -e
 
-      - name: Create state snapshot and upload
-        run: |
-          # Under the hood, this creates snapshot -> verify -> upload -> download -> verify -> prune
-          python scripts/github_state_store.py --state-dir .state --db-url "$GLINTORY_DATABASE_URL" upload-and-verify --metadata-file build/state/scheduler_metadata.json
+          if [ ! -s build/state/scheduler_metadata.json ]; then
+            echo "{\"exit_code\": $cmd_exit_code, \"operational_status\": \"infrastructure_failed\", \"tick\": null}" > build/state/scheduler_metadata.json
+          fi
+
+          cat build/state/scheduler_metadata.json
+
+          exit_code=$(jq -r '.exit_code' build/state/scheduler_metadata.json)
+          status=$(jq -r '.operational_status' build/state/scheduler_metadata.json)
+          due_count=$(jq -r '.tick.due_schedule_count // 0' build/state/scheduler_metadata.json)
+          succeeded_count=$(jq -r '.tick.succeeded_count // 0' build/state/scheduler_metadata.json)
+          partial_count=$(jq -r '.tick.partial_count // 0' build/state/scheduler_metadata.json)
+          failed_count=$(jq -r '.tick.failed_count // 0' build/state/scheduler_metadata.json)
+
+          echo "collection_exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          echo "collection_status=$status" >> "$GITHUB_OUTPUT"
+          echo "due_count=$due_count" >> "$GITHUB_OUTPUT"
+          echo "succeeded_count=$succeeded_count" >> "$GITHUB_OUTPUT"
+          echo "partial_count=$partial_count" >> "$GITHUB_OUTPUT"
+          echo "failed_count=$failed_count" >> "$GITHUB_OUTPUT"
+
+          if [ "$exit_code" = "0" ] || [ "$exit_code" = "3" ] || [ "$exit_code" = "4" ]; then
+            exit 0
+          else
+            exit "$exit_code"
+          fi
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GLINTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate public static site
@@ -97,15 +138,14 @@ jobs:
             --site-url "$GLINTORY_PUBLIC_SITE_URL" \
             --json
 
-      - name: Generate GITHUB_STEP_SUMMARY
+      - name: Create state snapshot and upload
+        id: upload_state
         run: |
-          {
-            echo "## Glintory Execution Summary"
-            echo "### State Metadata"
-            echo '```json'
-            uv run glintory state inspect --input ".state/glintory-state-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz" --json
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          python scripts/github_state_store.py --state-dir .state --db-url "$GLINTORY_DATABASE_URL" upload-and-verify --metadata-file build/state/scheduler_metadata.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GLINTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Pages
         uses: actions/configure-pages@983d63b72ee22c1d7a854228965c3cad64654918 # v5.0.0
@@ -121,6 +161,8 @@ jobs:
       pages: write
       id-token: write
       contents: read
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -150,34 +192,49 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Handle success notification
-        if: >-
-          ${{
-            needs.automation.result == 'success' &&
-            needs.deploy-pages.result == 'success'
-          }}
-        env:
-          AUTOMATION_RESULT: "success"
-          DEPLOY_PAGES_RESULT: "success"
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python scripts/github_issue_notifier.py \
-            --automation-result "$AUTOMATION_RESULT" \
-            --deploy-pages-result "$DEPLOY_PAGES_RESULT"
-
-      - name: Handle failure notification
-        if: >-
-          ${{
-            needs.automation.result != 'success' ||
-            needs.deploy-pages.result != 'success'
-          }}
+      - name: Run notifier
         env:
           AUTOMATION_RESULT: ${{ needs.automation.result }}
           DEPLOY_PAGES_RESULT: ${{ needs.deploy-pages.result }}
+          COLLECTION_STATUS: ${{ needs.automation.outputs.collection_status }}
+          STARTED_AT: ${{ needs.automation.outputs.started_at }}
+          RESTORED_ASSET_NAME: ${{ needs.automation.outputs.restored_asset_name }}
+          RESTORED_ASSET_ID: ${{ needs.automation.outputs.restored_asset_id }}
+          UPLOADED_ASSET_NAME: ${{ needs.automation.outputs.uploaded_asset_name }}
+          UPLOADED_ASSET_ID: ${{ needs.automation.outputs.uploaded_asset_id }}
+          PRUNED_DELETED_COUNT: ${{ needs.automation.outputs.pruned_deleted_count }}
+          PRUNE_STATUS: ${{ needs.automation.outputs.prune_status }}
+          DATABASE_SIZE: ${{ needs.automation.outputs.database_size }}
+          SOURCE_COUNT: ${{ needs.automation.outputs.source_count }}
+          SIGNAL_COUNT: ${{ needs.automation.outputs.signal_count }}
+          OPPORTUNITY_COUNT: ${{ needs.automation.outputs.opportunity_count }}
+          PAGES_DEPLOYMENT_RESULT: ${{ needs.deploy-pages.result }}
+          PAGES_URL: ${{ needs.deploy-pages.outputs.page_url }}
+          DUE_COUNT: ${{ needs.automation.outputs.due_count }}
+          SUCCEEDED_COUNT: ${{ needs.automation.outputs.succeeded_count }}
+          PARTIAL_COUNT: ${{ needs.automation.outputs.partial_count }}
+          FAILED_COUNT: ${{ needs.automation.outputs.failed_count }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/github_issue_notifier.py \
             --automation-result "$AUTOMATION_RESULT" \
-            --deploy-pages-result "$DEPLOY_PAGES_RESULT"
+            --deploy-pages-result "$DEPLOY_PAGES_RESULT" \
+            --collection-status "$COLLECTION_STATUS" \
+            --started-at "$STARTED_AT" \
+            --restored-asset-name "$RESTORED_ASSET_NAME" \
+            --restored-asset-id "$RESTORED_ASSET_ID" \
+            --uploaded-asset-name "$UPLOADED_ASSET_NAME" \
+            --uploaded-asset-id "$UPLOADED_ASSET_ID" \
+            --pruned-deleted-count "$PRUNED_DELETED_COUNT" \
+            --prune-status "$PRUNE_STATUS" \
+            --database-size "$DATABASE_SIZE" \
+            --source-count "$SOURCE_COUNT" \
+            --signal-count "$SIGNAL_COUNT" \
+            --opportunity-count "$OPPORTUNITY_COUNT" \
+            --pages-deployment-result "$PAGES_DEPLOYMENT_RESULT" \
+            --pages-url "$PAGES_URL" \
+            --due-count "$DUE_COUNT" \
+            --succeeded-count "$SUCCEEDED_COUNT" \
+            --partial-count "$PARTIAL_COUNT" \
+            --failed-count "$FAILED_COUNT"

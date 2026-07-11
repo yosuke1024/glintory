@@ -93,6 +93,12 @@ class SchedulerRunner:
             tick_result = await self.scheduler_service.run_tick(
                 owner_token=self.owner_token
             )
+            if tick_result.failed_count > 0:
+                exit_code = 4
+            elif tick_result.partial_count > 0:
+                exit_code = 3
+            else:
+                exit_code = 0
         except SchedulerLeaseLostError:
             logger.error(
                 'operation=scheduler_lease_lost lease_name=default message="Lease was lost during tick."'

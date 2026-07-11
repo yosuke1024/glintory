@@ -29,8 +29,27 @@ def db_session(db_session_factory):
 
 @pytest.mark.anyio
 async def test_scheduler_runner_once_success(db_session_factory, db_session):
+    from datetime import UTC, datetime
+
+    from glintory.domain.scheduling import SchedulerTickResult
+
+    tick_result = SchedulerTickResult(
+        tick_started_at=datetime.now(UTC),
+        tick_completed_at=datetime.now(UTC),
+        due_schedule_count=0,
+        claimed_execution_count=0,
+        succeeded_count=0,
+        partial_count=0,
+        failed_count=0,
+        skipped_busy_count=0,
+        skipped_disabled_count=0,
+        abandoned_count=0,
+        execution_ids=(),
+        warnings=(),
+    )
+
     mock_service = MagicMock(spec=SchedulerService)
-    mock_service.run_tick = AsyncMock()
+    mock_service.run_tick = AsyncMock(return_value=tick_result)
 
     runner = SchedulerRunner(db_session_factory, mock_service, owner_token="owner-1")
     res = await runner.run_once()
