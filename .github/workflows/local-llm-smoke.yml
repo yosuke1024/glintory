@@ -258,6 +258,9 @@ jobs:
 
       - name: Assert JSON Results
         run: |
+          echo "=== Content of llm-smoke-result.json ==="
+          cat build/llm-smoke-result.json || true
+          echo "========================================"
           test "$(jq -r '.selected_count' build/llm-smoke-result.json)" = "1"
           test "$(jq -r '.succeeded_count' build/llm-smoke-result.json)" = "1"
           test "$(jq -r '.failed_count' build/llm-smoke-result.json)" = "0"
