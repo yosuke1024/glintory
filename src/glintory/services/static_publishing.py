@@ -15,8 +15,6 @@ from glintory.config import settings
 from glintory.domain.enrichment_contract import PROMPT_VERSION, SCHEMA_VERSION
 from glintory.domain.models import (
     Opportunity,
-    OpportunityEnrichment,
-    OpportunityEnrichmentLocalization,
     OpportunitySignal,
     ScheduleExecution,
     Signal,
@@ -30,6 +28,7 @@ from glintory.infrastructure.opportunity_query import check_stale
 from glintory.services.publishing_templates import (
     CSS_CONTENT,
     DETAIL_TEMPLATE,
+    DIAGNOSTICS_TEMPLATE,
     INDEX_TEMPLATE,
     LIST_TEMPLATE,
 )
@@ -72,50 +71,40 @@ def format_datetime(val: Any) -> str:
 
 def get_localized_data(
     op: Opportunity,
-    enrichment: OpportunityEnrichment | None,
     locale: str,
-    alt_loc_record: OpportunityEnrichmentLocalization | None,
 ) -> dict:
-    def val(field_name: str, default_val: Any = None) -> Any:
-        if alt_loc_record:
-            v = getattr(alt_loc_record, field_name, None)
-            if v is not None and (not isinstance(v, str) or v.strip()):
-                return v
-        if enrichment:
-            v = getattr(enrichment, field_name, None)
-            if v is not None and (not isinstance(v, str) or v.strip()):
-                return v
-        return default_val
-
-    target_users = val("target_users")
-    if target_users is None:
-        target_users = []
-
-    risks = val("risks")
-    if risks is None:
-        risks = []
-
-    tags = val("tags")
-    if tags is None:
-        tags = []
-
+    if locale == "ja":
+        return {
+            "title": op.title_ja or op.title_en or op.title,
+            "summary": op.summary_ja or op.summary_en or op.proposed_solution,
+            "problem": op.problem_ja or op.problem_en,
+            "target_user": op.target_user_ja or op.target_user_en,
+            "current_workaround": op.current_workaround_ja or op.current_workaround_en,
+            "existing_solution_gap": op.existing_solution_gap_ja
+            or op.existing_solution_gap_en,
+            "mvp_direction": op.mvp_direction_ja or op.mvp_direction_en,
+            "why_selected": op.why_selected_ja or op.why_selected_en,
+            "risks": op.risks_ja or op.risks_en,
+        }
+    # "en" or fallback
     return {
-        "title": val("generated_title", op.title),
-        "summary": val("generated_summary", op.proposed_solution),
-        "problem_statement": val("problem_statement"),
-        "target_users": target_users,
-        "why_now": val("why_now"),
-        "evidence_synthesis": val("evidence_synthesis"),
-        "build_direction": val("build_direction"),
-        "risks": risks,
-        "tags": tags,
+        "title": op.title_en or op.title,
+        "summary": op.summary_en or op.proposed_solution,
+        "problem": op.problem_en,
+        "target_user": op.target_user_en,
+        "current_workaround": op.current_workaround_en,
+        "existing_solution_gap": op.existing_solution_gap_en,
+        "mvp_direction": op.mvp_direction_en,
+        "why_selected": op.why_selected_en,
+        "risks": op.risks_en,
     }
 
 
 def calculate_current_hash(op_id: str, score_hash: str | None, ev_signals: list) -> str:
     sorted_ev = sorted(ev_signals, key=lambda e: e[0].id)
     ev_hash_strs = []
-    for sig, rel_score, _, _ in sorted_ev:
+    for item in sorted_ev:
+        sig, rel_score = item[0], item[1]
         ev_hash_strs.append(f"{sig.id}:{sig.content_hash}:{rel_score}")
 
     parts = [
@@ -170,8 +159,15 @@ def build_static_site(
             .first()
         )
 
+        from glintory.domain.enums import OpportunityStatus
+
         opportunities = (
             session.query(Opportunity)
+            .filter(
+                Opportunity.current_scoring_version == "v2",
+                Opportunity.status != OpportunityStatus.REJECTED,
+                Opportunity.status != OpportunityStatus.ARCHIVED,
+            )
             .order_by(
                 Opportunity.total_score.desc(),
                 Opportunity.last_scored_at.desc(),
@@ -320,6 +316,8 @@ def build_static_site(
                 session.query(
                     Signal,
                     OpportunitySignal.relevance_score,
+                    OpportunitySignal.evidence_summary_en,
+                    OpportunitySignal.evidence_summary_ja,
                     Source.name,
                     Source.source_type,
                 )
@@ -332,7 +330,7 @@ def build_static_site(
             )
 
             evidences = []
-            for sig, rel_score, src_name, src_type in ev_signals:
+            for sig, rel_score, sum_en, sum_ja, src_name, src_type in ev_signals:
                 evidences.append(
                     {
                         "id": sig.id,
@@ -345,6 +343,8 @@ def build_static_site(
                         if sig.published_at
                         else sig.collected_at,
                         "relevance_score": rel_score,
+                        "summary_en": sum_en,
+                        "summary_ja": sum_ja,
                     }
                 )
 
@@ -376,32 +376,10 @@ def build_static_site(
                 if enrichment.input_hash != current_llm_hash:
                     llm_is_stale = True
 
-            en_loc = None
-            ja_loc = None
-            if enrichment:
-                en_loc = (
-                    session.query(OpportunityEnrichmentLocalization)
-                    .filter(
-                        OpportunityEnrichmentLocalization.enrichment_id
-                        == enrichment.id,
-                        OpportunityEnrichmentLocalization.locale == "en",
-                    )
-                    .first()
-                )
-                ja_loc = (
-                    session.query(OpportunityEnrichmentLocalization)
-                    .filter(
-                        OpportunityEnrichmentLocalization.enrichment_id
-                        == enrichment.id,
-                        OpportunityEnrichmentLocalization.locale == "ja",
-                    )
-                    .first()
-                )
-
             # Render English (Default)
-            loc_data_en = get_localized_data(op, enrichment, "en", en_loc)
-            translation_available_en = en_loc is not None
-            translation_fallback_en = enrichment is not None and en_loc is None
+            loc_data_en = get_localized_data(op, "en")
+            translation_available_en = op.title_en is not None
+            translation_fallback_en = not translation_available_en
 
             rendered_detail_en = detail_template.render(
                 base_path=base_path,
@@ -423,9 +401,9 @@ def build_static_site(
                 f.write(rendered_detail_en)
 
             # Render Japanese
-            loc_data_ja = get_localized_data(op, enrichment, "ja", ja_loc)
-            translation_available_ja = ja_loc is not None
-            translation_fallback_ja = enrichment is not None and ja_loc is None
+            loc_data_ja = get_localized_data(op, "ja")
+            translation_available_ja = op.title_ja is not None
+            translation_fallback_ja = not translation_available_ja
 
             rendered_detail_ja = detail_template.render(
                 base_path=base_path,
@@ -445,6 +423,46 @@ def build_static_site(
             os.makedirs(op_dir_ja, exist_ok=True)
             with open(os.path.join(op_dir_ja, "index.html"), "w") as f:
                 f.write(rendered_detail_ja)
+
+        # Render diagnostics page
+        from glintory.domain.models import CollectionRun
+
+        runs = (
+            session.query(CollectionRun, Source.name)
+            .join(Source, CollectionRun.source_id == Source.id)
+            .order_by(CollectionRun.created_at.desc())
+            .limit(50)
+            .all()
+        )
+        diagnostics_data = []
+        for run, source_name in runs:
+            diagnostics_data.append(
+                {
+                    "source_name": source_name,
+                    "started_at": run.started_at,
+                    "completed_at": run.completed_at,
+                    "status": run.status.value
+                    if hasattr(run.status, "value")
+                    else str(run.status),
+                    "fetched_count": run.fetched_count,
+                    "inserted_count": run.inserted_count,
+                    "updated_count": run.updated_count,
+                    "duplicate_count": run.duplicate_count,
+                    "skipped_count": run.skipped_count,
+                    "warning_count": run.warning_count,
+                    "error_count": run.error_count,
+                    "error_type": run.error_type,
+                    "sanitized_error_message": run.sanitized_error_message,
+                }
+            )
+        diagnostics_template = env.from_string(DIAGNOSTICS_TEMPLATE)
+        rendered_diagnostics = diagnostics_template.render(
+            base_path=base_path,
+            diagnostics_data=diagnostics_data,
+            repo_url=repo_url,
+        )
+        with open(os.path.join(temp_build_dir, "diagnostics.html"), "w") as f:
+            f.write(rendered_diagnostics)
 
         robots_content = "User-agent: *\nAllow: /\n"
         with open(os.path.join(temp_build_dir, "robots.txt"), "w") as f:

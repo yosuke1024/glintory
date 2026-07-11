@@ -55,7 +55,7 @@ async def test_scheduler_runner_once_success(db_session_factory, db_session):
     res = await runner.run_once()
 
     assert res.exit_code == 0
-    mock_service.run_tick.assert_called_once_with(owner_token="owner-1")
+    mock_service.run_tick.assert_called_once_with(owner_token="owner-1", force=False)
 
     # Verify lease is released
     lease = db_session.query(SchedulerLease).filter_by(lease_name="default").first()

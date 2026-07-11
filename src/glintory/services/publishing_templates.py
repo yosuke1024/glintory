@@ -242,6 +242,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
       <nav class="nav-links">
         <a href="{{ base_path }}/">Dashboard</a>
         <a href="{{ base_path }}/opportunities/">Opportunities</a>
+        <a href="{{ base_path }}/diagnostics.html">Diagnostics</a>
       </nav>
     </div>
   </header>
@@ -339,6 +340,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       <nav class="nav-links">
         <a href="{{ base_path }}/">Dashboard</a>
         <a href="{{ base_path }}/opportunities/">Opportunities</a>
+        <a href="{{ base_path }}/diagnostics.html">Diagnostics</a>
       </nav>
     </div>
   </header>
@@ -399,6 +401,7 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
       <nav class="nav-links">
         <a href="{{ base_path }}/">Dashboard</a>
         <a href="{{ base_path }}/opportunities/">Opportunities</a>
+        <a href="{{ base_path }}/diagnostics.html">Diagnostics</a>
       </nav>
     </div>
   </header>
@@ -478,65 +481,53 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
           {% if locale == 'en' %}AI Enrichment Analysis{% else %}AIによる付加分析 (AI Enrichment Analysis){% endif %}
         </h2>
         
-        {% if loc_data.problem_statement %}
+        {% if loc_data.problem %}
           <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
             {% if locale == 'en' %}Problem Statement{% else %}課題定義 (Problem Statement){% endif %}
           </h3>
-          <p style="color: var(--text-secondary);">{{ loc_data.problem_statement }}</p>
+          <p style="color: var(--text-secondary);">{{ loc_data.problem }}</p>
         {% endif %}
         
-        {% if loc_data.target_users %}
+        {% if loc_data.target_user %}
           <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
             {% if locale == 'en' %}Target Users{% else %}対象ユーザー (Target Users){% endif %}
           </h3>
-          <ul style="color: var(--text-secondary); padding-left: 1.25rem;">
-            {% for user in loc_data.target_users %}
-              <li>{{ user }}</li>
-            {% endfor %}
-          </ul>
+          <p style="color: var(--text-secondary);">{{ loc_data.target_user }}</p>
         {% endif %}
         
-        {% if loc_data.why_now %}
+        {% if loc_data.current_workaround %}
           <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
-            {% if locale == 'en' %}Why Now{% else %}市場背景とタイミング (Why Now){% endif %}
+            {% if locale == 'en' %}Current Workarounds{% else %}現在の回避策 (Current Workarounds){% endif %}
           </h3>
-          <p style="color: var(--text-secondary);">{{ loc_data.why_now }}</p>
+          <p style="color: var(--text-secondary);">{{ loc_data.current_workaround }}</p>
         {% endif %}
         
-        {% if loc_data.evidence_synthesis %}
+        {% if loc_data.existing_solution_gap %}
           <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
-            {% if locale == 'en' %}Evidence Synthesis{% else %}証拠データの総合分析 (Evidence Synthesis){% endif %}
+            {% if locale == 'en' %}Gap in Existing Solutions{% else %}既存手段の不足理由 (Gap in Existing Solutions){% endif %}
           </h3>
-          <p style="color: var(--text-secondary);">{{ loc_data.evidence_synthesis }}</p>
+          <p style="color: var(--text-secondary);">{{ loc_data.existing_solution_gap }}</p>
         {% endif %}
         
-        {% if loc_data.build_direction %}
+        {% if loc_data.mvp_direction %}
           <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
-            {% if locale == 'en' %}Build Direction{% else %}開発方針の推奨 (Build Direction){% endif %}
+            {% if locale == 'en' %}MVP Direction{% else %}MVP開発の方向性 (MVP Direction){% endif %}
           </h3>
-          <p style="color: var(--text-secondary);">{{ loc_data.build_direction }}</p>
+          <p style="color: var(--text-secondary);">{{ loc_data.mvp_direction }}</p>
+        {% endif %}
+
+        {% if loc_data.why_selected %}
+          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
+            {% if locale == 'en' %}Why Selected{% else %}選定理由 (Why Selected){% endif %}
+          </h3>
+          <p style="color: var(--text-secondary);">{{ loc_data.why_selected }}</p>
         {% endif %}
         
         {% if loc_data.risks %}
           <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
-            {% if locale == 'en' %}Risks{% else %}リスク分析 (Risks){% endif %}
+            {% if locale == 'en' %}Risks{% else %}想定リスク (Risks){% endif %}
           </h3>
-          <ul style="color: var(--text-secondary); padding-left: 1.25rem;">
-            {% for risk in loc_data.risks %}
-              <li>{{ risk }}</li>
-            {% endfor %}
-          </ul>
-        {% endif %}
-        
-        {% if loc_data.tags %}
-          <h3 style="margin-top: 1.5rem; font-size: 1.25rem;">
-            {% if locale == 'en' %}AI Tags{% else %}AIタグ (AI Tags){% endif %}
-          </h3>
-          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
-            {% for tag in loc_data.tags %}
-              <span class="badge badge-info">{{ tag }}</span>
-            {% endfor %}
-          </div>
+          <p style="color: var(--text-secondary);">{{ loc_data.risks }}</p>
         {% endif %}
       </div>
     {% endif %}
@@ -555,8 +546,30 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
           </h4>
           <span class="badge badge-accent">Relevance: {{ ev.relevance_score }}</span>
         </div>
-        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">{{ ev.excerpt }}</p>
-        <div class="meta-info" style="margin-top: 0.5rem; font-size: 0.8rem;">
+        
+        <!-- Evidence summaries -->
+        <div style="margin-top: 0.75rem; padding: 0.5rem; background-color: rgba(99, 102, 241, 0.03); border-radius: 0.25rem;">
+          <strong style="font-size: 0.85rem; color: var(--accent);">
+            {% if locale == 'ja' %}証拠要約:{% else %}Summary:{% endif %}
+          </strong>
+          <span style="font-size: 0.9rem; color: var(--text-primary);">
+            {% if locale == 'ja' %}
+              {{ ev.summary_ja or '（要約未生成）' }}
+            {% else %}
+              {{ ev.summary_en or 'No summary' }}
+            {% endif %}
+          </span>
+        </div>
+
+        <!-- Collapsible original excerpt -->
+        <details style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">
+          <summary style="cursor: pointer; font-weight: 600; outline: none; user-select: none;">
+            {% if locale == 'ja' %}原文を表示 (Original Excerpt){% else %}Show Original Excerpt{% endif %}
+          </summary>
+          <p style="margin-top: 0.5rem; padding: 0.5rem; background-color: rgba(0, 0, 0, 0.2); border-radius: 0.25rem; white-space: pre-wrap; font-family: monospace;">{{ ev.excerpt }}</p>
+        </details>
+
+        <div class="meta-info" style="margin-top: 0.75rem; font-size: 0.8rem;">
           <span>Source: {{ ev.source_name }} ({{ ev.source_type }})</span>
           <span>Published: {{ ev.published_at | format_datetime }}</span>
         </div>
@@ -575,6 +588,82 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
   <footer class="footer">
     <p>Powered by {% if repo_url %}<a href="{{ repo_url | safe_url }}" target="_blank" rel="noopener">Glintory</a>{% else %}Glintory{% endif %}.</p>
   </footer>
+</body>
+</html>
+"""
+
+DIAGNOSTICS_TEMPLATE = """<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glintory - Diagnostics</title>
+  <link rel="stylesheet" href="{{ base_path }}/assets/app.css">
+</head>
+<body>
+  <header>
+    <div class="nav-container">
+      <a href="{{ base_path }}/" class="logo">Glintory</a>
+      <nav class="nav-links">
+        <a href="{{ base_path }}/">Dashboard</a>
+        <a href="{{ base_path }}/opportunities/">Opportunities</a>
+        <a href="{{ base_path }}/diagnostics.html">Diagnostics</a>
+      </nav>
+    </div>
+  </header>
+  
+  <main class="container">
+    <h1>Collector &amp; Pipeline Diagnostics</h1>
+    <p>ソース収集ログとシステム診断情報です。</p>
+    
+    <div class="table-container" style="overflow-x: auto; margin-top: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold;">
+            <th style="padding: 1rem;">Source</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Fetched</th>
+            <th style="padding: 1rem;">Persisted</th>
+            <th style="padding: 1rem;">Skipped</th>
+            <th style="padding: 1rem;">Errors</th>
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Error Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in diagnostics_data %}
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 1rem; font-weight: 600;">{{ run.source_name }}</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: {% if run.status == 'succeeded' %}#065f46{% elif run.status == 'partial' %}#92400e{% else %}#991b1b{% endif %};
+                  color: #fff;
+                ">{{ run.status }}</span>
+              </td>
+              <td style="padding: 1rem;">{{ run.fetched_count }}</td>
+              <td style="padding: 1rem;">{{ run.inserted_count + run.updated_count }}</td>
+              <td style="padding: 1rem;">{{ run.skipped_count }}</td>
+              <td style="padding: 1rem;">{{ run.error_count }}</td>
+              <td style="padding: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                {{ run.started_at | format_datetime }}
+              </td>
+              <td style="padding: 1rem; font-size: 0.85rem; color: #f87171; max-width: 300px; word-wrap: break-word;">
+                {% if run.error_type %}
+                  <strong>{{ run.error_type }}</strong>: {{ run.sanitized_error_message }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
 </body>
 </html>
 """

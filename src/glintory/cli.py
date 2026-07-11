@@ -179,6 +179,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Score without saving to the database",
     )
     score_parser.add_argument(
+        "--score-version",
+        default="v1",
+        choices=["v1", "v2"],
+        help="Scoring algorithm version",
+    )
+    score_parser.add_argument(
         "--json",
         action="store_true",
         help="Output in JSON format",
@@ -245,6 +251,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="Output in JSON format"
     )
 
+    # Setup diagnostics command
+    diagnostics_parser = subparsers.add_parser(
+        "diagnostics", help="Print diagnostics information about collection runs"
+    )
+    diagnostics_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
+    )
+
     # Setup scheduler command
     scheduler_parser = subparsers.add_parser(
         "scheduler", help="Run the local scheduler process"
@@ -258,6 +272,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scheduler_run_parser.add_argument(
         "--once", action="store_true", help="Run a single tick and exit"
+    )
+    scheduler_run_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force collection for all active schedules, bypassing due check",
     )
     scheduler_run_parser.add_argument(
         "--json",
@@ -417,6 +436,8 @@ async def run_cli(args: argparse.Namespace) -> int:
             return await run_state_command(args, runtime)
         if args.command == "publish":
             return await run_publish_command(args, runtime)
+        if args.command == "diagnostics":
+            return await run_diagnostics_command(args, runtime)
 
     return 0
 
@@ -1037,7 +1058,9 @@ async def run_score_command(args: argparse.Namespace, runtime: Any) -> int:
     from glintory.services.opportunity_scoring import OpportunityScoringEngine
     from glintory.services.opportunity_scoring_service import OpportunityScoringService
 
-    scoring_version = runtime.settings.scoring_version
+    scoring_version = (
+        getattr(args, "score_version", None) or runtime.settings.scoring_version
+    )
 
     try:
         engine = OpportunityScoringEngine(scoring_version=scoring_version)
@@ -1301,7 +1324,7 @@ async def run_scheduler_command(args: argparse.Namespace, runtime: Any) -> int:
     )
 
     try:
-        res = await runner.run_once()
+        res = await runner.run_once(force=getattr(args, "force", False))
         if args.json:
             status_map = {
                 0: "success",
@@ -1490,6 +1513,64 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
             return 1
 
     return 0
+
+
+async def run_diagnostics_command(args: argparse.Namespace, runtime: Any) -> int:
+    from glintory.domain.models import CollectionRun, Source
+
+    session = runtime.session_factory()
+    try:
+        runs = (
+            session.query(CollectionRun, Source.name)
+            .join(Source, CollectionRun.source_id == Source.id)
+            .order_by(CollectionRun.created_at.desc())
+            .limit(50)
+            .all()
+        )
+
+        diagnostics_list = []
+        for run, source_name in runs:
+            persisted_count = run.inserted_count + run.updated_count
+
+            data = {
+                "source_name": source_name,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "completed_at": run.completed_at.isoformat()
+                if run.completed_at
+                else None,
+                "status": run.status.value
+                if hasattr(run.status, "value")
+                else str(run.status),
+                "fetched_count": run.fetched_count,
+                "persisted_count": persisted_count,
+                "skipped_count": run.skipped_count,
+                "error_count": run.error_count,
+                "error_type": run.error_type,
+                "sanitized_error_message": run.sanitized_error_message,
+            }
+            diagnostics_list.append(data)
+
+        if args.json:
+            print(json.dumps(diagnostics_list, indent=2))
+        else:
+            print("=== Glintory Pipeline Diagnostics ===")
+            for item in diagnostics_list:
+                print(f"Source: {item['source_name']}")
+                print(f"  Status: {item['status']}")
+                print(
+                    f"  Fetched: {item['fetched_count']}, Persisted: {item['persisted_count']}, Skipped: {item['skipped_count']}, Errors: {item['error_count']}"
+                )
+                if item["error_type"]:
+                    print(f"  Error Type: {item['error_type']}")
+                    print(f"  Message: {item['sanitized_error_message']}")
+                print(f"  Time: {item['started_at']}")
+                print("-" * 40)
+        return 0
+    except Exception as e:
+        sys.stderr.write(f"Diagnostics command failed: {e}\n")
+        return 1
+    finally:
+        session.close()
 
 
 async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:

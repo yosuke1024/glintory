@@ -34,7 +34,9 @@ class SchedulerService:
         self.collection_service = collection_service
         self.clock = clock or (lambda: datetime.now(UTC))
 
-    async def run_tick(self, *, owner_token: str) -> SchedulerTickResult:
+    async def run_tick(
+        self, *, owner_token: str, force: bool = False
+    ) -> SchedulerTickResult:
         tick_start = self.clock()
 
         # 1. Recover stale executions & claim due ones
@@ -63,6 +65,7 @@ class SchedulerService:
                 owner_token=owner_token,
                 max_due=max_due,
                 now=tick_start,
+                force=force,
             )
             due_count = len(claimed_execs)  # Count of successfully claimed due slots
             session.commit()

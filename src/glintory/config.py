@@ -72,20 +72,20 @@ class Settings(BaseSettings):
                 raise ValueError("LLM_CONFIGURATION_INVALID")
             if not model_revision:
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-            
+
             sha256_pattern = re.compile(r"^[0-9a-fA-F]{64}$")
             if not sha256_pattern.match(model_sha256):
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-                
+
             if not binary_path:
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-                
+
             if not sha256_pattern.match(binary_sha256):
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-                
+
             if not runtime_version:
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-                
+
             git_commit_pattern = re.compile(r"^[0-9a-fA-F]{40}$")
             if not git_commit_pattern.match(runtime_commit):
                 raise ValueError("LLM_CONFIGURATION_INVALID")

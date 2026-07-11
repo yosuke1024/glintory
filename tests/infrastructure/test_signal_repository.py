@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from glintory.domain.enums import CollectionRunStatus, SignalType
+from glintory.domain.enums import CollectionRunStatus, SignalRole, SignalType
 from glintory.domain.models import Base, CollectionRun, Signal, Source
 from glintory.domain.signals import NormalizedSignal, SignalIdentityCollisionError
 from glintory.infrastructure.repositories import SignalRepository
@@ -51,6 +51,7 @@ def test_signal_repository_insert_and_find(db_session):
         collected_at=collected_at,
         language=None,
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.DEMAND,
         categories=(),
         tags=(),
         metrics={},
@@ -92,6 +93,7 @@ def test_signal_repository_different_sources_same_url(db_session):
             collected_at=collected_at,
             language=None,
             signal_type=SignalType.PROJECT,
+            signal_role=SignalRole.DEMAND,
             categories=(),
             tags=(),
             metrics={},
@@ -124,6 +126,7 @@ def test_signal_repository_unique_constraint(db_session):
             collected_at=collected_at,
             language=None,
             signal_type=SignalType.PROJECT,
+            signal_role=SignalRole.DEMAND,
             categories=(),
             tags=(),
             metrics={},
@@ -147,6 +150,7 @@ def test_signal_repository_unique_constraint(db_session):
                 freshness_score=1.0,
                 source_quality_score=0.5,
                 signal_type=SignalType.PROJECT,
+                signal_role=SignalRole.DEMAND,
             )
         )
         db_session.commit()
@@ -179,6 +183,7 @@ def test_signal_repository_canonical_url_match_resolve(db_session):
         collected_at=collected_at,
         language=None,
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.DEMAND,
         categories=(),
         tags=(),
         metrics={},
@@ -203,6 +208,7 @@ def test_signal_repository_canonical_url_match_resolve(db_session):
         collected_at=collected_at,
         language=None,
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.DEMAND,
         categories=(),
         tags=(),
         metrics={},
@@ -239,6 +245,7 @@ def test_signal_repository_collision_different_ext_ids(db_session):
             collected_at=collected_at,
             language=None,
             signal_type=SignalType.PROJECT,
+            signal_role=SignalRole.DEMAND,
             categories=(),
             tags=(),
             metrics={},
@@ -263,6 +270,7 @@ def test_signal_repository_collision_different_ext_ids(db_session):
         collected_at=collected_at,
         language=None,
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.DEMAND,
         categories=(),
         tags=(),
         metrics={},
@@ -296,6 +304,7 @@ def test_signal_repository_update_url_change(db_session):
             collected_at=collected_at,
             language=None,
             signal_type=SignalType.PROJECT,
+            signal_role=SignalRole.DEMAND,
             categories=(),
             tags=(),
             metrics={},
@@ -320,6 +329,7 @@ def test_signal_repository_update_url_change(db_session):
         collected_at=collected_at,
         language=None,
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.DEMAND,
         categories=(),
         tags=(),
         metrics={},

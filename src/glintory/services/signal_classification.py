@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from glintory.domain.enums import SignalType
+from glintory.domain.enums import SignalRole, SignalType
 
 
 def _classify_github_issue(
@@ -106,3 +106,48 @@ def classify_signal(
         return SignalType.JOB_DEMAND
 
     raise ValueError("unsupported_item_type")
+
+
+def classify_signal_role(
+    source_type: str,
+    signal_type: SignalType,
+    title: str,
+    excerpt: str | None,
+) -> SignalRole:
+    source_type_lower = (source_type or "").lower()
+    title_lower = (title or "").lower()
+
+    if source_type_lower == "hackernews":
+        if title_lower.startswith("show hn:") or signal_type == SignalType.LAUNCH:
+            return SignalRole.SUPPLY
+        if (
+            title_lower.startswith("ask hn:")
+            or signal_type == SignalType.REQUEST
+            or "ask hn" in title_lower
+        ):
+            return SignalRole.DEMAND
+    elif source_type_lower == "github":
+        if signal_type == SignalType.PROJECT:
+            return SignalRole.SUPPLY
+        if signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT):
+            return SignalRole.DEMAND
+
+    if signal_type == SignalType.TREND:
+        return SignalRole.CONTEXT
+
+    if source_type_lower == "rss":
+        if signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT):
+            return SignalRole.DEMAND
+        if signal_type in (
+            sa_type
+            for sa_type in (
+                SignalType.PROJECT,
+                SignalType.LAUNCH,
+                SignalType.HACKATHON_PROJECT,
+            )
+        ):
+            return SignalRole.SUPPLY
+        if signal_type == SignalType.TREND:
+            return SignalRole.CONTEXT
+
+    return SignalRole.UNKNOWN

@@ -107,13 +107,13 @@ class OpportunityEnrichmentRepository:
         if english:
             enrichment.generated_title = english.title
             enrichment.generated_summary = english.summary
-            enrichment.problem_statement = english.problem_statement
-            enrichment.target_users = english.target_users
-            enrichment.why_now = english.why_now
-            enrichment.evidence_synthesis = english.evidence_synthesis
-            enrichment.build_direction = english.build_direction
-            enrichment.risks = english.risks
-            enrichment.tags = english.tags
+            enrichment.problem_statement = english.problem
+            enrichment.target_users = [english.target_user]
+            enrichment.why_now = english.current_workaround
+            enrichment.evidence_synthesis = english.why_selected
+            enrichment.build_direction = english.mvp_direction
+            enrichment.risks = [english.risks]
+            enrichment.tags = []
 
         # Remove old localizations to prevent uniqueness constraints violations
         self.session.query(OpportunityEnrichmentLocalization).filter(
@@ -127,13 +127,13 @@ class OpportunityEnrichmentRepository:
                 locale="en",
                 generated_title=english.title,
                 generated_summary=english.summary,
-                problem_statement=english.problem_statement,
-                target_users=english.target_users,
-                why_now=english.why_now,
-                evidence_synthesis=english.evidence_synthesis,
-                build_direction=english.build_direction,
-                risks=english.risks,
-                tags=english.tags,
+                problem_statement=english.problem,
+                target_users=[english.target_user],
+                why_now=english.current_workaround,
+                evidence_synthesis=english.why_selected,
+                build_direction=english.mvp_direction,
+                risks=[english.risks],
+                tags=[],
             )
             self.session.add(en_loc)
 
@@ -143,13 +143,13 @@ class OpportunityEnrichmentRepository:
                 locale="ja",
                 generated_title=japanese.title,
                 generated_summary=japanese.summary,
-                problem_statement=japanese.problem_statement,
-                target_users=japanese.target_users,
-                why_now=japanese.why_now,
-                evidence_synthesis=japanese.evidence_synthesis,
-                build_direction=japanese.build_direction,
-                risks=japanese.risks,
-                tags=japanese.tags,
+                problem_statement=japanese.problem,
+                target_users=[japanese.target_user],
+                why_now=japanese.current_workaround,
+                evidence_synthesis=japanese.why_selected,
+                build_direction=japanese.mvp_direction,
+                risks=[japanese.risks],
+                tags=[],
             )
             self.session.add(ja_loc)
 

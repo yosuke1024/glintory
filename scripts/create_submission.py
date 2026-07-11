@@ -15,13 +15,16 @@ def get_sha256(filepath: str) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+
 def main() -> None:
     zip_filename = "submission-glintory.zip"
     sha_filename = "submission-glintory.zip.sha256"
-    
+
     # 1. Get git commit SHA
     try:
-        commit_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        commit_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True
+        ).strip()
     except subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to get git commit SHA: {e}", file=sys.stderr)
         sys.exit(1)
@@ -36,17 +39,36 @@ def main() -> None:
         sys.exit(1)
 
     # Define forbidden directories and extensions
-    forbidden_dirs = ["models/", "bin/", "build/", ".state/", "data/", "invalid/", "__pycache__/"]
-    forbidden_exts = [
-        ".pyc", ".pyo", ".db", ".sqlite", ".sqlite3", ".gguf", ".so", ".dylib", ".dll", ".zip", ".tar", ".tar.gz"
+    forbidden_dirs = [
+        "models/",
+        "bin/",
+        "build/",
+        ".state/",
+        "data/",
+        "invalid/",
+        "__pycache__/",
     ]
-    
+    forbidden_exts = [
+        ".pyc",
+        ".pyo",
+        ".db",
+        ".sqlite",
+        ".sqlite3",
+        ".gguf",
+        ".so",
+        ".dylib",
+        ".dll",
+        ".zip",
+        ".tar",
+        ".tar.gz",
+    ]
+
     # Get current username
     username = getpass.getuser()
     forbidden_paths = [
         f"/Users/{username}/",
         f"/home/{username}/",
-        "file:/" + "/Users/"
+        "file:/" + "/Users/",
     ]
 
     # Secret and mock values check details
@@ -54,7 +76,7 @@ def main() -> None:
         "TOKEN_SECRET_12345",
         "sqlite:///private-secret-db.sqlite3",
         "/Users/example/private/model.gguf",
-        "https://private.example/path"
+        "https://private.example/path",
     ]
 
     # Strict allowlist: { file_path: [ allowed_markers ] }
@@ -63,23 +85,21 @@ def main() -> None:
             "TOKEN_SECRET_12345",
             "sqlite:///private-secret-db.sqlite3",
             "/Users/example/private/model.gguf",
-            "https://private.example/path"
+            "https://private.example/path",
         ],
         "tests/test_entrypoint.py": [
             "TOKEN_SECRET_12345",
             "sqlite:///private-secret-db.sqlite3",
             "/Users/example/private/model.gguf",
-            "https://private.example/path"
+            "https://private.example/path",
         ],
-        "tests/services/test_opportunity_enrichment.py": [
-            "TOKEN_SECRET_12345"
-        ],
+        "tests/services/test_opportunity_enrichment.py": ["TOKEN_SECRET_12345"],
         ".github/workflows/local-llm-smoke.yml": [
             "TOKEN_SECRET_12345",
             "sqlite:///private-secret-db.sqlite3",
             "/Users/example/private/model.gguf",
-            "https://private.example/path"
-        ]
+            "https://private.example/path",
+        ],
     }
 
     print("Verifying the generated zip archive safety and cleanliness...")
@@ -93,13 +113,18 @@ def main() -> None:
             # A. Check forbidden directories
             for f_dir in forbidden_dirs:
                 if lower_name.startswith(f_dir) or f"/{f_dir}" in lower_name:
-                    print(f"ERROR: Forbidden directory structure detected: {name}", file=sys.stderr)
+                    print(
+                        f"ERROR: Forbidden directory structure detected: {name}",
+                        file=sys.stderr,
+                    )
                     ok = False
 
             # B. Check forbidden extensions
             for f_ext in forbidden_exts:
                 if lower_name.endswith(f_ext):
-                    print(f"ERROR: Forbidden extension detected: {name}", file=sys.stderr)
+                    print(
+                        f"ERROR: Forbidden extension detected: {name}", file=sys.stderr
+                    )
                     ok = False
 
             # C. Check .env rules
@@ -110,7 +135,18 @@ def main() -> None:
             # D. Text file content safety scanning
             # Check if file has a text-like extension
             is_text = False
-            text_exts = [".py", ".toml", ".yml", ".yaml", ".ini", ".json", ".txt", ".md", ".sh", ".sql"]
+            text_exts = [
+                ".py",
+                ".toml",
+                ".yml",
+                ".yaml",
+                ".ini",
+                ".json",
+                ".txt",
+                ".md",
+                ".sh",
+                ".sql",
+            ]
             for ext in text_exts:
                 if lower_name.endswith(ext):
                     is_text = True
@@ -119,11 +155,14 @@ def main() -> None:
             if is_text:
                 try:
                     content = zf.read(name).decode("utf-8", errors="ignore")
-                    
+
                     # 1. Local path checks
                     for p in forbidden_paths:
                         if p in content:
-                            print(f"ERROR: Local path leak detected in '{name}': contains '{p}'", file=sys.stderr)
+                            print(
+                                f"ERROR: Local path leak detected in '{name}': contains '{p}'",
+                                file=sys.stderr,
+                            )
                             ok = False
 
                     # 2. Secret check and allowlist enforcement
@@ -132,10 +171,16 @@ def main() -> None:
                             # Verify if this file is allowed to contain this secret marker
                             allowed_markers = secret_allowlist.get(name, [])
                             if marker not in allowed_markers:
-                                print(f"ERROR: Unauthorized secret/mock value '{marker}' found in '{name}'", file=sys.stderr)
+                                print(
+                                    f"ERROR: Unauthorized secret/mock value found in '{name}'",
+                                    file=sys.stderr,
+                                )
                                 ok = False
                 except Exception as e:
-                    print(f"WARNING: Could not parse text content of {name}: {e}", file=sys.stderr)
+                    print(
+                        f"WARNING: Could not parse text content of {name}: {e}",
+                        file=sys.stderr,
+                    )
 
     if not ok:
         print("Verification failed. Removing ZIP archive.", file=sys.stderr)
@@ -153,8 +198,8 @@ def main() -> None:
             "ruff": "passed",
             "pyright": "passed",
             "alembic_check": "passed",
-            "alembic_roundtrip": "passed"
-        }
+            "alembic_roundtrip": "passed",
+        },
     }
 
     # Append manifest to ZIP
@@ -181,25 +226,38 @@ def main() -> None:
             "tests/test_entrypoint.py",
             "scripts/create_submission.py",
             "pyproject.toml",
-            ".github/workflows/local-llm-smoke.yml"
+            ".github/workflows/local-llm-smoke.yml",
         ]
         for rf in required_files:
             if rf not in zip_entries:
-                print(f"ERROR Assertion failed: '{rf}' is missing from the ZIP", file=sys.stderr)
+                print(
+                    f"ERROR Assertion failed: '{rf}' is missing from the ZIP",
+                    file=sys.stderr,
+                )
                 final_ok = False
 
         # pyproject.toml configuration check
         if "pyproject.toml" in zip_entries:
-            pyproject_content = zf.read("pyproject.toml").decode("utf-8", errors="ignore")
+            pyproject_content = zf.read("pyproject.toml").decode(
+                "utf-8", errors="ignore"
+            )
             if "glintory.entrypoint:main" not in pyproject_content:
-                print("ERROR Assertion failed: 'glintory.entrypoint:main' not found in pyproject.toml", file=sys.stderr)
+                print(
+                    "ERROR Assertion failed: 'glintory.entrypoint:main' not found in pyproject.toml",
+                    file=sys.stderr,
+                )
                 final_ok = False
 
         # workflow file configuration check
         if ".github/workflows/local-llm-smoke.yml" in zip_entries:
-            workflow_content = zf.read(".github/workflows/local-llm-smoke.yml").decode("utf-8", errors="ignore")
+            workflow_content = zf.read(".github/workflows/local-llm-smoke.yml").decode(
+                "utf-8", errors="ignore"
+            )
             if "rss_sample_count" not in workflow_content:
-                print("ERROR Assertion failed: 'rss_sample_count' not found in local-llm-smoke.yml", file=sys.stderr)
+                print(
+                    "ERROR Assertion failed: 'rss_sample_count' not found in local-llm-smoke.yml",
+                    file=sys.stderr,
+                )
                 final_ok = False
 
     if not final_ok:

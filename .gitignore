@@ -21,6 +21,7 @@ __pycache__/
 *.egg-info/
 
 # virtualenv
+.ai-conventions.md
 .venv/
 venv/
 ENV/
@@ -37,6 +38,9 @@ env/
 dist/
 data/
 .state/
-build/state/
+build/
 *.tar.gz
+run_logs/
+conformance-report-download/
+
 

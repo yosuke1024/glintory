@@ -3,6 +3,10 @@ name = "glintory"
 version = "0.1.0"
 description = "Find the signals worth building on."
 readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Yosuke Suzuki"}
+]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.111.0",

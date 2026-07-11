@@ -2,7 +2,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from glintory.domain.enums import Confidence, EvidenceRelationType, SignalType
+from glintory.domain.enums import (
+    Confidence,
+    EvidenceRelationType,
+    SignalRole,
+    SignalType,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -11,6 +16,7 @@ class ScoringEvidenceSignal:
     source_id: str
     source_type: str
     signal_type: SignalType
+    signal_role: SignalRole
     relation_type: EvidenceRelationType
     relevance_score: float
     evidence_origin: str
@@ -18,6 +24,7 @@ class ScoringEvidenceSignal:
     collected_at: datetime
     title: str
     excerpt: str
+    canonical_url: str | None
     tags: tuple[str, ...]
     raw_metadata: Mapping[str, object]
 

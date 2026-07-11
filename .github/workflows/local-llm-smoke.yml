@@ -57,14 +57,16 @@ jobs:
           key: local-llm-${{ env.GLINTORY_LOCAL_LLM_MODEL_REPO }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}-${{ env.LLAMA_CPP_VERSION }}
 
       - name: Prepare and verify LLM assets
+        env:
+          CACHE_HIT: ${{ steps.cache-llm.outputs.cache-hit }}
         run: |
           mkdir -p bin models build
           
           # Record cache status
-          if [ "${{ steps.cache-llm.outputs.cache-hit }}" = "true" ]; then
-            echo "cache_status=Hit" >> $GITHUB_ENV
+          if [ "$CACHE_HIT" = "true" ]; then
+            echo "cache_status=Hit" >> "$GITHUB_ENV"
           else
-            echo "cache_status=Miss" >> $GITHUB_ENV
+            echo "cache_status=Miss" >> "$GITHUB_ENV"
           fi
 
           # 1. Check and prepare llama-server and library files

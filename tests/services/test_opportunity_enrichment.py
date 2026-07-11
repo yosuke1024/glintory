@@ -55,6 +55,7 @@ class FakeEnrichmentProvider(OpportunityEnrichmentProvider):
         self.response = response
         self.calls: list[OpportunityEnrichmentRequest] = []
         from glintory.infrastructure.local_llm_client import LocalLlmRuntimeDescriptor
+
         self.runtime_descriptor = LocalLlmRuntimeDescriptor(
             version="b5092",
             commit="d3bd7193ba66c15963fd1c59448f22019a8caf6e",
@@ -112,6 +113,7 @@ def mock_opportunity_data(db_session_factory):
         total_score=20,
         confidence=Confidence.MEDIUM,
         status=OpportunityStatus.INBOX,
+        current_scoring_version="v2",
     )
     session.add(opp)
     session.flush()
@@ -152,25 +154,25 @@ def test_enrichment_skips_same_input_hash(db_session_factory, mock_opportunity_d
     english_brief = EnglishBrief(
         title="AI Title",
         summary="AI Summary",
-        problem_statement="AI Problem",
-        target_users=["Developers"],
-        why_now="Now is the time",
-        evidence_synthesis="Evidence summary",
-        build_direction="Build it",
-        risks=["No risk"],
-        tags=["ai"],
+        target_user="Developers",
+        problem="AI Problem",
+        current_workaround="Now is the time",
+        existing_solution_gap="Evidence summary",
+        mvp_direction="Build it",
+        why_selected="Why selected",
+        risks="No risk",
     )
 
     japanese_brief = JapaneseBrief(
         title="AI タイトル",
         summary="AI サマリー",
-        problem_statement="AI 課題定義",
-        target_users=["開発者"],
-        why_now="今がその時",
-        evidence_synthesis="証拠の要約",
-        build_direction="構築せよ",
-        risks=["リスクなし"],
-        tags=["ai"],
+        target_user="開発者",
+        problem="AI 課題定義",
+        current_workaround="今がその時",
+        existing_solution_gap="証拠の要約",
+        mvp_direction="構築せよ",
+        why_selected="選定理由",
+        risks="リスクなし",
     )
 
     resp = OpportunityEnrichmentResponse(
@@ -199,7 +201,10 @@ def test_enrichment_skips_same_input_hash(db_session_factory, mock_opportunity_d
     assert enrich is not None
     assert enrich.runtime_version == "b5092"
     assert enrich.runtime_commit == "d3bd7193ba66c15963fd1c59448f22019a8caf6e"
-    assert enrich.runtime_binary_sha256 == "f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e"
+    assert (
+        enrich.runtime_binary_sha256
+        == "f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e"
+    )
     assert enrich.model_revision == settings.local_llm_model_revision
     assert enrich.model_sha256 == settings.local_llm_model_sha256
     assert enrich.prompt_version == PROMPT_VERSION
@@ -225,25 +230,25 @@ def test_enrichment_stale_when_evidence_changes(
     english_brief = EnglishBrief(
         title="AI Title",
         summary="AI Summary",
-        problem_statement="AI Problem",
-        target_users=["Developers"],
-        why_now="Now is the time",
-        evidence_synthesis="Evidence summary",
-        build_direction="Build it",
-        risks=["No risk"],
-        tags=["ai"],
+        target_user="Developers",
+        problem="AI Problem",
+        current_workaround="Now is the time",
+        existing_solution_gap="Evidence summary",
+        mvp_direction="Build it",
+        why_selected="Why selected",
+        risks="No risk",
     )
 
     japanese_brief = JapaneseBrief(
         title="AI タイトル",
         summary="AI サマリー",
-        problem_statement="AI 課題定義",
-        target_users=["開発者"],
-        why_now="今がその時",
-        evidence_synthesis="証拠の要約",
-        build_direction="構築せよ",
-        risks=["リスクなし"],
-        tags=["ai"],
+        target_user="開発者",
+        problem="AI 課題定義",
+        current_workaround="今がその時",
+        existing_solution_gap="証拠の要約",
+        mvp_direction="構築せよ",
+        why_selected="選定理由",
+        risks="リスクなし",
     )
 
     resp = OpportunityEnrichmentResponse(
@@ -279,25 +284,25 @@ def test_enrichment_stale_when_score_changes(db_session_factory, mock_opportunit
     english_brief = EnglishBrief(
         title="AI Title",
         summary="AI Summary",
-        problem_statement="AI Problem",
-        target_users=["Developers"],
-        why_now="Now is the time",
-        evidence_synthesis="Evidence summary",
-        build_direction="Build it",
-        risks=["No risk"],
-        tags=["ai"],
+        target_user="Developers",
+        problem="AI Problem",
+        current_workaround="Now is the time",
+        existing_solution_gap="Evidence summary",
+        mvp_direction="Build it",
+        why_selected="Why selected",
+        risks="No risk",
     )
 
     japanese_brief = JapaneseBrief(
         title="AI タイトル",
         summary="AI サマリー",
-        problem_statement="AI 課題定義",
-        target_users=["開発者"],
-        why_now="今がその時",
-        evidence_synthesis="証拠の要約",
-        build_direction="構築せよ",
-        risks=["リスクなし"],
-        tags=["ai"],
+        target_user="開発者",
+        problem="AI 課題定義",
+        current_workaround="今がその時",
+        existing_solution_gap="証拠の要約",
+        mvp_direction="構築せよ",
+        why_selected="選定理由",
+        risks="リスクなし",
     )
 
     resp = OpportunityEnrichmentResponse(
@@ -505,6 +510,49 @@ def test_static_site_fallback_and_rendering(
     assert "AI-generated brief based on the evidence below." not in content
 
     # Add enrichment data and its localization
+    from glintory.domain.models import OpportunitySignal, Signal, Source
+    from glintory.services.static_publishing import calculate_current_hash
+
+    ev_signals = (
+        session.query(
+            Signal,
+            OpportunitySignal.relevance_score,
+            OpportunitySignal.evidence_summary_en,
+            OpportunitySignal.evidence_summary_ja,
+            Source.name,
+            Source.source_type,
+        )
+        .join(OpportunitySignal, Signal.id == OpportunitySignal.signal_id)
+        .join(Source, Signal.source_id == Source.id)
+        .filter(OpportunitySignal.opportunity_id == opp_id)
+        .filter(OpportunitySignal.is_excluded.is_(False))
+        .order_by(OpportunitySignal.relevance_score.desc())
+        .all()
+    )
+    current_hash = calculate_current_hash(opp_id, "snapshot_hash_123", ev_signals)
+
+    # Sync localization fields directly to Opportunity
+    from glintory.domain.models import Opportunity
+
+    opp = session.get(Opportunity, opp_id)
+    opp.title_en = "AI Eng Title"
+    opp.summary_en = "AI Eng Summary"
+    opp.problem_en = "AI Eng Problem"
+    opp.target_user_en = "Developers"
+    opp.current_workaround_en = "Now"
+    opp.existing_solution_gap_en = "Synthesis"
+    opp.mvp_direction_en = "Direction"
+    opp.risks_en = "Risk"
+
+    opp.title_ja = "AI 日タイト"
+    opp.summary_ja = "AI 日サマ"
+    opp.problem_ja = "AI 日課題"
+    opp.target_user_ja = "開発者"
+    opp.current_workaround_ja = "今"
+    opp.existing_solution_gap_ja = "総合"
+    opp.mvp_direction_ja = "推奨"
+    opp.risks_ja = "リスク"
+
     enrichment = OpportunityEnrichment(
         opportunity_id=opp_id,
         status="succeeded",
@@ -515,7 +563,7 @@ def test_static_site_fallback_and_rendering(
         runtime="llama.cpp",
         runtime_version="v1.0",
         prompt_version=PROMPT_VERSION,
-        input_hash="hash",
+        input_hash=current_hash,
         generated_title="AI Generated Title",
         generated_summary="AI Generated Summary",
         problem_statement="AI Problem",
@@ -597,6 +645,15 @@ def test_static_site_fallback_and_rendering(
     session.query(OpportunityEnrichmentLocalization).filter(
         OpportunityEnrichmentLocalization.locale == "ja"
     ).delete()
+    opp = session.get(Opportunity, opp_id)
+    opp.title_ja = None
+    opp.summary_ja = None
+    opp.problem_ja = None
+    opp.target_user_ja = None
+    opp.current_workaround_ja = None
+    opp.existing_solution_gap_ja = None
+    opp.mvp_direction_ja = None
+    opp.risks_ja = None
     session.commit()
 
     build_static_site(
@@ -608,7 +665,7 @@ def test_static_site_fallback_and_rendering(
 
     with open(opp_detail_file_ja) as f:
         content_ja_fallback = f.read()
-    assert "AI Generated Title" in content_ja_fallback  # fallback to English
+    assert "AI Eng Title" in content_ja_fallback  # fallback to English
     assert (
         "日本語訳はまだ生成されていません。英語版のAI要約を表示しています。"
         in content_ja_fallback
@@ -757,24 +814,24 @@ def test_provider_response_deficient_count_mismatch(
                     english=EnglishBrief(
                         title="Deficient Title 1",
                         summary="Summary 1",
-                        problem_statement="Problem 1",
-                        target_users=["User 1"],
-                        why_now="Why 1",
-                        evidence_synthesis="Synthesis 1",
-                        build_direction="Direction 1",
-                        risks=["Risk 1"],
-                        tags=["Tag 1"],
+                        target_user="User 1",
+                        problem="Problem 1",
+                        current_workaround="Why 1",
+                        existing_solution_gap="Synthesis 1",
+                        mvp_direction="Direction 1",
+                        why_selected="Why selected",
+                        risks="Risk 1",
                     ),
                     japanese=JapaneseBrief(
                         title="日本語タイトル 1",
                         summary="概要 1",
-                        problem_statement="課題 1",
-                        target_users=["ユーザー 1"],
-                        why_now="背景 1",
-                        evidence_synthesis="証拠 1",
-                        build_direction="方向性 1",
-                        risks=["リスク 1"],
-                        tags=["タグ 1"],
+                        target_user="ユーザー 1",
+                        problem="課題 1",
+                        current_workaround="背景 1",
+                        existing_solution_gap="証拠 1",
+                        mvp_direction="方向性 1",
+                        why_selected="選定理由",
+                        risks="リスク 1",
                     ),
                     evidence_refs=["smoke_sig"],
                     llm_confidence="high",
@@ -865,24 +922,24 @@ def test_v1_to_v2_migration_recomputation(db_session_factory, mock_opportunity_d
                     english=EnglishBrief(
                         title="V2 Title",
                         summary="Summary",
-                        problem_statement="Problem",
-                        target_users=["User"],
-                        why_now="Why",
-                        evidence_synthesis="Synthesis",
-                        build_direction="Direction",
-                        risks=["Risk"],
-                        tags=["Tag"],
+                        target_user="User",
+                        problem="Problem",
+                        current_workaround="Why",
+                        existing_solution_gap="Synthesis",
+                        mvp_direction="Direction",
+                        why_selected="Why selected",
+                        risks="Risk",
                     ),
                     japanese=JapaneseBrief(
                         title="V2 日本語タイトル",
                         summary="概要",
-                        problem_statement="課題",
-                        target_users=["ユーザー"],
-                        why_now="背景",
-                        evidence_synthesis="証拠",
-                        build_direction="方向性",
-                        risks=["リスク"],
-                        tags=["タグ"],
+                        target_user="ユーザー",
+                        problem="課題",
+                        current_workaround="背景",
+                        existing_solution_gap="証拠",
+                        mvp_direction="方向性",
+                        why_selected="選定理由",
+                        risks="リスク",
                     ),
                     evidence_refs=["smoke_sig"],
                     llm_confidence="high",
@@ -957,7 +1014,9 @@ def test_leak_prevention_on_failures(db_session_factory, mock_opportunity_data, 
     with caplog.at_level(logging.ERROR):
         from unittest.mock import patch
 
-        with patch("glintory.infrastructure.local_llm_client.LocalLlmProvider", LeakingProvider):
+        with patch(
+            "glintory.infrastructure.local_llm_client.LocalLlmProvider", LeakingProvider
+        ):
             exit_code = pytest.importorskip("asyncio").run(
                 run_enrich_command(args, runtime)
             )

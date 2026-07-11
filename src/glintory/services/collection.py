@@ -18,6 +18,7 @@ from glintory.domain.operations import (
     SourceDisabledError,
     SourceNotFoundError,
 )
+from glintory.infrastructure.error_sanitizer import sanitize_error
 from glintory.infrastructure.http import HttpxHttpClient
 from glintory.infrastructure.repositories import (
     CollectionRunRepository,
@@ -200,10 +201,6 @@ class CollectionService:
             finished_at = self.clock()
             error_summary = "Job execution was cancelled."
 
-            # Record cancellation in DB (Separate Transaction)
-            # Failure Mode: If finalization itself fails (e.g. DB unavailable),
-            # we log the exception and let the run remain in 'running' state,
-            # which will be recovered as 'abandoned' in the next stale recovery.
             session = self.session_factory()
             try:
                 source_repo = SourceRepository(session)
@@ -213,6 +210,8 @@ class CollectionService:
                     completed_at=finished_at,
                     error_count=1,
                     error_summary=error_summary,
+                    error_type="CancelledError",
+                    sanitized_error_message=error_summary,
                 )
                 source_repo.record_failure(source_id, finished_at, error_summary)
                 session.commit()
@@ -239,6 +238,8 @@ class CollectionService:
                     completed_at=finished_at,
                     error_count=1,
                     error_summary=error_summary,
+                    error_type=type(e).__name__,
+                    sanitized_error_message=error_summary,
                 )
                 source_repo.record_failure(source_id, finished_at, error_summary)
                 session.commit()
@@ -269,6 +270,8 @@ class CollectionService:
                     completed_at=finished_at,
                     error_count=1,
                     error_summary=error_summary,
+                    error_type=type(e).__name__,
+                    sanitized_error_message=sanitize_error(str(e)),
                 )
                 source_repo.record_failure(source_id, finished_at, error_summary)
                 session.commit()
@@ -307,7 +310,7 @@ class CollectionService:
                 raw_items=result.items,
                 collected_at=items_collected_at,
             )
-        except Exception:
+        except Exception as e:
             logger.error(
                 "COLLECTION_EXECUTION_FAILED",
                 extra={
@@ -333,6 +336,8 @@ class CollectionService:
                     warning_count=len(result.warnings),
                     error_count=max(len(result.errors), 1),
                     error_summary=error_summary,
+                    error_type=type(e).__name__,
+                    sanitized_error_message=sanitize_error(str(e)),
                     run_metadata=result.metadata,
                 )
                 source_repo.record_failure(source_id, finished_at, error_summary)
@@ -381,6 +386,16 @@ class CollectionService:
         else:
             error_summary = None
 
+        first_err_type = None
+        first_err_msg = None
+        if all_errors:
+            first_err = all_errors[0]
+            first_err_type = getattr(first_err, "code", "UnknownError")
+            first_err_msg = sanitize_error(
+                getattr(first_err, "message", "An error occurred during collection.")
+            )
+
+        skipped_count = max(0, fetched_count - (inserted_count + updated_count))
         total_saved = inserted_count + updated_count + duplicate_count
 
         if error_count > 0:
@@ -407,6 +422,7 @@ class CollectionService:
                     updated_count=updated_count,
                     duplicate_count=duplicate_count,
                     warning_count=warning_count,
+                    skipped_count=skipped_count,
                     run_metadata=result.metadata,
                 )
                 source_repo.record_success(source_id, finished_at)
@@ -421,6 +437,9 @@ class CollectionService:
                     warning_count=warning_count,
                     error_count=error_count,
                     error_summary=error_summary or "",
+                    skipped_count=skipped_count,
+                    error_type=first_err_type,
+                    sanitized_error_message=first_err_msg,
                     run_metadata=result.metadata,
                 )
                 source_repo.record_partial(
@@ -440,6 +459,9 @@ class CollectionService:
                     warning_count=warning_count,
                     error_count=error_count,
                     error_summary=error_summary or "",
+                    skipped_count=skipped_count,
+                    error_type=first_err_type,
+                    sanitized_error_message=first_err_msg,
                     run_metadata=result.metadata,
                 )
                 source_repo.record_failure(source_id, finished_at, error_summary or "")

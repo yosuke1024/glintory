@@ -2,7 +2,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from glintory.domain.enums import SignalType
+from glintory.domain.enums import SignalRole, SignalType
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +18,7 @@ class NormalizedSignal:
     collected_at: datetime
     language: str | None
     signal_type: SignalType
+    signal_role: SignalRole
     categories: tuple[str, ...]
     tags: tuple[str, ...]
     metrics: Mapping[str, int | float | str | bool | None]

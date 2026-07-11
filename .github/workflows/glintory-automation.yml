@@ -164,7 +164,7 @@ jobs:
         id: collection
         run: |
           set +e
-          uv run glintory scheduler run --once --json > build/state/scheduler_metadata.json
+          uv run glintory scheduler run --once --force --json > build/state/scheduler_metadata.json
           cmd_exit_code=$?
           set -e
 
@@ -190,9 +190,10 @@ jobs:
             echo "failed_count=$failed_count"
           } >> "$GITHUB_OUTPUT"
 
-          if [ "$exit_code" = "0" ] || [ "$exit_code" = "3" ] || [ "$exit_code" = "4" ]; then
+          if [ "$exit_code" = "0" ] || [ "$exit_code" = "3" ]; then
             exit 0
           else
+            echo "Collection step failed with exit code $exit_code"
             exit "$exit_code"
           fi
         env:
@@ -201,7 +202,7 @@ jobs:
       - name: Deterministic opportunity analysis and scoring
         run: |
           uv run glintory analyze --json
-          uv run glintory score --json
+          uv run glintory score --score-version v2 --json
 
       - name: Local LLM Enrichment
         if: env.GLINTORY_LOCAL_LLM_ENABLED == 'true'
@@ -234,24 +235,49 @@ jobs:
             echo "enrichment_warnings=$warnings"
           } >> "$GITHUB_OUTPUT"
 
+          if [ "$cmd_exit_code" = "0" ]; then
+            exit 0
+          else
+            echo "LLM Enrichment step failed with exit code $cmd_exit_code"
+            exit "$cmd_exit_code"
+          fi
+
       - name: Write Actions Summary
+        env:
+          COLLECTION_STATUS: ${{ steps.collection.outputs.collection_status }}
+          SUCCEEDED_COUNT: ${{ steps.collection.outputs.succeeded_count }}
+          FAILED_COUNT: ${{ steps.collection.outputs.failed_count }}
         run: |
-          echo "### Glintory Scheduled Automation Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Collection Status:** ${{ steps.collection.outputs.collection_status }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Collection Succeeded Count:** ${{ steps.collection.outputs.succeeded_count }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Collection Failed Count:** ${{ steps.collection.outputs.failed_count }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Glintory Scheduled Automation Summary"
+            echo "- **Collection Status:** $COLLECTION_STATUS"
+            echo "- **Collection Succeeded Count:** $SUCCEEDED_COUNT"
+            echo "- **Collection Failed Count:** $FAILED_COUNT"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write LLM Enrichment Summary
         if: env.GLINTORY_LOCAL_LLM_ENABLED == 'true'
+        env:
+          LLM_ENABLED: ${{ env.GLINTORY_LOCAL_LLM_ENABLED }}
+          LLM_MODEL: ${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}
+          LLM_REVISION: ${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}
+          ENRICHMENT_SELECTED: ${{ steps.enrichment.outputs.enrichment_selected }}
+          ENRICHMENT_SUCCEEDED: ${{ steps.enrichment.outputs.enrichment_succeeded }}
+          ENRICHMENT_FAILED: ${{ steps.enrichment.outputs.enrichment_failed }}
+          ENRICHMENT_SKIPPED: ${{ steps.enrichment.outputs.enrichment_skipped }}
+          ENRICHMENT_WARNINGS: ${{ steps.enrichment.outputs.enrichment_warnings }}
         run: |
-          echo "- **LLM Enabled:** ${{ env.GLINTORY_LOCAL_LLM_ENABLED }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **LLM Model:** ${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **LLM Revision:** ${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **LLM Selected Count:** ${{ steps.enrichment.outputs.enrichment_selected }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **LLM Succeeded Count:** ${{ steps.enrichment.outputs.enrichment_succeeded }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **LLM Failed Count:** ${{ steps.enrichment.outputs.enrichment_failed }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **LLM Skipped Count:** ${{ steps.enrichment.outputs.enrichment_skipped }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **LLM Warning Codes:** ${{ steps.enrichment.outputs.enrichment_warnings }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "- **LLM Enabled:** $LLM_ENABLED"
+            echo "- **LLM Model:** $LLM_MODEL"
+            echo "- **LLM Revision:** $LLM_REVISION"
+            echo "- **LLM Selected Count:** $ENRICHMENT_SELECTED"
+            echo "- **LLM Succeeded Count:** $ENRICHMENT_SUCCEEDED"
+            echo "- **LLM Failed Count:** $ENRICHMENT_FAILED"
+            echo "- **LLM Skipped Count:** $ENRICHMENT_SKIPPED"
+            echo "- **LLM Warning Codes:** $ENRICHMENT_WARNINGS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
 
       - name: Generate public static site
         run: |

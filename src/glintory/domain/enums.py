@@ -44,3 +44,10 @@ class EvidenceRelationType(StrEnum):
     SUPPORTING = "supporting"
     CONTRADICTING = "contradicting"
     RELATED = "related"
+
+
+class SignalRole(StrEnum):
+    DEMAND = "demand"
+    SUPPLY = "supply"
+    CONTEXT = "context"
+    UNKNOWN = "unknown"

@@ -170,6 +170,7 @@ class CollectionRunRepository:
         updated_count: int,
         duplicate_count: int,
         warning_count: int,
+        skipped_count: int = 0,
         run_metadata: Mapping[str, object] | None = None,
     ) -> None:
         run = self.session.get(CollectionRun, run_id)
@@ -192,6 +193,7 @@ class CollectionRunRepository:
         run.duplicate_count = duplicate_count
         run.warning_count = warning_count
         run.error_count = 0
+        run.skipped_count = skipped_count
         run.run_metadata = meta_dict
 
     def finish_partial(
@@ -205,6 +207,9 @@ class CollectionRunRepository:
         warning_count: int,
         error_count: int,
         error_summary: str,
+        skipped_count: int = 0,
+        error_type: str | None = None,
+        sanitized_error_message: str | None = None,
         run_metadata: Mapping[str, object] | None = None,
     ) -> None:
         run = self.session.get(CollectionRun, run_id)
@@ -228,6 +233,9 @@ class CollectionRunRepository:
         run.warning_count = warning_count
         run.error_count = error_count
         run.error_summary = sanitize_error(error_summary)
+        run.skipped_count = skipped_count
+        run.error_type = error_type
+        run.sanitized_error_message = sanitized_error_message
         run.run_metadata = meta_dict
 
     def finish_failed(
@@ -242,6 +250,9 @@ class CollectionRunRepository:
         warning_count: int = 0,
         error_count: int = 1,
         error_summary: str,
+        skipped_count: int = 0,
+        error_type: str | None = None,
+        sanitized_error_message: str | None = None,
         run_metadata: Mapping[str, object] | None = None,
     ) -> None:
         if error_count < 1:
@@ -268,6 +279,9 @@ class CollectionRunRepository:
         run.warning_count = warning_count
         run.error_count = error_count
         run.error_summary = sanitize_error(error_summary)
+        run.skipped_count = skipped_count
+        run.error_type = error_type
+        run.sanitized_error_message = sanitized_error_message
         run.run_metadata = meta_dict
 
 
@@ -306,6 +320,7 @@ class SignalRepository:
             collected_at=signal.collected_at,
             language=signal.language,
             signal_type=signal.signal_type,
+            signal_role=signal.signal_role,
             categories=list(signal.categories),
             tags=list(signal.tags),
             metrics=dict(signal.metrics),
@@ -359,6 +374,7 @@ class SignalRepository:
         existing.published_at = incoming.published_at
         existing.language = incoming.language
         existing.signal_type = incoming.signal_type
+        existing.signal_role = incoming.signal_role
         existing.categories = list(incoming.categories)
         existing.tags = list(incoming.tags)
         existing.metrics = dict(incoming.metrics)
