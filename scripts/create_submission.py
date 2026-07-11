@@ -172,7 +172,7 @@ def main() -> None:
                             allowed_markers = secret_allowlist.get(name, [])
                             if marker not in allowed_markers:
                                 print(
-                                    f"ERROR: Unauthorized secret/mock value '{marker}' found in '{name}'",
+                                    f"ERROR: Unauthorized secret/mock value found in '{name}'",
                                     file=sys.stderr,
                                 )
                                 ok = False
