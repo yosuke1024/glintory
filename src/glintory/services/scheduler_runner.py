@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import secrets
-import signal
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -26,7 +25,6 @@ class SchedulerRunOnceResult:
 
 
 class SchedulerRunner:
-    poll_seconds: float
     lease_seconds: float
     heartbeat_seconds: float
 
@@ -42,7 +40,6 @@ class SchedulerRunner:
         self.owner_token = owner_token or secrets.token_urlsafe(32)
         self.clock = clock or (lambda: datetime.now(UTC))
 
-        self.poll_seconds = float(settings.scheduler_poll_seconds)
         self.lease_seconds = float(settings.scheduler_lease_seconds)
         self.heartbeat_seconds = float(settings.scheduler_heartbeat_seconds)
 
@@ -128,112 +125,6 @@ class SchedulerRunner:
 
         return SchedulerRunOnceResult(exit_code=exit_code, tick_result=tick_result)
 
-    async def run_continuous(self) -> int:
-        """
-        Runs the scheduler continuously.
-        """
-        logger.info(
-            "operation=scheduler_start "
-            "lease_name=default "
-            "mode=continuous "
-            'message="Starting scheduler in continuous mode."'
-        )
-
-        # Signal handling setup
-        try:
-            loop = asyncio.get_running_loop()
-
-            def handle_signal():
-                logger.info(
-                    'operation=scheduler_shutdown_requested message="Shutdown signal received."'
-                )
-                self._shutdown_event.set()
-
-            for sig in (signal.SIGTERM, signal.SIGINT):
-                loop.add_signal_handler(sig, handle_signal)
-        except (ValueError, RuntimeError):
-            # add_signal_handler fails if not in main thread (e.g. during some pytest runner setups)
-            pass
-
-        # 1. Acquire initial lease
-        session = self.session_factory()
-        try:
-            lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
-            acquired = lease_repo.acquire(
-                owner_token=self.owner_token,
-                lease_seconds=int(self.lease_seconds),
-            )
-            session.commit()
-            if not acquired:
-                logger.error(
-                    'operation=scheduler_lease_unavailable lease_name=default message="Could not acquire lease."'
-                )
-                return 6
-        except Exception:
-            session.rollback()
-            logger.exception(
-                'operation=scheduler_lease_error message="Initial lease acquisition failed."'
-            )
-            return 1
-        finally:
-            session.close()
-
-        # Start background task loops
-        heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        tick_loop_task = asyncio.create_task(self._tick_loop())
-
-        # Wait for shutdown signal or lease lost
-        try:
-            await self._shutdown_event.wait()
-        except asyncio.CancelledError:
-            logger.info(
-                'operation=scheduler_cancelled message="Scheduler runner was cancelled."'
-            )
-        finally:
-            # Signal shutdown
-            self._shutdown_event.set()
-
-            # Stop new ticks by cancelling the tick loop task
-            tick_loop_task.cancel()
-            await asyncio.gather(tick_loop_task, return_exceptions=True)
-
-            # Wait for active tick processes to finish safely while heartbeat is still running
-            # Max wait 60 seconds to prevent infinite hang
-            max_wait_seconds = 60.0
-            wait_interval = 0.1
-            waited = 0.0
-            while self._active_ticks_count > 0 and waited < max_wait_seconds:
-                await asyncio.sleep(wait_interval)
-                waited += wait_interval
-
-            if self._active_ticks_count > 0:
-                logger.warning(
-                    "operation=scheduler_shutdown_timeout "
-                    'message="Timed out waiting for active ticks to complete. Force stopping."'
-                )
-
-            # Now that active ticks are finished (or timed out), cancel heartbeat
-            heartbeat_task.cancel()
-            await asyncio.gather(heartbeat_task, return_exceptions=True)
-
-            # Release lease
-            session = self.session_factory()
-            try:
-                lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
-                lease_repo.release(owner_token=self.owner_token)
-                session.commit()
-                logger.info(
-                    'operation=scheduler_lease_released lease_name=default message="Lease released successfully."'
-                )
-            except Exception:
-                session.rollback()
-            finally:
-                session.close()
-
-        if self._lease_lost:
-            return 7
-        return 0
-
     async def _heartbeat_loop(self):
         while not self._shutdown_event.is_set():
             try:
@@ -268,34 +159,5 @@ class SchedulerRunner:
                     )
                 finally:
                     session.close()
-            except asyncio.CancelledError:
-                break
-
-    async def _tick_loop(self):
-        while not self._shutdown_event.is_set():
-            try:
-                await asyncio.sleep(self.poll_seconds)
-                if self._shutdown_event.is_set():
-                    break
-
-                if self._lease_lost:
-                    break
-
-                self._active_ticks_count += 1
-                try:
-                    await self.scheduler_service.run_tick(owner_token=self.owner_token)
-                except SchedulerLeaseLostError:
-                    logger.error(
-                        'operation=scheduler_lease_lost lease_name=default message="Lease lost during tick."'
-                    )
-                    self._lease_lost = True
-                    self._shutdown_event.set()
-                    break
-                except Exception:
-                    logger.exception(
-                        'operation=scheduler_tick_error message="Error running scheduler tick."'
-                    )
-                finally:
-                    self._active_ticks_count -= 1
             except asyncio.CancelledError:
                 break

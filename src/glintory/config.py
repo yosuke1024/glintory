@@ -41,7 +41,6 @@ class Settings(BaseSettings):
     collection_error_display_max_chars: int = Field(default=2000, ge=200, le=10000)
     collection_web_max_items: int = Field(default=500, ge=1, le=1000)
 
-    scheduler_poll_seconds: int = Field(default=30, ge=5, le=300)
     scheduler_lease_seconds: int = Field(default=120, ge=30, le=1800)
     scheduler_heartbeat_seconds: int = Field(default=30, ge=5, le=300)
     scheduler_max_due_per_tick: int = Field(default=20, ge=1, le=100)

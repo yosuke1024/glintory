@@ -150,9 +150,9 @@ def test_scheduler_cli_run_once(cli_db_env, capsys):
     assert "owner_token_hidden" not in data
 
 
-def test_scheduler_cli_run_continuous_json_rejected(cli_db_env, capsys):
-    # Continuous mode + JSON should return exit code 2
-    code = main(["scheduler", "run", "--json"])
+def test_scheduler_cli_run_continuous_rejected(cli_db_env, capsys):
+    # Continuous mode should return exit code 2
+    code = main(["scheduler", "run"])
     assert code == 2
     out, err = capsys.readouterr()
-    assert "Argument Error" in err
+    assert "Continuous scheduler mode has been removed" in err

@@ -2,9 +2,9 @@ import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import cast
-from sqlalchemy.engine import CursorResult
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from glintory.domain.models import (

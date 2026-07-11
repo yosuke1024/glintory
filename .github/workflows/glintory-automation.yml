@@ -1,0 +1,174 @@
+name: Glintory Scheduled Automation
+
+on:
+  schedule:
+    - cron: '17 21 * * *' # 日本時間 午前6時17分 (UTC 21:17)
+  workflow_dispatch:
+
+concurrency:
+  group: glintory-workflow
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+
+jobs:
+  run-automation:
+    runs-on: ubuntu-latest
+    env:
+      GLINTORY_DATABASE_URL: sqlite:///data/glintory.sqlite3
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync
+
+      - name: Download previous state
+        run: |
+          mkdir -p data
+          # Download the release asset if exists
+          if gh release download glintory-state --pattern "glintory-state-*.tar.gz" --dir data; then
+            # Find downloaded archive
+            ARCHIVE=$(find data -maxdepth 1 -name "glintory-state-*.tar.gz" | head -n 1)
+            if [ -n "$ARCHIVE" ]; then
+              echo "Verifying downloaded archive: $ARCHIVE"
+              if uv run glintory state verify --input "$ARCHIVE" --json; then
+                echo "Archive is valid. Restoring..."
+                uv run glintory state restore --input "$ARCHIVE" --target data/glintory.sqlite3 --force
+              else
+                echo "Archive verification failed. Initializing empty database."
+                uv run alembic upgrade head
+              fi
+            else
+              echo "No state archive found in download. Initializing empty database."
+              uv run alembic upgrade head
+            fi
+          else
+            echo "No glintory-state release found. Initializing empty database."
+            uv run alembic upgrade head
+          fi
+
+      - name: SQLite integrity and migration check
+        run: |
+          # Check integrity
+          sqlite3 data/glintory.sqlite3 "PRAGMA integrity_check;"
+          # Apply migrations
+          uv run alembic upgrade head
+
+      - name: Sync source manifest
+        run: |
+          uv run glintory source sync-manifest --file config/public-sources.json --json
+
+      - name: Run due collection
+        id: run-scheduler
+        run: |
+          uv run glintory scheduler run --once --json > scheduler_metadata.json
+          cat scheduler_metadata.json
+          # Check exit code
+          EXIT_CODE=$(jq -r '.exit_code' scheduler_metadata.json)
+          if [ "$EXIT_CODE" = "7" ]; then
+            echo "Lease lost during scheduler execution. Aborting to ensure safety."
+            exit 7
+          fi
+
+      - name: Create state snapshot
+        run: |
+          uv run glintory state snapshot --output data/glintory-state-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz --metadata-file scheduler_metadata.json --json
+
+      - name: Verify state snapshot
+        run: |
+          uv run glintory state verify --input data/glintory-state-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz --json
+
+      - name: Generate public static site
+        run: |
+          uv run glintory publish build --output-dir dist --base-path /glintory --json
+
+      - name: Generate GITHUB_STEP_SUMMARY
+        run: |
+          echo "## Glintory Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Static Site Stats" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          uv run glintory publish build --output-dir dist --base-path /glintory --json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### State Metadata" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          uv run glintory state inspect --input data/glintory-state-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz --json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload State to Release
+        run: |
+          # Check if release exists, if not create it
+          if ! gh release view glintory-state >/dev/null 2>&1; then
+            gh release create glintory-state --title "Glintory State Store" --notes "Durable SQLite State Store"
+          fi
+          gh release upload glintory-state data/glintory-state-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz --clobber
+
+      - name: Keep last 5 generations
+        run: |
+          python -c '
+          import sys, json, subprocess
+          res = subprocess.run("gh api repos/:owner/:repo/releases/tags/glintory-state", shell=True, capture_output=True, text=True)
+          if res.returncode != 0:
+              print("No tag release found or gh error.")
+              sys.exit(0)
+          data = json.loads(res.stdout)
+          assets = [a for a in data.get("assets", []) if a["name"].startswith("glintory-state-") and a["name"].endswith(".tar.gz")]
+          assets.sort(key=lambda x: x["created_at"])
+          if len(assets) > 5:
+              to_delete = assets[:-5]
+              for asset in to_delete:
+                  print(f"Deleting older asset {asset[\"name\"]}")
+                  subprocess.run(f"gh api -X DELETE repos/:owner/:repo/releases/assets/{asset[\"id\"]}", shell=True)
+          '
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+
+      - name: Handle Failure Notification
+        if: failure()
+        run: |
+          python -c '
+          import os, subprocess, json
+          run_id = os.environ.get("GITHUB_RUN_ID")
+          repo = os.environ.get("GITHUB_REPOSITORY")
+          run_url = f"https://github.com/{repo}/actions/runs/{run_id}"
+          
+          issues_json = subprocess.run("gh issue list --state open --label automation-failure --json number,title", shell=True, capture_output=True, text=True).stdout
+          issues = []
+          if issues_json.strip():
+              try:
+                  issues = json.loads(issues_json)
+              except Exception:
+                  pass
+          
+          matching = [i for i in issues if i["title"] == "[Glintory Automation] Failure"]
+          body = f"Glintory scheduled automation failed.\nRun URL: {run_url}"
+          if matching:
+              issue_num = matching[0]["number"]
+              print(f"Adding comment to open issue #{issue_num}")
+              subprocess.run(f"gh issue comment {issue_num} --body \"{body}\"", shell=True)
+          else:
+              print("Creating new issue for automation failure")
+              subprocess.run(f"gh issue create --title \"[Glintory Automation] Failure\" --label automation-failure --body \"{body}\"", shell=True)
+          '

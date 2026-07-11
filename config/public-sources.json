@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "name": "github-opportunity-signals",
+      "source_type": "github",
+      "enabled": true,
+      "config_file": "github-source.public.json",
+      "schedule": {
+        "enabled": true,
+        "interval_minutes": 1440
+      }
+    },
+    {
+      "name": "hacker-news-opportunity-signals",
+      "source_type": "hackernews",
+      "enabled": true,
+      "config_file": "hackernews-source.public.json",
+      "schedule": {
+        "enabled": true,
+        "interval_minutes": 1440
+      }
+    }
+  ]
+}

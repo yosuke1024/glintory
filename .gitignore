@@ -32,3 +32,8 @@ env/
 *.swp
 *.swo
 .DS_Store
+
+# Glintory build and data artifacts
+dist/
+data/
+

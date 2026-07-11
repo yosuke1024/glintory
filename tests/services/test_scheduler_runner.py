@@ -59,11 +59,10 @@ async def test_scheduler_runner_once_lease_blocked(db_session_factory, db_sessio
 
 
 @pytest.mark.anyio
-async def test_scheduler_runner_continuous_lease_lost(
+async def test_scheduler_runner_once_lease_lost(
     db_session_factory, db_session, monkeypatch
 ):
     # Set config to very small values for testing
-    monkeypatch.setattr("glintory.config.settings.scheduler_poll_seconds", 1)
     monkeypatch.setattr("glintory.config.settings.scheduler_heartbeat_seconds", 1)
     monkeypatch.setattr("glintory.config.settings.scheduler_lease_seconds", 3)
 
@@ -72,12 +71,8 @@ async def test_scheduler_runner_continuous_lease_lost(
     mock_service.run_tick = AsyncMock(side_effect=SchedulerLeaseLostError())
 
     runner = SchedulerRunner(db_session_factory, mock_service, owner_token="owner-1")
-
-    # Run continuous, it should exit with code 7 when lease lost
-    # We set poll_seconds = 1, so it will tick soon.
-    runner.poll_seconds = 0.1
     runner.heartbeat_seconds = 0.1
     runner.lease_seconds = 0.5
 
-    code = await runner.run_continuous()
-    assert code == 7
+    res = await runner.run_once()
+    assert res.exit_code == 7

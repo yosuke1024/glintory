@@ -1,0 +1,9 @@
+{
+  "feeds": ["new", "best", "ask"],
+  "max_items_per_feed": 25,
+  "include_jobs": false,
+  "include_dead": false,
+  "include_deleted": false,
+  "minimum_score": 5,
+  "lookback_days": 30
+}

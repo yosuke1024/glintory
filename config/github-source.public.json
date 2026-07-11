@@ -1,0 +1,15 @@
+{
+  "repository_queries": [
+    {
+      "query": "google guava",
+      "sort": "stars",
+      "order": "desc",
+      "max_items": 10
+    }
+  ],
+  "issue_queries": [],
+  "per_page": 50,
+  "max_pages_per_query": 3,
+  "include_forks": false,
+  "include_archived": false
+}

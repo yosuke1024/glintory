@@ -115,6 +115,16 @@ def build_parser() -> argparse.ArgumentParser:
     disable_parser.add_argument(
         "--json", action="store_true", help="Output in JSON format"
     )
+    # Setup source sync-manifest command
+    sync_manifest_parser = source_subparsers.add_parser(
+        "sync-manifest", help="Sync public sources from a manifest JSON file"
+    )
+    sync_manifest_parser.add_argument(
+        "--file", required=True, help="Path to public-sources.json manifest file"
+    )
+    sync_manifest_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
+    )
 
     # Setup collect command
     collect_parser = subparsers.add_parser("collect", help="Perform collection run")
@@ -250,12 +260,86 @@ def build_parser() -> argparse.ArgumentParser:
         "--once", action="store_true", help="Run a single tick and exit"
     )
     scheduler_run_parser.add_argument(
-        "--poll-seconds", type=int, help="Override default poll interval"
-    )
-    scheduler_run_parser.add_argument(
         "--json",
         action="store_true",
         help="Output results in JSON format (only with --once)",
+    )
+    # Setup state command
+    state_parser = subparsers.add_parser("state", help="Manage durable state bundles")
+    state_subparsers = state_parser.add_subparsers(dest="subcommand", required=True)
+
+    # state snapshot
+    snapshot_parser = state_subparsers.add_parser(
+        "snapshot", help="Create a snapshot of the state database"
+    )
+    snapshot_parser.add_argument(
+        "--output", required=True, help="Output path for the state archive (.tar.gz)"
+    )
+    snapshot_parser.add_argument("--run-id", help="GitHub Run ID")
+    snapshot_parser.add_argument("--run-attempt", help="GitHub Run Attempt")
+    snapshot_parser.add_argument("--metadata-file", help="Path to metadata JSON file")
+    snapshot_parser.add_argument(
+        "--profile", default="public", help="Audit profile (e.g. public)"
+    )
+    snapshot_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
+    )
+
+    # state restore
+    restore_parser = state_subparsers.add_parser(
+        "restore", help="Restore the state database from a snapshot"
+    )
+    restore_parser.add_argument(
+        "--input", required=True, help="Input path for the state archive (.tar.gz)"
+    )
+    restore_parser.add_argument(
+        "--target", required=True, help="Target path to restore the database to"
+    )
+    restore_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite existing database"
+    )
+    restore_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
+    )
+
+    # state verify
+    verify_parser = state_subparsers.add_parser(
+        "verify", help="Verify the integrity of a state archive"
+    )
+    verify_parser.add_argument(
+        "--input", required=True, help="Path to the state archive (.tar.gz)"
+    )
+    verify_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
+    )
+
+    # state inspect
+    inspect_parser = state_subparsers.add_parser(
+        "inspect", help="Inspect state bundle metadata"
+    )
+    inspect_parser.add_argument(
+        "--input", required=True, help="Path to the state archive (.tar.gz)"
+    )
+    inspect_parser.add_argument(
+        "--json", action="store_true", default=True, help="Output in JSON format"
+    )
+
+    # Setup publish command
+    publish_parser = subparsers.add_parser("publish", help="Publish static HTML site")
+    publish_subparsers = publish_parser.add_subparsers(dest="subcommand", required=True)
+
+    publish_build_parser = publish_subparsers.add_parser(
+        "build", help="Build static HTML site"
+    )
+    publish_build_parser.add_argument(
+        "--output-dir", required=True, help="Output directory path (e.g. dist)"
+    )
+    publish_build_parser.add_argument(
+        "--base-path", default="", help="Base URL subpath (e.g. /glintory)"
+    )
+    publish_build_parser.add_argument("--site-url", help="Public site URL")
+    publish_build_parser.add_argument(
+        "--json", action="store_true", help="Output in JSON format"
     )
 
     return parser
@@ -288,6 +372,10 @@ async def run_cli(args: argparse.Namespace) -> int:
             return await run_schedule_command(args, runtime)
         if args.command == "scheduler":
             return await run_scheduler_command(args, runtime)
+        if args.command == "state":
+            return await run_state_command(args, runtime)
+        if args.command == "publish":
+            return await run_publish_command(args, runtime)
 
     return 0
 
@@ -544,6 +632,30 @@ async def _run_source_toggle(args: argparse.Namespace, runtime: Any) -> int:
         session.close()
 
 
+async def _run_source_sync_manifest(args: argparse.Namespace, runtime: Any) -> int:
+    from glintory.services.sync_manifest import sync_manifest_file
+
+    session = runtime.session_factory()
+    try:
+        res = sync_manifest_file(
+            session=session,
+            registry=runtime.registry,
+            manifest_path=args.file,
+        )
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(
+                f"Source manifest synced successfully. Created: {res['created_count']}, Updated: {res['updated_count']}."
+            )
+        return 0
+    except Exception as e:
+        sys.stderr.write(f"Sync manifest failed: {e}\n")
+        return 1
+    finally:
+        session.close()
+
+
 async def run_source_command(args: argparse.Namespace, runtime: Any) -> int:
     if args.subcommand == "add":
         return await _run_source_add(args, runtime)
@@ -555,6 +667,8 @@ async def run_source_command(args: argparse.Namespace, runtime: Any) -> int:
         return await _run_source_update(args, runtime)
     if args.subcommand in ("enable", "disable"):
         return await _run_source_toggle(args, runtime)
+    if args.subcommand == "sync-manifest":
+        return await _run_source_sync_manifest(args, runtime)
     return 2
 
 
@@ -1119,15 +1233,12 @@ async def run_scheduler_command(args: argparse.Namespace, runtime: Any) -> int:
     from glintory.services.scheduler_runner import SchedulerRunner
     from glintory.services.scheduler_service import SchedulerService
 
-    if args.subcommand == "run" and args.json and not args.once:
-        sys.stderr.write("Argument Error: --json can only be used with --once mode.\n")
+    if not args.once:
+        sys.stderr.write(
+            "Continuous scheduler mode has been removed.\n"
+            "Use `glintory scheduler run --once`.\n"
+        )
         return 2
-
-    if args.poll_seconds is not None:
-        if not (5 <= args.poll_seconds <= 300):
-            sys.stderr.write("poll-seconds must be between 5 and 300.\n")
-            return 2
-        runtime.settings.scheduler_poll_seconds = args.poll_seconds
 
     collection_service = CollectionService(
         session_factory=runtime.session_factory,
@@ -1142,32 +1253,149 @@ async def run_scheduler_command(args: argparse.Namespace, runtime: Any) -> int:
         scheduler_service=scheduler_service,
     )
 
-    if args.once:
-        res = await runner.run_once()
-        if args.json:
-            tick_data = None
-            if res.tick_result:
-                tick_data = {
-                    "due_schedule_count": res.tick_result.due_schedule_count,
-                    "claimed_execution_count": res.tick_result.claimed_execution_count,
-                    "succeeded_count": res.tick_result.succeeded_count,
-                    "partial_count": res.tick_result.partial_count,
-                    "failed_count": res.tick_result.failed_count,
-                    "skipped_busy_count": res.tick_result.skipped_busy_count,
-                    "skipped_disabled_count": res.tick_result.skipped_disabled_count,
-                    "abandoned_count": res.tick_result.abandoned_count,
-                    "execution_ids": list(res.tick_result.execution_ids),
+    res = await runner.run_once()
+    if args.json:
+        tick_data = None
+        if res.tick_result:
+            tick_data = {
+                "due_schedule_count": res.tick_result.due_schedule_count,
+                "claimed_execution_count": res.tick_result.claimed_execution_count,
+                "succeeded_count": res.tick_result.succeeded_count,
+                "partial_count": res.tick_result.partial_count,
+                "failed_count": res.tick_result.failed_count,
+                "skipped_busy_count": res.tick_result.skipped_busy_count,
+                "skipped_disabled_count": res.tick_result.skipped_disabled_count,
+                "abandoned_count": res.tick_result.abandoned_count,
+                "execution_ids": list(res.tick_result.execution_ids),
+            }
+        print(
+            json.dumps(
+                {
+                    "exit_code": res.exit_code,
+                    "tick": tick_data,
                 }
-            print(
-                json.dumps(
-                    {
-                        "exit_code": res.exit_code,
-                        "tick": tick_data,
-                    }
-                )
             )
-        return res.exit_code
-    return await runner.run_continuous()
+        )
+    return res.exit_code
+
+
+async def run_state_command(args: argparse.Namespace, runtime: Any) -> int:
+    from glintory.services.state_management import (
+        create_state_snapshot,
+        restore_state_archive,
+        verify_state_archive,
+    )
+
+    if args.subcommand == "snapshot":
+        try:
+            manifest = create_state_snapshot(
+                output_path=args.output,
+                run_id=args.run_id,
+                run_attempt=args.run_attempt,
+                metadata_file=args.metadata_file,
+                profile=args.profile,
+            )
+            if args.json:
+                print(json.dumps(manifest, indent=2))
+            else:
+                print(f"Snapshot created successfully at: {args.output}")
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"Snapshot creation failed: {e}\n")
+            return 1
+
+    elif args.subcommand == "restore":
+        try:
+            manifest = restore_state_archive(
+                archive_path=args.input,
+                target_path=args.target,
+                force=args.force,
+            )
+            if args.json:
+                print(json.dumps(manifest, indent=2))
+            else:
+                print(
+                    f"Database restored successfully from: {args.input} to {args.target}"
+                )
+            return 0
+        except FileExistsError as e:
+            sys.stderr.write(f"Restore failed: {e}\n")
+            return 3
+        except Exception as e:
+            sys.stderr.write(f"Restore failed: {e}\n")
+            return 1
+
+    elif args.subcommand == "verify":
+        try:
+            manifest = verify_state_archive(args.input)
+            if args.json:
+                print(json.dumps({"valid": True, "manifest": manifest}, indent=2))
+            else:
+                print(f"Archive '{args.input}' is valid.")
+            return 0
+        except Exception as e:
+            if args.json:
+                print(json.dumps({"valid": False, "error": str(e)}, indent=2))
+            else:
+                sys.stderr.write(f"Verification failed: {e}\n")
+            return 1
+
+    elif args.subcommand == "inspect":
+        try:
+            manifest = verify_state_archive(archive_path=args.input)
+            output = {
+                "format_version": manifest.get("format_version"),
+                "created_at": manifest.get("created_at"),
+                "github_run_id": manifest.get("github_run_id"),
+                "github_run_attempt": manifest.get("github_run_attempt"),
+                "alembic_revision": manifest.get("alembic_revision"),
+                "database_sha256": manifest.get("database_sha256"),
+                "database_size_bytes": manifest.get("database_size_bytes"),
+                "source_count": manifest.get("source_count"),
+                "signal_count": manifest.get("signal_count"),
+                "opportunity_count": manifest.get("opportunity_count"),
+                "collection_run_count": manifest.get("collection_run_count"),
+                "schedule_execution_count": manifest.get("schedule_execution_count"),
+            }
+            print(json.dumps(output, indent=2))
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"Inspection failed: {e}\n")
+            return 1
+
+    return 0
+
+
+async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
+    from glintory.services.static_publishing import build_static_site
+
+    if args.subcommand == "build":
+        session = runtime.session_factory()
+        try:
+            site_url = args.site_url or os.environ.get("GLINTORY_PUBLIC_SITE_URL")
+            pixapps_url = os.environ.get("GLINTORY_PIXAPPS_URL")
+
+            res = build_static_site(
+                session=session,
+                output_dir=args.output_dir,
+                base_path=args.base_path,
+                site_url=site_url,
+                pixapps_url=pixapps_url,
+            )
+            if args.json:
+                print(json.dumps(res, indent=2))
+            else:
+                print(
+                    f"Static site generated successfully at: {args.output_dir}. Total files: {res['total_files']}."
+                )
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"Static site generation failed: {e}\n")
+            return 1
+        finally:
+            session.close()
+
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
