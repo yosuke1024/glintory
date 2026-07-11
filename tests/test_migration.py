@@ -61,6 +61,7 @@ def test_alembic_migrations(test_db_path):
         "scheduler_leases",
         "schedule_executions",
         "opportunity_enrichments",
+        "opportunity_enrichment_localizations",
     }
 
     for table in expected_tables:

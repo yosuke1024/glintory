@@ -1,0 +1,167 @@
+name: Local LLM Enrichment Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+      GLINTORY_LOCAL_LLM_ENABLED: "true"
+      GLINTORY_LOCAL_LLM_MODEL_REPO: "Qwen/Qwen3-1.7B-GGUF"
+      GLINTORY_LOCAL_LLM_MODEL_FILE: "Qwen3-1.7B-Q8_0.gguf"
+      GLINTORY_LOCAL_LLM_MODEL_PATH: "./models/Qwen3-1.7B-Q8_0.gguf"
+      GLINTORY_LOCAL_LLM_MODEL_REVISION: "90862c4b9d2787eaed51d12237eafdfe7c5f6077"
+      GLINTORY_LOCAL_LLM_MODEL_SHA256: "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a"
+      GLINTORY_LOCAL_LLM_BINARY_PATH: "./bin/llama-server"
+      LLAMA_CPP_VERSION: "b3600"
+      LLAMA_CPP_BINARY_SHA256: "5edcfae5739f313a9d30bf9e59116b53f5240c3e6ffeb9f25be9bb7b8c303222"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+      - name: Setup Python
+        uses: actions/setup-python@f67e243f3d734e5a6534282a1b339b0e40f69306
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@17498c4fdfda2cc4114fec64f02fa883907c166d
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+
+      - name: Cache LLM assets
+        id: cache-llm
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        with:
+          path: |
+            ./bin
+            ./models
+          key: local-llm-${{ env.GLINTORY_LOCAL_LLM_MODEL_REPO }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}-${{ env.LLAMA_CPP_VERSION }}
+
+      - name: Prepare and verify LLM assets
+        run: |
+          mkdir -p bin models
+
+          # 1. Check and prepare llama-server
+          bin_ok=false
+          if [ -f "./bin/llama-server" ]; then
+            echo "${{ env.LLAMA_CPP_BINARY_SHA256 }}  ./bin/llama-server" | sha256sum -c - --status && bin_ok=true || bin_ok=false
+          fi
+
+          if [ "$bin_ok" = "false" ]; then
+            echo "Binary missing or hash mismatch. Downloading..."
+            ZIP_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_VERSION}/llama-${LLAMA_CPP_VERSION}-bin-ubuntu-x64.zip"
+            curl -L -o llama.zip "$ZIP_URL"
+            # Verify zip archive hash
+            echo "fa7e7a980d7ffdd152fbd56d6c14f943b4e6f1a5b10d103f2bba3eb0f46eed3a  llama.zip" | sha256sum -c -
+            unzip -o llama.zip -d llama_temp
+            find llama_temp -name "llama-server" -exec cp {} ./bin/llama-server \;
+            chmod +x ./bin/llama-server
+            rm -rf llama.zip llama_temp
+            # Verify extracted binary hash
+            echo "${{ env.LLAMA_CPP_BINARY_SHA256 }}  ./bin/llama-server" | sha256sum -c -
+          else
+            echo "Binary cached and verified successfully."
+          fi
+
+          # 2. Check and prepare Model GGUF
+          model_ok=false
+          if [ -f "./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" ]; then
+            echo "${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}  ./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" | sha256sum -c - --status && model_ok=true || model_ok=false
+          fi
+
+          if [ "$model_ok" = "false" ]; then
+            echo "Model missing or hash mismatch. Downloading..."
+            MODEL_URL="https://huggingface.co/${{ env.GLINTORY_LOCAL_LLM_MODEL_REPO }}/resolve/${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}"
+            curl -L -o "./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" "$MODEL_URL"
+            # Verify model hash
+            echo "${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}  ./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" | sha256sum -c -
+          else
+            echo "Model cached and verified successfully."
+          fi
+
+      - name: Initialize database and setup test data
+        run: |
+          mkdir -p .state
+          uv run alembic upgrade head
+          uv run python - << 'EOF'
+          import os
+          from sqlalchemy import create_engine
+          from sqlalchemy.orm import sessionmaker
+          from glintory.domain.models import Base, Source, Signal, Opportunity, OpportunitySignal, ScoreSnapshot
+          from glintory.domain.enums import SignalType, OpportunityStatus, Confidence, EvidenceRelationType
+          from glintory.config import settings
+
+          db_url = settings.database_url
+          engine = create_engine(db_url)
+          Base.metadata.create_all(engine)
+          Session = sessionmaker(bind=engine)
+          session = Session()
+
+          src = Source(id="smoke_src", name="Smoke Source", source_type="github")
+          session.add(src)
+          session.flush()
+
+          sig = Signal(
+              id="smoke_sig",
+              source_id=src.id,
+              canonical_url="https://github.com/smoke/test",
+              title="Smoke Signal Title",
+              excerpt="This is user feedback indicating a major feature request for integration.",
+              signal_type=SignalType.PAIN,
+              content_hash="smoke_content_hash",
+              freshness_score=1.0,
+              source_quality_score=1.0,
+          )
+          session.add(sig)
+          session.flush()
+
+          opp = Opportunity(
+              id="smoke_opp",
+              title="Smoke Opportunity",
+              proposed_solution="Integrate the requested feature.",
+              evidence_score=10,
+              feasibility_score=10,
+              penalty_score=0,
+              total_score=20,
+              confidence=Confidence.MEDIUM,
+              status=OpportunityStatus.INBOX,
+          )
+          session.add(opp)
+          session.flush()
+
+          opp_sig = OpportunitySignal(
+              opportunity_id=opp.id,
+              signal_id=sig.id,
+              relation_type=EvidenceRelationType.SUPPORTING,
+              relevance_score=1.0,
+          )
+          session.add(opp_sig)
+
+          snap = ScoreSnapshot(
+              opportunity_id=opp.id,
+              evidence_score=10,
+              feasibility_score=10,
+              penalty_score=0,
+              total_score=20,
+              confidence=Confidence.MEDIUM,
+              scoring_version=settings.scoring_version,
+              input_hash="smoke_snap_hash",
+          )
+          session.add(snap)
+          session.commit()
+          session.close()
+          print("Smoke test data initialized successfully.")
+          EOF
+
+      - name: Run LLM Enrichment Smoke Test
+        run: |
+          uv run glintory enrich run --json

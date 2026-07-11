@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from glintory.domain.enums import (
     CollectionRunStatus,
@@ -636,6 +636,12 @@ class OpportunityEnrichment(Base):
         nullable=False,
     )
 
+    localizations: Mapped[list["OpportunityEnrichmentLocalization"]] = relationship(
+        "OpportunityEnrichmentLocalization",
+        back_populates="enrichment",
+        cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         UniqueConstraint(
             "opportunity_id",
@@ -658,4 +664,46 @@ class OpportunityEnrichment(Base):
             "error_code IN ('LLM_MODEL_DOWNLOAD_FAILED', 'LLM_MODEL_CHECKSUM_FAILED', 'LLM_RUNTIME_START_FAILED', 'LLM_TIMEOUT', 'LLM_INVALID_JSON', 'LLM_SCHEMA_VALIDATION_FAILED', 'LLM_INFERENCE_FAILED') OR error_code IS NULL",
             name="chk_opportunity_enrichments_error_code",
         ),
+    )
+
+
+class OpportunityEnrichmentLocalization(Base):
+    __tablename__ = "opportunity_enrichment_localizations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    enrichment_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("opportunity_enrichments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    locale: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    generated_title: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    generated_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    problem_statement: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    target_users: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    why_now: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    evidence_synthesis: Mapped[str | None] = mapped_column(String(800), nullable=True)
+    build_direction: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    risks: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    enrichment: Mapped["OpportunityEnrichment"] = relationship(
+        "OpportunityEnrichment", back_populates="localizations"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("enrichment_id", "locale", name="uq_enrichment_locale"),
+        CheckConstraint("locale IN ('en', 'ja')", name="chk_locale_allowed"),
+        Index("idx_enrichment_localizations_enrich_id", "enrichment_id"),
     )

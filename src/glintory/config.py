@@ -68,16 +68,16 @@ class Settings(BaseSettings):
 
     local_llm_enabled: bool = False
     local_llm_binary_path: str = Field(default="./bin/llama-server")
-    local_llm_binary_sha256: str = Field(default="")
-    local_llm_model_path: str = Field(default="./models/model.gguf")
+    local_llm_binary_sha256: str = Field(default="5edcfae5739f313a9d30bf9e59116b53f5240c3e6ffeb9f25be9bb7b8c303222")
+    local_llm_model_path: str = Field(default="./models/Qwen3-1.7B-Q8_0.gguf")
     local_llm_model_repo: str = Field(default="Qwen/Qwen3-1.7B-GGUF")
     local_llm_model_file: str = Field(default="Qwen3-1.7B-Q8_0.gguf")
     local_llm_model_revision: str = Field(default="")
-    local_llm_model_sha256: str = Field(default="")
-    local_llm_max_opportunities: int = Field(default=10, ge=1, le=50)
+    local_llm_model_sha256: str = Field(default="061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a")
+    local_llm_max_opportunities: int = Field(default=5, ge=1, le=50)
     local_llm_timeout_seconds: int = Field(default=120, ge=1)
     local_llm_max_input_chars: int = Field(default=12000, ge=1)
-    local_llm_max_output_tokens: int = Field(default=512, ge=1)
+    local_llm_max_output_tokens: int = Field(default=1200, ge=1)
     local_llm_port: int = Field(default=8088, ge=1024, le=65535)
     local_llm_bind_address: str = Field(default="127.0.0.1")
 

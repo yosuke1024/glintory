@@ -1,6 +1,6 @@
 import os
 import pathlib
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from alembic import command
@@ -76,6 +76,7 @@ def test_schema_conformance(test_db) -> None:
     assert "decisions" in tables
     assert "notes" in tables
     assert "opportunity_decisions" not in tables
+    assert "opportunity_enrichment_localizations" in tables
 
     # 2. Check association_source check constraint
     src = Source(id=SRC_ID, name="Test Source", source_type="github")
@@ -109,6 +110,42 @@ def test_schema_conformance(test_db) -> None:
 
     # Invalid value should trigger integrity error due to check constraint
     link1.association_source = "invalid_source"
+    with pytest.raises(IntegrityError):
+        test_db.commit()
+    test_db.rollback()
+
+    # Test opportunity_enrichment_localizations check constraint for locale
+    from glintory.domain.models import OpportunityEnrichment, OpportunityEnrichmentLocalization
+    enrich = OpportunityEnrichment(
+        opportunity_id=OPP_ID,
+        status="succeeded",
+        model_provider="qwen",
+        model_id="model",
+        model_revision="rev",
+        model_sha256="sha",
+        runtime="runtime",
+        runtime_version="ver",
+        prompt_version="v1",
+        input_hash="hash1",
+        started_at=datetime.now(UTC),
+    )
+    test_db.add(enrich)
+    test_db.commit()
+
+    # Valid locale 'en'
+    loc = OpportunityEnrichmentLocalization(
+        enrichment_id=enrich.id,
+        locale="en",
+    )
+    test_db.add(loc)
+    test_db.commit()
+
+    # Invalid locale should raise IntegrityError
+    loc_invalid = OpportunityEnrichmentLocalization(
+        enrichment_id=enrich.id,
+        locale="fr",
+    )
+    test_db.add(loc_invalid)
     with pytest.raises(IntegrityError):
         test_db.commit()
     test_db.rollback()

@@ -1531,10 +1531,18 @@ async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:
                 print(f"Warnings: {', '.join(res.warning_codes)}")
 
         return 0
-    except Exception as e:
+    except Exception:
         if args.json:
-            print(json.dumps({"operational_status": "failed", "error": str(e)}))
-        sys.stderr.write(f"ENRICHMENT_RUN_FAILED: {e}\n")
+            print(
+                json.dumps(
+                    {
+                        "operational_status": "failed",
+                        "error_code": "ENRICHMENT_RUN_FAILED",
+                    }
+                )
+            )
+        else:
+            sys.stderr.write("ENRICHMENT_RUN_FAILED\n")
         return 1
 
 
