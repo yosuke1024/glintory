@@ -164,7 +164,7 @@ jobs:
         id: collection
         run: |
           set +e
-          uv run glintory scheduler run --once --json > build/state/scheduler_metadata.json
+          uv run glintory scheduler run --once --force --json > build/state/scheduler_metadata.json
           cmd_exit_code=$?
           set -e
 
@@ -190,9 +190,10 @@ jobs:
             echo "failed_count=$failed_count"
           } >> "$GITHUB_OUTPUT"
 
-          if [ "$exit_code" = "0" ] || [ "$exit_code" = "3" ] || [ "$exit_code" = "4" ]; then
+          if [ "$exit_code" = "0" ] || [ "$exit_code" = "3" ]; then
             exit 0
           else
+            echo "Collection step failed with exit code $exit_code"
             exit "$exit_code"
           fi
         env:
@@ -201,7 +202,7 @@ jobs:
       - name: Deterministic opportunity analysis and scoring
         run: |
           uv run glintory analyze --json
-          uv run glintory score --json
+          uv run glintory score --score-version v2 --json
 
       - name: Local LLM Enrichment
         if: env.GLINTORY_LOCAL_LLM_ENABLED == 'true'
@@ -233,6 +234,13 @@ jobs:
             echo "enrichment_skipped=$skipped"
             echo "enrichment_warnings=$warnings"
           } >> "$GITHUB_OUTPUT"
+
+          if [ "$cmd_exit_code" = "0" ]; then
+            exit 0
+          else
+            echo "LLM Enrichment step failed with exit code $cmd_exit_code"
+            exit "$cmd_exit_code"
+          fi
 
       - name: Write Actions Summary
         run: |

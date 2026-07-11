@@ -47,7 +47,7 @@ class SchedulerRunner:
         self._lease_lost = False
         self._active_ticks_count = 0
 
-    async def run_once(self) -> SchedulerRunOnceResult:
+    async def run_once(self, force: bool = False) -> SchedulerRunOnceResult:
         """
         Runs a single tick of the scheduler.
         """
@@ -91,7 +91,8 @@ class SchedulerRunner:
         tick_result = None
         try:
             tick_result = await self.scheduler_service.run_tick(
-                owner_token=self.owner_token
+                owner_token=self.owner_token,
+                force=force,
             )
             if tick_result.failed_count > 0:
                 exit_code = 4

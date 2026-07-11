@@ -25,6 +25,7 @@ from glintory.domain.enums import (
     Confidence,
     EvidenceRelationType,
     OpportunityStatus,
+    SignalRole,
     SignalType,
 )
 from glintory.domain.operations import CollectionTriggerType
@@ -113,7 +114,10 @@ class CollectionRun(Base):
     duplicate_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     warning_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    skipped_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    error_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sanitized_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     run_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False
@@ -191,6 +195,15 @@ class Signal(Base):
         ),
         nullable=False,
     )
+    signal_role: Mapped[SignalRole] = mapped_column(
+        Enum(
+            SignalRole,
+            native_enum=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=SignalRole.UNKNOWN,
+    )
     categories: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -257,6 +270,35 @@ class Opportunity(Base):
     distribution_hypothesis: Mapped[str | None] = mapped_column(Text, nullable=True)
     validation_method: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    title_en: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    title_ja: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    summary_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_user_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_user_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+    problem_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    problem_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_workaround_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_workaround_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+    existing_solution_gap_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    existing_solution_gap_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mvp_direction_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mvp_direction_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+    why_selected_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    why_selected_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+    risks_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    risks_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    enrichment_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    translation_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    enrichment_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    independent_evidence_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    demand_evidence_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    source_type_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    source_domain_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     evidence_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     feasibility_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     penalty_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -306,11 +348,11 @@ class Opportunity(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "evidence_score >= 0 AND evidence_score <= 50",
+            "evidence_score >= 0 AND evidence_score <= 100",
             name="chk_opportunities_evidence_score_range",
         ),
         CheckConstraint(
-            "feasibility_score >= 0 AND feasibility_score <= 50",
+            "feasibility_score >= 0 AND feasibility_score <= 100",
             name="chk_opportunities_feasibility_score_range",
         ),
         CheckConstraint(
@@ -361,6 +403,8 @@ class OpportunitySignal(Base):
         DateTime(timezone=True), nullable=True
     )
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_summary_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_summary_ja: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

@@ -21,7 +21,7 @@ def round_half_up(val: float) -> int:
 
 class OpportunityScoringEngine:
     def __init__(self, scoring_version: str = "v1") -> None:
-        if scoring_version != "v1":
+        if scoring_version not in ("v1", "v2"):
             raise ValueError(f"Unsupported scoring version: {scoring_version}")
         self.scoring_version = scoring_version
 
@@ -31,6 +31,9 @@ class OpportunityScoringEngine:
         *,
         as_of_date: date,
     ) -> OpportunityScore:
+        if self.scoring_version == "v2":
+            return self._score_v2(scoring_input, as_of_date=as_of_date)
+
         """Score an opportunity based on its associated evidence signals."""
         signals = scoring_input.signals
 
@@ -583,3 +586,307 @@ class OpportunityScoringEngine:
             distinct_origin_count=distinct_origin_count,
             distinct_source_type_count=distinct_source_type_count,
         )
+
+    def _score_v2(
+        self,
+        scoring_input: OpportunityScoringInput,
+        *,
+        as_of_date: date,
+    ) -> OpportunityScore:
+        import re
+        from urllib.parse import urlparse
+
+        from glintory.domain.enums import SignalRole
+
+        signals = scoring_input.signals
+        positive_signals = [
+            s
+            for s in signals
+            if s.relation_type
+            in (EvidenceRelationType.SUPPORTING, EvidenceRelationType.RELATED)
+        ]
+
+        # Calculate counts and metrics
+        supporting_count = sum(
+            1 for s in signals if s.relation_type == EvidenceRelationType.SUPPORTING
+        )
+        related_count = sum(
+            1 for s in signals if s.relation_type == EvidenceRelationType.RELATED
+        )
+        contradicting_count = sum(
+            1 for s in signals if s.relation_type == EvidenceRelationType.CONTRADICTING
+        )
+
+        # Thread grouping for independent evidence count
+        def get_thread_key(sig) -> str:
+            url = sig.canonical_url or ""
+            hn_match = re.search(r"news\.ycombinator\.com/item\?id=(\d+)", url)
+            if hn_match:
+                return f"hn_thread_{hn_match.group(1)}"
+            gh_issue_match = re.search(r"github\.com/([^/]+/[^/]+)/(issues|pull)/(\d+)", url)
+            if gh_issue_match:
+                return f"github_issue_{gh_issue_match.group(1)}_{gh_issue_match.group(3)}"
+            gh_repo_match = re.search(r"github\.com/([^/]+/[^/]+)", url)
+            if gh_repo_match:
+                return f"github_repo_{gh_repo_match.group(1)}"
+            return url
+
+        threads = {}
+        for sig in positive_signals:
+            key = get_thread_key(sig)
+            threads.setdefault(key, []).append(sig)
+
+        independent_evidence_count = len(threads)
+        demand_evidence_count = sum(1 for sig in positive_signals if sig.signal_role == SignalRole.DEMAND)
+
+        source_types = {sig.source_type for sig in positive_signals if sig.source_type}
+        distinct_source_type_count = len(source_types)
+
+        domains = set()
+        for sig in positive_signals:
+            if sig.canonical_url:
+                parsed = urlparse(sig.canonical_url)
+                if parsed.netloc:
+                    domains.add(parsed.netloc)
+        distinct_origin_count = len(domains)
+
+        # Freshness calculation
+        def get_sig_weight(s: ScoringEvidenceSignal) -> float:
+            return 1.0 if s.relation_type == EvidenceRelationType.SUPPORTING else 0.5
+
+        def get_safe_relevance(s: ScoringEvidenceSignal) -> float:
+            r = s.relevance_score
+            if math.isnan(r) or math.isinf(r) or r < 0.0:
+                return 0.0
+            if r > 1.0:
+                return 1.0
+            return r
+
+        weighted_freshness_sum = 0.0
+        total_weight = 0.0
+        for s in positive_signals:
+            w = get_sig_weight(s) * get_safe_relevance(s)
+            if s.published_at is None:
+                f_val = 0.50
+            else:
+                pub_date = s.published_at.date()
+                if pub_date > as_of_date:
+                    f_val = 1.00
+                else:
+                    days_diff = (as_of_date - pub_date).days
+                    if days_diff <= 7:
+                        f_val = 1.00
+                    elif days_diff <= 30:
+                        f_val = 0.85
+                    elif days_diff <= 90:
+                        f_val = 0.65
+                    elif days_diff <= 365:
+                        f_val = 0.40
+                    else:
+                        f_val = 0.20
+            weighted_freshness_sum += f_val * w
+            total_weight += w
+
+        weighted_avg_freshness = (
+            weighted_freshness_sum / total_weight if total_weight > 0.0 else 0.0
+        )
+
+        # ----------------------------------------------------
+        # Evidence Score Components (0-45)
+        # ----------------------------------------------------
+        evidence_components = []
+
+        # 1. Problem Clarity (0-25)
+        prob_score = 0
+        if demand_evidence_count == 1:
+            prob_score = 10
+        elif demand_evidence_count == 2:
+            prob_score = 18
+        elif demand_evidence_count >= 3:
+            prob_score = 25
+
+        evidence_components.append(
+            ScoreComponent(
+                name="problem_clarity_and_severity",
+                score=prob_score,
+                maximum=25,
+                explanation="Clarity and severity based on demand signal counts.",
+                facts={"demand_evidence_count": demand_evidence_count},
+            )
+        )
+
+        # 2. Quality and Independence (0-20)
+        qual_score = 0
+        if independent_evidence_count == 1:
+            qual_score = 5
+        elif independent_evidence_count == 2:
+            qual_score = 12
+        elif independent_evidence_count >= 3:
+            qual_score = 20
+
+        evidence_components.append(
+            ScoreComponent(
+                name="evidence_quality_and_independence",
+                score=qual_score,
+                maximum=20,
+                explanation="Independence based on distinct threads count.",
+                facts={"independent_evidence_count": independent_evidence_count},
+            )
+        )
+
+        evidence_score = sum(c.score for c in evidence_components)
+
+        # ----------------------------------------------------
+        # Feasibility Score Components (0-55)
+        # ----------------------------------------------------
+        feasibility_components = []
+
+        # 3. Solo Developer Suitability (0-20)
+        solo_suitability = 15
+        feasibility_components.append(
+            ScoreComponent(
+                name="solo_developer_suitability",
+                score=solo_suitability,
+                maximum=20,
+                explanation="Ease of development for a solo creator (default 15).",
+                facts={},
+            )
+        )
+
+        # 4. Distribution and Reach (0-15)
+        reach_score = 10
+        feasibility_components.append(
+            ScoreComponent(
+                name="distribution_and_reach",
+                score=reach_score,
+                maximum=15,
+                explanation="Ability to acquire users easily (default 10).",
+                facts={},
+            )
+        )
+
+        # 5. Monetization and Asset Value (0-10)
+        mon_score = 5
+        feasibility_components.append(
+            ScoreComponent(
+                name="monetization_and_asset_value",
+                score=mon_score,
+                maximum=10,
+                explanation="Monetization hypothesis or long term asset value (default 5).",
+                facts={},
+            )
+        )
+
+        # 6. Timing (0-10)
+        timing_score = round_half_up(weighted_avg_freshness * 10)
+        timing_score = max(0, min(10, timing_score))
+        feasibility_components.append(
+            ScoreComponent(
+                name="market_timing",
+                score=timing_score,
+                maximum=10,
+                explanation="Timing based on freshness of signals.",
+                facts={"weighted_average_freshness": weighted_avg_freshness},
+            )
+        )
+
+        feasibility_score = sum(c.score for c in feasibility_components)
+
+        # ----------------------------------------------------
+        # Penalty Score Components (-100 to 0)
+        # ----------------------------------------------------
+        penalty_components = []
+        combined_text = "\n".join(
+            f"{s.title or ''} {s.excerpt or ''}" for s in positive_signals
+        ).lower()
+
+        # Penalty check helper
+        def check_penalty(name: str, keywords: list[str], penalty_val: int, explanation: str) -> ScoreComponent:
+            has_penalty = any(kw in combined_text for kw in keywords)
+            score_val = penalty_val if has_penalty else 0
+            return ScoreComponent(
+                name=name,
+                score=score_val,
+                maximum=0,
+                explanation=explanation,
+                facts={"detected": has_penalty},
+            )
+
+        # 1. Continuous AI Cost
+        penalty_components.append(
+            check_penalty("continuous_ai_cost", ["openai api", "llm cost", "expensive api", "gpt-4 cost", "token consumption"], -20, "High continuous API runtime cost.")
+        )
+        # 2. Sales Required
+        penalty_components.append(
+            check_penalty("sales_required", ["enterprise sales", "outbound sales", "contact sales", "b2b sales cycle"], -20, "Needs outbound or direct sales effort.")
+        )
+        # 3. Heavy Backend
+        penalty_components.append(
+            check_penalty("heavy_backend", ["database cluster", "high bandwidth", "infra cost", "heavy processing", "gpu cluster"], -15, "Requires heavy backend resources or high infrastructure cost.")
+        )
+        # 4. Support High Load
+        penalty_components.append(
+            check_penalty("high_support_load", ["high support", "customer ticket", "24/7 support", "support overhead"], -15, "Expected high support or operations load.")
+        )
+        # 5. Strong Competitors
+        penalty_components.append(
+            check_penalty("strong_competitors", ["strong competitor", "highly saturated", "crowded market", "incumbents"], -10, "Crowded or highly competitive space.")
+        )
+        # 6. Abstract Problem
+        penalty_components.append(
+            check_penalty("abstract_problem", ["generic problem", "abstract issue", "vague request"], -10, "Problem statement is abstract or generic.")
+        )
+        # 7. Tech Demo
+        penalty_components.append(
+            check_penalty("tech_demo", ["proof of concept only", "toy project", "experimental demo", "just a demo"], -20, "Signal is primarily a technical demo rather than a real-world demand.")
+        )
+        # 8. Unknown Target User
+        penalty_components.append(
+            check_penalty("unknown_target_user", ["unknown user", "target unclear", "who is this for"], -15, "Target audience or user segment is unclear.")
+        )
+        # 9. Copycat
+        penalty_components.append(
+            check_penalty("copycat", ["clone of", "copycat", "duplicate features"], -10, "Simple clone without meaningful differentiator.")
+        )
+
+        penalty_score = sum(c.score for c in penalty_components)
+
+        raw_total = evidence_score + feasibility_score + penalty_score
+        total_score = max(0, min(100, raw_total))
+
+        # ----------------------------------------------------
+        # Confidence Version 2
+        # ----------------------------------------------------
+        if independent_evidence_count >= 3 and demand_evidence_count >= 2 and distinct_source_type_count >= 2:
+            confidence = Confidence.HIGH
+        elif independent_evidence_count >= 2 and demand_evidence_count >= 1:
+            confidence = Confidence.MEDIUM
+        elif demand_evidence_count >= 1:
+            confidence = Confidence.LOW
+        else:
+            confidence = Confidence.LOW  # Fallback
+
+        input_hash = calculate_scoring_input_hash(
+            self.scoring_version, as_of_date, scoring_input
+        )
+
+        return OpportunityScore(
+            opportunity_id=scoring_input.opportunity_id,
+            scoring_version=self.scoring_version,
+            as_of_date=as_of_date,
+            input_hash=input_hash,
+            evidence_score=evidence_score,
+            feasibility_score=feasibility_score,
+            penalty_score=penalty_score,
+            total_score=total_score,
+            confidence=confidence,
+            evidence_components=tuple(evidence_components),
+            feasibility_components=tuple(feasibility_components),
+            penalty_components=tuple(penalty_components),
+            supporting_signal_count=supporting_count,
+            related_signal_count=related_count,
+            contradicting_signal_count=contradicting_count,
+            distinct_origin_count=distinct_origin_count,
+            distinct_source_type_count=distinct_source_type_count,
+        )
+

@@ -143,8 +143,8 @@ def test_signal_conditional_unique(db_session):
 
 
 def test_opportunity_scores_range(db_session):
-    # Evidence Score (0-50)
-    opp = Opportunity(title="Opp", evidence_score=51)
+    # Evidence Score (0-100)
+    opp = Opportunity(title="Opp", evidence_score=101)
     db_session.add(opp)
     with pytest.raises(IntegrityError):
         db_session.commit()
@@ -156,8 +156,8 @@ def test_opportunity_scores_range(db_session):
         db_session.commit()
     db_session.rollback()
 
-    # Feasibility Score (0-50)
-    opp = Opportunity(title="Opp", feasibility_score=51)
+    # Feasibility Score (0-100)
+    opp = Opportunity(title="Opp", feasibility_score=101)
     db_session.add(opp)
     with pytest.raises(IntegrityError):
         db_session.commit()

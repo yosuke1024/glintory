@@ -14,6 +14,7 @@ from glintory.config import settings
 from glintory.domain.validation_models import (
     BilingualOpportunityBrief,
     EnglishBrief,
+    EvidenceSummary,
     JapaneseBrief,
 )
 
@@ -44,6 +45,7 @@ class OpportunityEnrichmentResponse(BaseModel):
     error_code: str | None = None
     english: EnglishBrief | None = None
     japanese: JapaneseBrief | None = None
+    evidence_summaries: list[EvidenceSummary] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     llm_confidence: str | None = None
     duration_ms: int = 0
@@ -176,24 +178,24 @@ BILINGUAL_ENRICHMENT_JSON_SCHEMA = {
             "properties": {
                 "title": {"type": "string"},
                 "summary": {"type": "string"},
-                "problem_statement": {"type": "string"},
-                "target_users": {"type": "array", "items": {"type": "string"}},
-                "why_now": {"type": "string"},
-                "evidence_synthesis": {"type": "string"},
-                "build_direction": {"type": "string"},
-                "risks": {"type": "array", "items": {"type": "string"}},
-                "tags": {"type": "array", "items": {"type": "string"}},
+                "target_user": {"type": "string"},
+                "problem": {"type": "string"},
+                "current_workaround": {"type": "string"},
+                "existing_solution_gap": {"type": "string"},
+                "mvp_direction": {"type": "string"},
+                "why_selected": {"type": "string"},
+                "risks": {"type": "string"},
             },
             "required": [
                 "title",
                 "summary",
-                "problem_statement",
-                "target_users",
-                "why_now",
-                "evidence_synthesis",
-                "build_direction",
+                "target_user",
+                "problem",
+                "current_workaround",
+                "existing_solution_gap",
+                "mvp_direction",
+                "why_selected",
                 "risks",
-                "tags",
             ],
             "additionalProperties": False,
         },
@@ -202,31 +204,44 @@ BILINGUAL_ENRICHMENT_JSON_SCHEMA = {
             "properties": {
                 "title": {"type": "string"},
                 "summary": {"type": "string"},
-                "problem_statement": {"type": "string"},
-                "target_users": {"type": "array", "items": {"type": "string"}},
-                "why_now": {"type": "string"},
-                "evidence_synthesis": {"type": "string"},
-                "build_direction": {"type": "string"},
-                "risks": {"type": "array", "items": {"type": "string"}},
-                "tags": {"type": "array", "items": {"type": "string"}},
+                "target_user": {"type": "string"},
+                "problem": {"type": "string"},
+                "current_workaround": {"type": "string"},
+                "existing_solution_gap": {"type": "string"},
+                "mvp_direction": {"type": "string"},
+                "why_selected": {"type": "string"},
+                "risks": {"type": "string"},
             },
             "required": [
                 "title",
                 "summary",
-                "problem_statement",
-                "target_users",
-                "why_now",
-                "evidence_synthesis",
-                "build_direction",
+                "target_user",
+                "problem",
+                "current_workaround",
+                "existing_solution_gap",
+                "mvp_direction",
+                "why_selected",
                 "risks",
-                "tags",
             ],
             "additionalProperties": False,
+        },
+        "evidence_summaries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "summary_en": {"type": "string"},
+                    "summary_ja": {"type": "string"},
+                },
+                "required": ["id", "summary_en", "summary_ja"],
+                "additionalProperties": False,
+            },
         },
         "evidence_refs": {"type": "array", "items": {"type": "string"}},
         "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
     },
-    "required": ["english", "japanese", "evidence_refs", "confidence"],
+    "required": ["english", "japanese", "evidence_summaries", "evidence_refs", "confidence"],
     "additionalProperties": False,
 }
 
@@ -368,7 +383,8 @@ class LocalLlmProvider:
         start_time = time.perf_counter()
 
         system_prompt = (
-            "First create the canonical English brief from the supplied evidence.\n\n"
+            "First create the canonical English brief from the supplied evidence. Output detailed target_user, problem, current_workaround, existing_solution_gap, mvp_direction, why_selected, and risks.\n\n"
+            "Also generate a short summary for each evidence in both English and Japanese.\n\n"
             "Then create a faithful and natural Japanese translation of the English brief.\n\n"
             "The Japanese version must not add, remove, strengthen, or weaken any factual claim.\n\n"
             "Both language versions must use the same evidence_refs and confidence.\n\n"
@@ -495,6 +511,7 @@ class LocalLlmProvider:
                     status="succeeded",
                     english=brief.english,
                     japanese=brief.japanese,
+                    evidence_summaries=brief.evidence_summaries,
                     evidence_refs=brief.evidence_refs,
                     llm_confidence=brief.confidence,
                     duration_ms=duration_ms,

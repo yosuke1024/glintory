@@ -97,6 +97,7 @@ class SignalIngestionService:
                             or existing.published_at != norm_sig.published_at
                             or existing.language != norm_sig.language
                             or existing.signal_type != norm_sig.signal_type
+                            or existing.signal_role != norm_sig.signal_role
                             or list(existing.categories) != list(norm_sig.categories)
                             or list(existing.tags) != list(norm_sig.tags)
                             or dict(existing.metrics) != dict(norm_sig.metrics)

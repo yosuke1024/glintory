@@ -58,6 +58,7 @@ class ScheduleExecutionRepository:
         owner_token: str,
         max_due: int,
         now: datetime,
+        force: bool = False,
     ) -> list[ClaimedScheduleExecution]:
         # 1. Assert lease ownership
         self.lease_repo.assert_owned(owner_token=owner_token)
@@ -68,10 +69,11 @@ class ScheduleExecutionRepository:
             .join(Source, SourceSchedule.source_id == Source.id)
             .filter(SourceSchedule.enabled)
             .filter(Source.enabled)
-            .filter(SourceSchedule.next_run_at <= now)
-            .order_by(SourceSchedule.next_run_at.asc(), SourceSchedule.source_id.asc())
-            .limit(max_due)
         )
+        if not force:
+            query = query.filter(SourceSchedule.next_run_at <= now)
+
+        query = query.order_by(SourceSchedule.next_run_at.asc(), SourceSchedule.source_id.asc()).limit(max_due)
 
         due_schedules = query.all()
         claimed = []

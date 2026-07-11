@@ -15,7 +15,10 @@ from glintory.services.json_safety import (
     SignalMetadataTooLargeError,
     sanitize_metadata,
 )
-from glintory.services.signal_classification import classify_signal
+from glintory.services.signal_classification import (
+    classify_signal,
+    classify_signal_role,
+)
 from glintory.services.text_normalization import (
     normalize_excerpt,
     normalize_optional_text,
@@ -142,8 +145,8 @@ class SignalNormalizer:
 
                     categories, cat_warnings = normalize_string_list(default_categories)
                     all_tags = list(default_tags) + list(entry_tags)
-                    tags, tag_warnings = normalize_string_list(all_tags)
-                    for tw in cat_warnings + tag_warnings:
+                    tags_raw = all_tags
+                    for tw in cat_warnings:
                         warnings.append(
                             SignalNormalizationWarning(
                                 code="invalid_tag",
@@ -208,15 +211,19 @@ class SignalNormalizer:
                         item_type, item.title, item.excerpt, raw_labels
                     )
 
-                    tags, tag_warnings = normalize_string_list(tags_raw)
-                    for tw in tag_warnings:
-                        warnings.append(
-                            SignalNormalizationWarning(
-                                code="invalid_tag",
-                                message=tw,
-                                external_id=ext_id,
-                            )
+                signal_role = classify_signal_role(
+                    source_type, signal_type, item.title, item.excerpt
+                )
+
+                tags, tag_warnings = normalize_string_list(tags_raw)
+                for tw in tag_warnings:
+                    warnings.append(
+                        SignalNormalizationWarning(
+                            code="invalid_tag",
+                            message=tw,
+                            external_id=ext_id,
                         )
+                    )
 
                 sanitized_metadata = sanitize_metadata(raw_metadata_to_sanitize)
 
@@ -244,6 +251,7 @@ class SignalNormalizer:
                     collected_at=collected_at,
                     language=language,
                     signal_type=signal_type,
+                    signal_role=signal_role,
                     categories=categories,
                     tags=tags,
                     metrics=filtered_metrics,

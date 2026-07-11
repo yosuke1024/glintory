@@ -8,7 +8,7 @@ from glintory.domain.clustering import (
     OpportunityClusteringConfig,
     calculate_evidence_origin,
 )
-from glintory.domain.enums import OpportunityStatus, SignalType
+from glintory.domain.enums import OpportunityStatus, SignalRole, SignalType
 from glintory.domain.models import Base, Opportunity, OpportunitySignal, Signal, Source
 from glintory.infrastructure.opportunity_clustering_repository import (
     OpportunityClusteringRepository,
@@ -148,6 +148,7 @@ async def test_analysis_service_flow(db_session, db_session_factory):
         title="Database project in Python",
         excerpt="Building a lightweight relational database in pure Python.",
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.SUPPLY,
         collected_at=now,
         content_hash="hash1",
         freshness_score=1.0,
@@ -159,7 +160,8 @@ async def test_analysis_service_flow(db_session, db_session_factory):
         canonical_url="https://github.com/bar/db",
         title="Relational database implementation",
         excerpt="A simple SQL database engine written in Python.",
-        signal_type=SignalType.PROJECT,
+        signal_type=SignalType.REQUEST,
+        signal_role=SignalRole.DEMAND,
         collected_at=now,
         content_hash="hash2",
         freshness_score=1.0,

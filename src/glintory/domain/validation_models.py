@@ -22,58 +22,51 @@ def validate_string_safety(v: str) -> str:
 class BriefBase(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    title: str
-    summary: str
-    problem_statement: str
-    target_users: list[str]
-    why_now: str
-    evidence_synthesis: str
-    build_direction: str
-    risks: list[str]
-    tags: list[str]
+    title: str = Field(..., max_length=150)
+    summary: str = Field(..., max_length=500)
+    target_user: str = Field(..., max_length=500)
+    problem: str = Field(..., max_length=500)
+    current_workaround: str = Field(..., max_length=500)
+    existing_solution_gap: str = Field(..., max_length=500)
+    mvp_direction: str = Field(..., max_length=500)
+    why_selected: str = Field(..., max_length=500)
+    risks: str = Field(..., max_length=500)
 
     @field_validator(
         "title",
         "summary",
-        "problem_statement",
-        "why_now",
-        "evidence_synthesis",
-        "build_direction",
+        "target_user",
+        "problem",
+        "current_workaround",
+        "existing_solution_gap",
+        "mvp_direction",
+        "why_selected",
+        "risks",
     )
     @classmethod
     def check_strings(cls, v: str) -> str:
         return validate_string_safety(v)
 
-    @field_validator("target_users", "risks", "tags")
-    @classmethod
-    def check_lists(cls, v: list[str]) -> list[str]:
-        for item in v:
-            validate_string_safety(item)
-        return v
-
 
 class EnglishBrief(BriefBase):
-    title: str = Field(..., max_length=100)
-    summary: str = Field(..., max_length=500)
-    problem_statement: str = Field(..., max_length=500)
-    why_now: str = Field(..., max_length=500)
-    evidence_synthesis: str = Field(..., max_length=800)
-    build_direction: str = Field(..., max_length=500)
-    target_users: list[str] = Field(..., max_length=5)
-    risks: list[str] = Field(..., max_length=5)
-    tags: list[str] = Field(..., max_length=8)
+    pass
 
 
 class JapaneseBrief(BriefBase):
-    title: str = Field(..., max_length=100)
-    summary: str = Field(..., max_length=500)
-    problem_statement: str = Field(..., max_length=500)
-    why_now: str = Field(..., max_length=500)
-    evidence_synthesis: str = Field(..., max_length=800)
-    build_direction: str = Field(..., max_length=500)
-    target_users: list[str] = Field(..., max_length=5)
-    risks: list[str] = Field(..., max_length=5)
-    tags: list[str] = Field(..., max_length=8)
+    pass
+
+
+class EvidenceSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    id: str
+    summary_en: str = Field(..., max_length=500)
+    summary_ja: str = Field(..., max_length=500)
+
+    @field_validator("id", "summary_en", "summary_ja")
+    @classmethod
+    def check_strings(cls, v: str) -> str:
+        return validate_string_safety(v)
 
 
 class BilingualOpportunityBrief(BaseModel):
@@ -81,6 +74,7 @@ class BilingualOpportunityBrief(BaseModel):
 
     english: EnglishBrief
     japanese: JapaneseBrief
+    evidence_summaries: list[EvidenceSummary] = Field(..., min_length=1)
     evidence_refs: list[str] = Field(..., min_length=1)
     confidence: str
 
@@ -97,3 +91,4 @@ class BilingualOpportunityBrief(BaseModel):
         for ref in v:
             validate_string_safety(ref)
         return v
+

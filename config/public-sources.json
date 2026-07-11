@@ -20,6 +20,16 @@
         "enabled": true,
         "interval_minutes": 1440
       }
+    },
+    {
+      "name": "rss-opportunity-signals",
+      "source_type": "rss",
+      "enabled": true,
+      "config_file": "rss-source.public.json",
+      "schedule": {
+        "enabled": true,
+        "interval_minutes": 1440
+      }
     }
   ]
 }
