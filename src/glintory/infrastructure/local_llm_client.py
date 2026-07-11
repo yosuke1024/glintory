@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import subprocess
-import sys
 import time
 from collections.abc import Sequence
 from typing import Any, Protocol
@@ -137,11 +136,6 @@ class LlamaServerContext:
         try:
             while time.perf_counter() - start_time < self.timeout_seconds:
                 if self.process.poll() is not None:
-                    log_file.flush()
-                    with open(log_path, "r", encoding="utf-8") as lf:
-                        sys.stderr.write("=== llama-server failed to start. Logs: ===\n")
-                        sys.stderr.write(lf.read())
-                        sys.stderr.write("==========================================\n")
                     raise RuntimeError("LLM_RUNTIME_START_FAILED")
                 try:
                     response = httpx.get(url, timeout=1.0)
@@ -151,12 +145,6 @@ class LlamaServerContext:
                 except httpx.HTTPError:
                     pass
                 time.sleep(0.5)
-
-            log_file.flush()
-            with open(log_path, "r", encoding="utf-8") as lf:
-                sys.stderr.write("=== llama-server start timeout. Logs: ===\n")
-                sys.stderr.write(lf.read())
-                sys.stderr.write("=========================================\n")
 
             self.process.terminate()
             try:

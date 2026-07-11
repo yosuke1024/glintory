@@ -30,14 +30,14 @@ SQLite に蓄積されたシグナルをブラウザおよび JSON API から一
 ## Implementation Report
 
 ### 実施した主な変更
-* **[NEW] Migration**: SQLite FTS5 マイグレーション ([da4fadf39e75_signals_fts.py](file:///Users/suzukiyousuke/repo/glintory/migrations/versions/da4fadf39e75_signals_fts.py)) を追加。
+* **[NEW] Migration**: SQLite FTS5 マイグレーション ([da4fadf39e75_signals_fts.py](file:///workspace/glintory/migrations/versions/da4fadf39e75_signals_fts.py)) を追加。
 * **[MODIFY] env.py**: Alembic オブジェクトフィルタを `migrations/env.py` に追加。
-* **[NEW] FTS管理ユーティリティ**: [fts.py](file:///Users/suzukiyousuke/repo/glintory/src/glintory/infrastructure/fts.py) を実装。
-* **[NEW] 安全なクエリパーサー**: [search_query.py](file:///Users/suzukiyousuke/repo/glintory/src/glintory/services/search_query.py) を実装。
-* **[NEW] 検索リポジトリ**: [signal_search.py](file:///Users/suzukiyousuke/repo/glintory/src/glintory/infrastructure/signal_search.py) を実装。
-* **[MODIFY] ダッシュボード**: [today.py](file:///Users/suzukiyousuke/repo/glintory/src/glintory/web/routes/today.py) を実装。
-* **[NEW] シグナル一覧 & 詳細画面**: [signals.py](file:///Users/suzukiyousuke/repo/glintory/src/glintory/web/routes/signals.py) および Vanilla CSS を実装。
-* **[NEW] JSON API**: [api.py](file:///Users/suzukiyousuke/repo/glintory/src/glintory/web/routes/api.py) を実装。
+* **[NEW] FTS管理ユーティリティ**: [fts.py](file:///workspace/glintory/src/glintory/infrastructure/fts.py) を実装。
+* **[NEW] 安全なクエリパーサー**: [search_query.py](file:///workspace/glintory/src/glintory/services/search_query.py) を実装.
+* **[NEW] 検索リポジトリ**: [signal_search.py](file:///workspace/glintory/src/glintory/infrastructure/signal_search.py) を実装。
+* **[MODIFY] ダッシュボード**: [today.py](file:///workspace/glintory/src/glintory/web/routes/today.py) を実装。
+* **[NEW] シグナル一覧 & 詳細画面**: [signals.py](file:///workspace/glintory/src/glintory/web/routes/signals.py) および Vanilla CSS を実装。
+* **[NEW] JSON API**: [api.py](file:///workspace/glintory/src/glintory/web/routes/api.py) を実装。
 
 ### 検証結果
 - `uv run pytest -W error` による自動テスト（全220件）がパス。
