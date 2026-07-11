@@ -55,7 +55,9 @@ class Settings(BaseSettings):
         if self.scheduler_heartbeat_seconds * 2 >= self.scheduler_lease_seconds:
             raise ValueError("heartbeat_seconds * 2 must be less than lease_seconds")
         if self.schedule_max_interval_minutes < self.schedule_min_interval_minutes:
-            raise ValueError("schedule_max_interval_minutes must be >= schedule_min_interval_minutes")
+            raise ValueError(
+                "schedule_max_interval_minutes must be >= schedule_min_interval_minutes"
+            )
         return self
 
     @field_validator("collection_history_per_page")

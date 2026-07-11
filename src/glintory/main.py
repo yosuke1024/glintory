@@ -6,14 +6,14 @@ from fastapi.staticfiles import StaticFiles
 
 from glintory.web.routes import (
     api,
+    api_scheduler,
     health,
     opportunities,
     readiness,
+    schedules,
     signals,
     sources,
     today,
-    schedules,
-    api_scheduler,
 )
 
 

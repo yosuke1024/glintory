@@ -1,18 +1,28 @@
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
 from glintory.domain.models import SchedulerLease
 from glintory.domain.scheduling import SchedulerLeaseLostError
 
+
 class SchedulerLeaseRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self, session: Session, clock: Callable[[], datetime] | None = None
+    ) -> None:
         self.session = session
+        self.clock = clock or (lambda: datetime.now(UTC))
 
     def acquire(self, *, owner_token: str, lease_seconds: int) -> bool:
-        now = datetime.now(UTC)
+        now = self.clock()
         expires_at = now + timedelta(seconds=lease_seconds)
 
         # 1. Check if lease exists
-        lease = self.session.query(SchedulerLease).filter_by(lease_name="default").first()
+        lease = (
+            self.session.query(SchedulerLease).filter_by(lease_name="default").first()
+        )
 
         if not lease:
             # Try to insert the first lease
@@ -27,7 +37,7 @@ class SchedulerLeaseRepository:
                 self.session.add(new_lease)
                 self.session.flush()
                 return True
-            except Exception:
+            except IntegrityError:
                 # Concurrent insert collision
                 self.session.rollback()
                 return False
@@ -44,12 +54,15 @@ class SchedulerLeaseRepository:
                 .filter(SchedulerLease.lease_name == "default")
                 .filter(SchedulerLease.owner_token == lease.owner_token)
                 .filter(SchedulerLease.expires_at == lease.expires_at)
-                .update({
-                    SchedulerLease.owner_token: owner_token,
-                    SchedulerLease.acquired_at: now,
-                    SchedulerLease.heartbeat_at: now,
-                    SchedulerLease.expires_at: expires_at,
-                }, synchronize_session=False)
+                .update(
+                    {
+                        SchedulerLease.owner_token: owner_token,
+                        SchedulerLease.acquired_at: now,
+                        SchedulerLease.heartbeat_at: now,
+                        SchedulerLease.expires_at: expires_at,
+                    },
+                    synchronize_session=False,
+                )
             )
             self.session.flush()
             if stmt > 0:
@@ -67,29 +80,38 @@ class SchedulerLeaseRepository:
         return False
 
     def renew(self, *, owner_token: str, lease_seconds: int) -> None:
-        now = datetime.now(UTC)
+        now = self.clock()
         expires_at = now + timedelta(seconds=lease_seconds)
 
         stmt = (
             self.session.query(SchedulerLease)
             .filter(SchedulerLease.lease_name == "default")
             .filter(SchedulerLease.owner_token == owner_token)
-            .update({
-                SchedulerLease.heartbeat_at: now,
-                SchedulerLease.expires_at: expires_at,
-            }, synchronize_session=False)
+            .update(
+                {
+                    SchedulerLease.heartbeat_at: now,
+                    SchedulerLease.expires_at: expires_at,
+                },
+                synchronize_session=False,
+            )
         )
         self.session.flush()
         if stmt == 0:
-            raise SchedulerLeaseLostError("Scheduler lease has been lost or acquired by another process.")
+            raise SchedulerLeaseLostError(
+                "Scheduler lease has been lost or acquired by another process."
+            )
         self.session.expire_all()
 
     def assert_owned(self, *, owner_token: str) -> None:
-        lease = self.session.query(SchedulerLease).filter_by(lease_name="default").first()
+        lease = (
+            self.session.query(SchedulerLease).filter_by(lease_name="default").first()
+        )
         if not lease or lease.owner_token != owner_token:
-            raise SchedulerLeaseLostError("Scheduler lease is not owned by this runner.")
+            raise SchedulerLeaseLostError(
+                "Scheduler lease is not owned by this runner."
+            )
 
-        now = datetime.now(UTC)
+        now = self.clock()
         lease_expires = lease.expires_at
         if lease_expires.tzinfo is None:
             lease_expires = lease_expires.replace(tzinfo=UTC)
@@ -98,7 +120,7 @@ class SchedulerLeaseRepository:
             raise SchedulerLeaseLostError("Scheduler lease has expired.")
 
     def release(self, *, owner_token: str) -> None:
-        stmt = (
+        (
             self.session.query(SchedulerLease)
             .filter(SchedulerLease.lease_name == "default")
             .filter(SchedulerLease.owner_token == owner_token)
@@ -107,7 +129,9 @@ class SchedulerLeaseRepository:
         self.session.flush()
 
     def get_status(self) -> dict:
-        lease = self.session.query(SchedulerLease).filter_by(lease_name="default").first()
+        lease = (
+            self.session.query(SchedulerLease).filter_by(lease_name="default").first()
+        )
         if not lease:
             return {
                 "active": False,
@@ -115,7 +139,7 @@ class SchedulerLeaseRepository:
                 "lease_expires_at": None,
             }
 
-        now = datetime.now(UTC)
+        now = self.clock()
         lease_expires = lease.expires_at
         if lease_expires.tzinfo is None:
             lease_expires = lease_expires.replace(tzinfo=UTC)

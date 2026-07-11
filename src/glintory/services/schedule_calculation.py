@@ -1,11 +1,13 @@
-from datetime import datetime, timedelta
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+
 
 @dataclass(frozen=True, slots=True)
 class DueOccurrence:
     scheduled_for: datetime
     next_run_at: datetime
     coalesced_count: int
+
 
 def calculate_due_occurrence(
     *,
@@ -14,7 +16,9 @@ def calculate_due_occurrence(
     interval_minutes: int,
 ) -> DueOccurrence | None:
     # Validate timezone awareness (must be UTC)
-    if current_next_run_at.tzinfo is None or current_next_run_at.tzinfo.utcoffset(current_next_run_at) != timedelta(0):
+    if current_next_run_at.tzinfo is None or current_next_run_at.tzinfo.utcoffset(
+        current_next_run_at
+    ) != timedelta(0):
         raise ValueError("current_next_run_at must be timezone-aware UTC datetime.")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) != timedelta(0):
         raise ValueError("now must be timezone-aware UTC datetime.")
@@ -31,7 +35,9 @@ def calculate_due_occurrence(
 
     missed_count = diff_seconds // interval_seconds
 
-    scheduled_for = current_next_run_at + timedelta(seconds=missed_count * interval_seconds)
+    scheduled_for = current_next_run_at + timedelta(
+        seconds=missed_count * interval_seconds
+    )
     next_run_at = scheduled_for + timedelta(seconds=interval_seconds)
 
     return DueOccurrence(

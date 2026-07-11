@@ -497,7 +497,9 @@ class SourceSchedule(Base):
     )
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
-    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    next_run_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
@@ -523,9 +525,15 @@ class SchedulerLease(Base):
 
     lease_name: Mapped[str] = mapped_column(String(50), primary_key=True)
     owner_token: Mapped[str] = mapped_column(String(64), nullable=False)
-    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    acquired_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -544,11 +552,15 @@ class ScheduleExecution(Base):
         ForeignKey("sources.id", ondelete="SET NULL"),
         nullable=True,
     )
-    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    scheduled_for: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     collection_run_id: Mapped[str | None] = mapped_column(
         String(36),
@@ -563,11 +575,15 @@ class ScheduleExecution(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("source_id", "scheduled_for", name="uq_schedule_executions_source_scheduled"),
+        UniqueConstraint(
+            "source_id", "scheduled_for", name="uq_schedule_executions_source_scheduled"
+        ),
         Index("idx_schedule_executions_status_started", "status", "started_at"),
         Index("idx_schedule_executions_source_scheduled", "source_id", "scheduled_for"),
         Index("idx_schedule_executions_scheduled_for", "scheduled_for"),
-        CheckConstraint("coalesced_count >= 0", name="chk_schedule_executions_coalesced_nonnegative"),
+        CheckConstraint(
+            "coalesced_count >= 0", name="chk_schedule_executions_coalesced_nonnegative"
+        ),
         CheckConstraint(
             "status IN ('running', 'succeeded', 'partial', 'failed', 'skipped_busy', 'skipped_disabled', 'abandoned')",
             name="chk_schedule_executions_status_allowed",

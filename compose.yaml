@@ -22,6 +22,8 @@ services:
       - GLINTORY_DATABASE_URL=sqlite:////data/glintory.sqlite3
     volumes:
       - glintory-data:/data
+    profiles:
+      - scheduler
     restart: unless-stopped
 
 volumes:

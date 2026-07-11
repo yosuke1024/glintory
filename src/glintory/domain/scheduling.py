@@ -1,6 +1,7 @@
-from enum import StrEnum
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
+
 
 class ScheduleExecutionStatus(StrEnum):
     RUNNING = "running"
@@ -10,6 +11,7 @@ class ScheduleExecutionStatus(StrEnum):
     SKIPPED_BUSY = "skipped_busy"
     SKIPPED_DISABLED = "skipped_disabled"
     ABANDONED = "abandoned"
+
 
 @dataclass(frozen=True, slots=True)
 class SourceScheduleItem:
@@ -28,6 +30,7 @@ class SourceScheduleItem:
     created_at: datetime
     updated_at: datetime
 
+
 @dataclass(frozen=True, slots=True)
 class ClaimedScheduleExecution:
     execution_id: str
@@ -38,6 +41,7 @@ class ClaimedScheduleExecution:
 
     scheduled_for: datetime
     coalesced_count: int
+
 
 @dataclass(frozen=True, slots=True)
 class ScheduleExecutionItem:
@@ -54,6 +58,7 @@ class ScheduleExecutionItem:
     collection_run_id: str | None
     coalesced_count: int
     safe_error_summary: str | None
+
 
 @dataclass(frozen=True, slots=True)
 class SchedulerTickResult:
@@ -77,20 +82,26 @@ class SchedulerTickResult:
 class ScheduleNotFoundError(Exception):
     pass
 
+
 class ScheduleAlreadyExistsError(Exception):
     pass
+
 
 class InvalidScheduleError(Exception):
     pass
 
+
 class SchedulerLeaseUnavailableError(Exception):
     pass
+
 
 class SchedulerLeaseLostError(Exception):
     pass
 
+
 class ScheduleExecutionNotFoundError(Exception):
     pass
+
 
 class ScheduleExecutionAlreadyFinalizedError(Exception):
     pass

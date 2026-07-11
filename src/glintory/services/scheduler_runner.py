@@ -2,89 +2,120 @@ import asyncio
 import logging
 import secrets
 import signal
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Callable
 
 from sqlalchemy.orm import Session
 
+from glintory.config import settings
 from glintory.domain.scheduling import (
     SchedulerLeaseLostError,
+    SchedulerTickResult,
 )
 from glintory.infrastructure.scheduler_lease import SchedulerLeaseRepository
 from glintory.services.scheduler_service import SchedulerService
-from glintory.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+@dataclass(frozen=True, slots=True)
+class SchedulerRunOnceResult:
+    exit_code: int
+    tick_result: SchedulerTickResult | None
+
+
 class SchedulerRunner:
+    poll_seconds: float
+    lease_seconds: float
+    heartbeat_seconds: float
+
     def __init__(
         self,
         session_factory: Callable[[], Session],
         scheduler_service: SchedulerService,
         owner_token: str | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.scheduler_service = scheduler_service
         self.owner_token = owner_token or secrets.token_urlsafe(32)
+        self.clock = clock or (lambda: datetime.now(UTC))
 
-        self.poll_seconds = settings.scheduler_poll_seconds
-        self.lease_seconds = settings.scheduler_lease_seconds
-        self.heartbeat_seconds = settings.scheduler_heartbeat_seconds
+        self.poll_seconds = float(settings.scheduler_poll_seconds)
+        self.lease_seconds = float(settings.scheduler_lease_seconds)
+        self.heartbeat_seconds = float(settings.scheduler_heartbeat_seconds)
 
         self._shutdown_event = asyncio.Event()
         self._lease_lost = False
         self._active_ticks_count = 0
 
-    async def run_once(self) -> int:
+    async def run_once(self) -> SchedulerRunOnceResult:
         """
         Runs a single tick of the scheduler.
-        Returns exit code:
-        0: success
-        6: lease unavailable
-        7: lease lost
-        1: other error
         """
         logger.info(
             "operation=scheduler_start "
             "lease_name=default "
             "mode=once "
-            "message=\"Starting scheduler in once mode.\""
+            'message="Starting scheduler in once mode."'
         )
 
         # 1. Try to acquire lease
         session = self.session_factory()
         try:
-            lease_repo = SchedulerLeaseRepository(session)
+            lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
             acquired = lease_repo.acquire(
                 owner_token=self.owner_token,
-                lease_seconds=self.lease_seconds,
+                lease_seconds=int(self.lease_seconds),
             )
             session.commit()
             if not acquired:
-                logger.error("operation=scheduler_lease_unavailable lease_name=default message=\"Could not acquire lease.\"")
-                return 6
+                logger.error(
+                    'operation=scheduler_lease_unavailable lease_name=default message="Could not acquire lease."'
+                )
+                return SchedulerRunOnceResult(exit_code=6, tick_result=None)
         except Exception:
             session.rollback()
-            logger.exception("operation=scheduler_lease_error message=\"Lease acquisition failed.\"")
-            return 1
+            logger.exception(
+                'operation=scheduler_lease_error message="Lease acquisition failed."'
+            )
+            return SchedulerRunOnceResult(exit_code=1, tick_result=None)
         finally:
             session.close()
 
+        # Start heartbeat background loop
+        self._shutdown_event.clear()
+        self._lease_lost = False
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+
         # 2. Run tick
         exit_code = 0
+        tick_result = None
         try:
-            await self.scheduler_service.run_tick(owner_token=self.owner_token)
+            tick_result = await self.scheduler_service.run_tick(
+                owner_token=self.owner_token
+            )
         except SchedulerLeaseLostError:
-            logger.error("operation=scheduler_lease_lost lease_name=default message=\"Lease was lost during tick.\"")
+            logger.error(
+                'operation=scheduler_lease_lost lease_name=default message="Lease was lost during tick."'
+            )
             exit_code = 7
         except Exception:
-            logger.exception("operation=scheduler_tick_error message=\"Error running scheduler tick.\"")
+            logger.exception(
+                'operation=scheduler_tick_error message="Error running scheduler tick."'
+            )
             exit_code = 1
         finally:
+            # Stop heartbeat loop task
+            self._shutdown_event.set()
+            heartbeat_task.cancel()
+            await asyncio.gather(heartbeat_task, return_exceptions=True)
+
             # 3. Release lease
             session = self.session_factory()
             try:
-                lease_repo = SchedulerLeaseRepository(session)
+                lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
                 lease_repo.release(owner_token=self.owner_token)
                 session.commit()
             except Exception:
@@ -92,7 +123,10 @@ class SchedulerRunner:
             finally:
                 session.close()
 
-        return exit_code
+        if self._lease_lost:
+            exit_code = 7
+
+        return SchedulerRunOnceResult(exit_code=exit_code, tick_result=tick_result)
 
     async def run_continuous(self) -> int:
         """
@@ -102,14 +136,17 @@ class SchedulerRunner:
             "operation=scheduler_start "
             "lease_name=default "
             "mode=continuous "
-            "message=\"Starting scheduler in continuous mode.\""
+            'message="Starting scheduler in continuous mode."'
         )
 
         # Signal handling setup
         try:
             loop = asyncio.get_running_loop()
+
             def handle_signal():
-                logger.info("operation=scheduler_shutdown_requested message=\"Shutdown signal received.\"")
+                logger.info(
+                    'operation=scheduler_shutdown_requested message="Shutdown signal received."'
+                )
                 self._shutdown_event.set()
 
             for sig in (signal.SIGTERM, signal.SIGINT):
@@ -121,18 +158,22 @@ class SchedulerRunner:
         # 1. Acquire initial lease
         session = self.session_factory()
         try:
-            lease_repo = SchedulerLeaseRepository(session)
+            lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
             acquired = lease_repo.acquire(
                 owner_token=self.owner_token,
-                lease_seconds=self.lease_seconds,
+                lease_seconds=int(self.lease_seconds),
             )
             session.commit()
             if not acquired:
-                logger.error("operation=scheduler_lease_unavailable lease_name=default message=\"Could not acquire lease.\"")
+                logger.error(
+                    'operation=scheduler_lease_unavailable lease_name=default message="Could not acquire lease."'
+                )
                 return 6
         except Exception:
             session.rollback()
-            logger.exception("operation=scheduler_lease_error message=\"Initial lease acquisition failed.\"")
+            logger.exception(
+                'operation=scheduler_lease_error message="Initial lease acquisition failed."'
+            )
             return 1
         finally:
             session.close()
@@ -145,28 +186,45 @@ class SchedulerRunner:
         try:
             await self._shutdown_event.wait()
         except asyncio.CancelledError:
-            logger.info("operation=scheduler_cancelled message=\"Scheduler runner was cancelled.\"")
+            logger.info(
+                'operation=scheduler_cancelled message="Scheduler runner was cancelled."'
+            )
         finally:
-            # Signal shutdown to background loops
+            # Signal shutdown
             self._shutdown_event.set()
 
-            # Cancel background tasks and wait
-            heartbeat_task.cancel()
+            # Stop new ticks by cancelling the tick loop task
             tick_loop_task.cancel()
+            await asyncio.gather(tick_loop_task, return_exceptions=True)
 
-            await asyncio.gather(heartbeat_task, tick_loop_task, return_exceptions=True)
+            # Wait for active tick processes to finish safely while heartbeat is still running
+            # Max wait 60 seconds to prevent infinite hang
+            max_wait_seconds = 60.0
+            wait_interval = 0.1
+            waited = 0.0
+            while self._active_ticks_count > 0 and waited < max_wait_seconds:
+                await asyncio.sleep(wait_interval)
+                waited += wait_interval
 
-            # Wait for active tick processes to finish safely
-            while self._active_ticks_count > 0:
-                await asyncio.sleep(0.1)
+            if self._active_ticks_count > 0:
+                logger.warning(
+                    "operation=scheduler_shutdown_timeout "
+                    'message="Timed out waiting for active ticks to complete. Force stopping."'
+                )
+
+            # Now that active ticks are finished (or timed out), cancel heartbeat
+            heartbeat_task.cancel()
+            await asyncio.gather(heartbeat_task, return_exceptions=True)
 
             # Release lease
             session = self.session_factory()
             try:
-                lease_repo = SchedulerLeaseRepository(session)
+                lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
                 lease_repo.release(owner_token=self.owner_token)
                 session.commit()
-                logger.info("operation=scheduler_lease_released lease_name=default message=\"Lease released successfully.\"")
+                logger.info(
+                    'operation=scheduler_lease_released lease_name=default message="Lease released successfully."'
+                )
             except Exception:
                 session.rollback()
             finally:
@@ -186,22 +244,28 @@ class SchedulerRunner:
                 # Renew lease in a short session
                 session = self.session_factory()
                 try:
-                    lease_repo = SchedulerLeaseRepository(session)
+                    lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
                     lease_repo.renew(
                         owner_token=self.owner_token,
-                        lease_seconds=self.lease_seconds,
+                        lease_seconds=int(self.lease_seconds),
                     )
                     session.commit()
-                    logger.debug("operation=scheduler_heartbeat lease_name=default message=\"Lease renewed.\"")
+                    logger.debug(
+                        'operation=scheduler_heartbeat lease_name=default message="Lease renewed."'
+                    )
                 except SchedulerLeaseLostError:
                     session.rollback()
-                    logger.error("operation=scheduler_lease_lost lease_name=default message=\"Lease lost during heartbeat.\"")
+                    logger.error(
+                        'operation=scheduler_lease_lost lease_name=default message="Lease lost during heartbeat."'
+                    )
                     self._lease_lost = True
                     self._shutdown_event.set()
                     break
                 except Exception:
                     session.rollback()
-                    logger.exception("operation=scheduler_heartbeat_failed message=\"Error renewing lease.\"")
+                    logger.exception(
+                        'operation=scheduler_heartbeat_failed message="Error renewing lease."'
+                    )
                 finally:
                     session.close()
             except asyncio.CancelledError:
@@ -221,12 +285,16 @@ class SchedulerRunner:
                 try:
                     await self.scheduler_service.run_tick(owner_token=self.owner_token)
                 except SchedulerLeaseLostError:
-                    logger.error("operation=scheduler_lease_lost lease_name=default message=\"Lease lost during tick.\"")
+                    logger.error(
+                        'operation=scheduler_lease_lost lease_name=default message="Lease lost during tick."'
+                    )
                     self._lease_lost = True
                     self._shutdown_event.set()
                     break
                 except Exception:
-                    logger.exception("operation=scheduler_tick_error message=\"Error running scheduler tick.\"")
+                    logger.exception(
+                        'operation=scheduler_tick_error message="Error running scheduler tick."'
+                    )
                 finally:
                     self._active_ticks_count -= 1
             except asyncio.CancelledError:

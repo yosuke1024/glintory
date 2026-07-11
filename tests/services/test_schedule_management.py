@@ -1,17 +1,18 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from datetime import datetime, UTC, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from glintory.domain.models import Base, Source, ScheduleExecution
+from glintory.domain.models import Base, ScheduleExecution, Source
+from glintory.domain.operations import SourceNotFoundError
 from glintory.domain.scheduling import (
-    ScheduleNotFoundError,
     InvalidScheduleError,
     ScheduleExecutionStatus,
 )
-from glintory.domain.operations import SourceNotFoundError
-from glintory.services.schedule_management import ScheduleManagementService
 from glintory.infrastructure.schedule_repository import ScheduleRepository
+from glintory.services.schedule_management import ScheduleManagementService
+
 
 @pytest.fixture
 def db_session():
@@ -21,6 +22,7 @@ def db_session():
     session = session_factory()
     yield session, session_factory
     session.close()
+
 
 def test_schedule_management_lifecycle(db_session):
     session, session_factory = db_session
@@ -61,6 +63,7 @@ def test_schedule_management_lifecycle(db_session):
     session = session_factory()
     repo = ScheduleRepository(session)
     sched = repo.get_schedule(src.id)
+    assert sched is not None
     sched.next_run_at = datetime.now(UTC) - timedelta(minutes=10)
     session.commit()
     session.close()
@@ -69,6 +72,7 @@ def test_schedule_management_lifecycle(db_session):
     item_en = service.enable_schedule(src.id)
     assert item_en.schedule_enabled is True
     assert item_en.next_run_at > datetime.now(UTC)
+
 
 def test_schedule_management_validation(db_session):
     session, session_factory = db_session
@@ -80,16 +84,25 @@ def test_schedule_management_validation(db_session):
 
     # Invalid interval
     with pytest.raises(InvalidScheduleError):
-        service.set_schedule(source_id=src.id, interval_minutes=4)  # settings.schedule_min_interval_minutes is 15
+        service.set_schedule(
+            source_id=src.id, interval_minutes=4
+        )  # settings.schedule_min_interval_minutes is 15
 
     # Naive first_run_at
     with pytest.raises(InvalidScheduleError):
-        service.set_schedule(source_id=src.id, interval_minutes=60, first_run_at=datetime(2026, 7, 12, 0, 0))
+        service.set_schedule(
+            source_id=src.id,
+            interval_minutes=60,
+            first_run_at=datetime(2026, 7, 12, 0, 0),
+        )
 
     # Past first_run_at
     with pytest.raises(InvalidScheduleError):
         past_time = datetime.now(UTC) - timedelta(minutes=10)
-        service.set_schedule(source_id=src.id, interval_minutes=60, first_run_at=past_time)
+        service.set_schedule(
+            source_id=src.id, interval_minutes=60, first_run_at=past_time
+        )
+
 
 def test_schedule_management_history_retained(db_session):
     session, session_factory = db_session

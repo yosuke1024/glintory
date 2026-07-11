@@ -1,16 +1,15 @@
-import pytest
-import sys
 import json
-from unittest.mock import patch, MagicMock
-from glintory.cli import main
-from glintory.domain.models import Base, Source, SourceSchedule, SchedulerLease
-from glintory.domain.scheduling import ScheduleExecutionStatus
+import pathlib
+
+import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import pathlib
-from alembic import command
-from alembic.config import Config
+from glintory.cli import main
+from glintory.domain.models import Source
+
 
 @pytest.fixture
 def cli_db_env(tmp_path, monkeypatch):
@@ -40,10 +39,14 @@ def cli_db_env(tmp_path, monkeypatch):
 
     # Reset cache connections to close locks
     from glintory.infrastructure.database import reset_db_connections
+
     reset_db_connections()
+
+    engine.dispose()
 
     if db_file.exists():
         db_file.unlink()
+
 
 def test_schedule_cli_set_and_show(cli_db_env, capsys):
     # 1. Set schedule
@@ -72,6 +75,7 @@ def test_schedule_cli_set_and_show(cli_db_env, capsys):
     out, err = capsys.readouterr()
     assert "enabled" in out
 
+
 def test_schedule_cli_list(cli_db_env, capsys):
     # Set schedule first
     main(["schedule", "set", "--source", "test-source", "--every-minutes", "60"])
@@ -93,18 +97,42 @@ def test_schedule_cli_list(cli_db_env, capsys):
     assert data[0]["source_name"] == "test-source"
     assert data[0]["interval_minutes"] == 60
 
+
 def test_schedule_cli_validation(cli_db_env, capsys):
     # Invalid interval
     code = main(["schedule", "set", "--source", "test-source", "--every-minutes", "4"])
     assert code == 2
 
     # Naive date format
-    code = main(["schedule", "set", "--source", "test-source", "--every-minutes", "60", "--first-run-at", "2026-07-12T00:00:00"])
+    code = main(
+        [
+            "schedule",
+            "set",
+            "--source",
+            "test-source",
+            "--every-minutes",
+            "60",
+            "--first-run-at",
+            "2026-07-12T00:00:00",
+        ]
+    )
     assert code == 2
 
     # Past date
-    code = main(["schedule", "set", "--source", "test-source", "--every-minutes", "60", "--first-run-at", "2026-07-10T00:00:00Z"])
+    code = main(
+        [
+            "schedule",
+            "set",
+            "--source",
+            "test-source",
+            "--every-minutes",
+            "60",
+            "--first-run-at",
+            "2026-07-10T00:00:00Z",
+        ]
+    )
     assert code == 2
+
 
 def test_scheduler_cli_run_once(cli_db_env, capsys):
     # 1. Run once (should succeed but do nothing since no schedules are due)
@@ -117,7 +145,10 @@ def test_scheduler_cli_run_once(cli_db_env, capsys):
     out, err = capsys.readouterr()
     data = json.loads(out)
     assert data["exit_code"] == 0
-    assert data["owner_token_hidden"] is True
+    assert "tick" in data
+    assert "owner_token" not in data
+    assert "owner_token_hidden" not in data
+
 
 def test_scheduler_cli_run_continuous_json_rejected(cli_db_env, capsys):
     # Continuous mode + JSON should return exit code 2

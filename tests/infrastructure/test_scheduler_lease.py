@@ -1,11 +1,13 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from datetime import datetime, UTC, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from glintory.domain.models import Base, SchedulerLease
-from glintory.infrastructure.scheduler_lease import SchedulerLeaseRepository
 from glintory.domain.scheduling import SchedulerLeaseLostError
+from glintory.infrastructure.scheduler_lease import SchedulerLeaseRepository
+
 
 @pytest.fixture
 def db_session():
@@ -15,6 +17,7 @@ def db_session():
     session = session_factory()
     yield session
     session.close()
+
 
 def test_scheduler_lease_lifecycle(db_session):
     repo = SchedulerLeaseRepository(db_session)
@@ -52,6 +55,7 @@ def test_scheduler_lease_lifecycle(db_session):
     # 6. Release by owner1
     repo.release(owner_token="owner1")
     assert repo.get_status()["active"] is False
+
 
 def test_scheduler_lease_takeover_expired(db_session):
     repo = SchedulerLeaseRepository(db_session)

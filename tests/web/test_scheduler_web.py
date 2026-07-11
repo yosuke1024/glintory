@@ -1,11 +1,20 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from datetime import datetime, UTC, timedelta
 from fastapi.testclient import TestClient
-from glintory.main import app
-from glintory.domain.models import Base, Source, SourceSchedule, SchedulerLease, ScheduleExecution
-from glintory.domain.scheduling import ScheduleExecutionStatus
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from glintory.domain.models import (
+    Base,
+    ScheduleExecution,
+    SchedulerLease,
+    Source,
+    SourceSchedule,
+)
+from glintory.domain.scheduling import ScheduleExecutionStatus
+from glintory.main import app
+
 
 @pytest.fixture
 def test_app_client(monkeypatch, tmp_path):
@@ -26,7 +35,7 @@ def test_app_client(monkeypatch, tmp_path):
 
     # Override get_db dependency
     from glintory.infrastructure.database import get_db
-    
+
     def override_get_db():
         db_session = session_factory()
         try:
@@ -38,46 +47,58 @@ def test_app_client(monkeypatch, tmp_path):
 
     # Populate some seed data
     session = session_factory()
-    src = Source(id="00000000-0000-0000-0000-000000000001", name="Test Source", source_type="rss", enabled=True)
+    src = Source(
+        id="00000000-0000-0000-0000-000000000001",
+        name="Test Source",
+        source_type="rss",
+        enabled=True,
+    )
     session.add(src)
     session.commit()
     session.close()
 
-    client = TestClient(app)
-    yield client
+    with TestClient(app) as client:
+        yield client
 
+    engine.dispose()
     app.dependency_overrides.clear()
     if db_file.exists():
         db_file.unlink()
+
 
 def test_web_schedules_list(test_app_client):
     response = test_app_client.get("/schedules")
     assert response.status_code == 200
     assert "Schedules" in response.text
 
+
 def test_web_schedule_post_and_management(test_app_client):
     # GET source details to extract CSRF cookie and token
     response = test_app_client.get("/sources/00000000-0000-0000-0000-000000000001")
     assert response.status_code == 200
-    
+
     # CSRF Token validation is required for state-changing endpoints
     # Extract CSRF cookie
     csrf_cookie = response.cookies.get("glintory_csrf")
     assert csrf_cookie is not None
+    test_app_client.cookies.set("glintory_csrf", csrf_cookie)
 
     # Post new schedule interval
     response = test_app_client.post(
         "/sources/00000000-0000-0000-0000-000000000001/schedule",
         data={"interval_minutes": "60", "csrf_token": csrf_cookie},
-        cookies={"glintory_csrf": csrf_cookie},
-        follow_redirects=False
+        follow_redirects=False,
     )
     # Redirects 303 to source detail
     assert response.status_code == 303
-    assert response.headers["location"] == "/sources/00000000-0000-0000-0000-000000000001"
+    assert (
+        response.headers["location"] == "/sources/00000000-0000-0000-0000-000000000001"
+    )
 
     # Verify schedule details via API
-    api_resp = test_app_client.get("/api/v1/schedules/00000000-0000-0000-0000-000000000001")
+    api_resp = test_app_client.get(
+        "/api/v1/schedules/00000000-0000-0000-0000-000000000001"
+    )
     assert api_resp.status_code == 200
     data = api_resp.json()
     assert data["interval_minutes"] == 60
@@ -87,27 +108,30 @@ def test_web_schedule_post_and_management(test_app_client):
     response = test_app_client.post(
         "/sources/00000000-0000-0000-0000-000000000001/schedule/disable",
         data={"csrf_token": csrf_cookie},
-        cookies={"glintory_csrf": csrf_cookie},
-        follow_redirects=False
+        follow_redirects=False,
     )
     assert response.status_code == 303
 
     # Verify schedule is disabled
-    api_resp = test_app_client.get("/api/v1/schedules/00000000-0000-0000-0000-000000000001")
+    api_resp = test_app_client.get(
+        "/api/v1/schedules/00000000-0000-0000-0000-000000000001"
+    )
     assert api_resp.json()["schedule_enabled"] is False
 
     # Enable schedule
     response = test_app_client.post(
         "/sources/00000000-0000-0000-0000-000000000001/schedule/enable",
         data={"csrf_token": csrf_cookie},
-        cookies={"glintory_csrf": csrf_cookie},
-        follow_redirects=False
+        follow_redirects=False,
     )
     assert response.status_code == 303
 
     # Verify schedule is enabled again
-    api_resp = test_app_client.get("/api/v1/schedules/00000000-0000-0000-0000-000000000001")
+    api_resp = test_app_client.get(
+        "/api/v1/schedules/00000000-0000-0000-0000-000000000001"
+    )
     assert api_resp.json()["schedule_enabled"] is True
+
 
 def test_web_scheduler_api_status(test_app_client):
     # Initially inactive
@@ -120,7 +144,7 @@ def test_web_scheduler_api_status(test_app_client):
 
     # Mock active lease and due schedule
     session = app.state.session_factory()
-    
+
     # Active lease
     lease = SchedulerLease(
         lease_name="default",

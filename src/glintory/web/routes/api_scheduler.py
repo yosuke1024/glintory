@@ -1,17 +1,24 @@
 import math
 from datetime import UTC, datetime
-from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from glintory.infrastructure.database import get_db
-from glintory.domain.models import Source, SourceSchedule, SchedulerLease, ScheduleExecution
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from glintory.domain.models import (
+    ScheduleExecution,
+    SchedulerLease,
+    Source,
+    SourceSchedule,
+)
 from glintory.domain.scheduling import ScheduleExecutionStatus
+from glintory.infrastructure.database import get_db
+from glintory.infrastructure.schedule_execution_repository import (
+    ScheduleExecutionRepository,
+)
 from glintory.services.schedule_management import ScheduleManagementService
-from glintory.infrastructure.schedule_execution_repository import ScheduleExecutionRepository
 
 router = APIRouter(prefix="/api/v1")
+
 
 def format_iso_utc(dt: datetime | None) -> str | None:
     if dt is None:
@@ -20,6 +27,7 @@ def format_iso_utc(dt: datetime | None) -> str | None:
         dt = dt.replace(tzinfo=UTC)
     utc_dt = dt.astimezone(UTC)
     return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 @router.get("/schedules")
 async def api_list_schedules(
@@ -38,11 +46,14 @@ async def api_list_schedules(
             "schedule_enabled": s.schedule_enabled,
             "interval_minutes": s.interval_minutes,
             "next_run_at": format_iso_utc(s.next_run_at),
-            "last_execution_status": s.last_execution_status.value if s.last_execution_status else None,
+            "last_execution_status": s.last_execution_status.value
+            if s.last_execution_status
+            else None,
             "last_execution_at": format_iso_utc(s.last_execution_at),
         }
         for s in schedules
     ]
+
 
 @router.get("/schedules/{source_id}")
 async def api_get_schedule(
@@ -51,6 +62,7 @@ async def api_get_schedule(
 ):
     service = ScheduleManagementService(lambda: db)
     from glintory.domain.scheduling import ScheduleNotFoundError
+
     try:
         s = service.get_schedule(source_id)
         return {
@@ -61,20 +73,28 @@ async def api_get_schedule(
             "schedule_enabled": s.schedule_enabled,
             "interval_minutes": s.interval_minutes,
             "next_run_at": format_iso_utc(s.next_run_at),
-            "last_execution_status": s.last_execution_status.value if s.last_execution_status else None,
+            "last_execution_status": s.last_execution_status.value
+            if s.last_execution_status
+            else None,
             "last_execution_at": format_iso_utc(s.last_execution_at),
         }
     except ScheduleNotFoundError:
         raise HTTPException(status_code=404, detail="Schedule not found")
 
+
+from glintory.web.validation import execution_query_parameters
+
+
 @router.get("/schedule-executions")
 async def api_list_executions(
-    source: str | None = Query(None),
-    status_filter: str | None = Query(None, alias="status"),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(25, ge=10, le=100),
+    params: dict = Depends(execution_query_parameters),
     db: Session = Depends(get_db),
 ):
+    source = params["source"]
+    status_filter = params["status"]
+    page = params["page"]
+    per_page = params["per_page"]
+
     repo = ScheduleExecutionRepository(db)
     items, total = repo.list_executions(
         source_filter=source,
@@ -106,6 +126,7 @@ async def api_list_executions(
         "total_pages": total_pages,
     }
 
+
 @router.get("/schedule-executions/{execution_id}")
 async def api_get_execution(
     execution_id: str,
@@ -128,6 +149,7 @@ async def api_get_execution(
         "coalesced_count": x.coalesced_count,
         "error_summary": x.safe_error_summary,
     }
+
 
 @router.get("/scheduler/status")
 async def api_scheduler_status(
@@ -153,8 +175,8 @@ async def api_scheduler_status(
     due_schedule_count = (
         db.query(SourceSchedule)
         .join(Source, SourceSchedule.source_id == Source.id)
-        .filter(SourceSchedule.enabled == True)
-        .filter(Source.enabled == True)
+        .filter(SourceSchedule.enabled)
+        .filter(Source.enabled)
         .filter(SourceSchedule.next_run_at <= now)
         .count()
     )

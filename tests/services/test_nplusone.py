@@ -1,18 +1,42 @@
+from collections.abc import Mapping
+from typing import Any
+from unittest.mock import MagicMock
+
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from glintory.domain.models import Base, Source
-from glintory.services.source_operations import SourceOperationsService
+
+from glintory.collectors.base import CollectionContext, CollectionResult
 from glintory.collectors.registry import CollectorRegistry
+from glintory.domain.models import Base, Source
 from glintory.services.collection import CollectionService
-from unittest.mock import MagicMock
+from glintory.services.source_operations import SourceOperationsService
+
 
 class DummyCollector:
     def __init__(self, source_type: str):
         self.source_type = source_type
 
-    def get_config_summary(self, config):
-        return {"summary": "dummy"}
+    def validate_config(
+        self,
+        config: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        return config
+
+    def get_config_summary(
+        self,
+        config: Mapping[str, Any],
+    ) -> str:
+        _ = config
+        return "dummy"
+
+    async def collect(
+        self,
+        context: CollectionContext,
+    ) -> CollectionResult:
+        _ = context
+        return CollectionResult(items=[], warnings=[], errors=[])
+
 
 @pytest.fixture
 def db_env():
@@ -20,6 +44,7 @@ def db_env():
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine)
     return engine, session_factory
+
 
 def test_list_sources_no_n_plus_one(db_env):
     engine, session_factory = db_env
@@ -30,7 +55,7 @@ def test_list_sources_no_n_plus_one(db_env):
         src = Source(
             name=f"Source {i}",
             source_type="rss",
-            config={"feed_url": f"https://example.com/feed{i}.xml"}
+            config={"feed_url": f"https://example.com/feed{i}.xml"},
         )
         session.add(src)
     session.commit()
@@ -38,6 +63,7 @@ def test_list_sources_no_n_plus_one(db_env):
 
     # 2. Instrument engine to count queries
     queries = []
+
     @event.listens_for(engine, "before_cursor_execute")
     def count_query(conn, cursor, statement, parameters, context, executemany):
         # We only count SELECT queries to verify data loading
@@ -58,4 +84,6 @@ def test_list_sources_no_n_plus_one(db_env):
     # 2. Fetch the latest run for each source in 1 query (1 query)
     # Total = 2 SELECT queries
     select_query_count = len(queries)
-    assert select_query_count == 2, f"Expected 2 queries, but got {select_query_count}. Queries: {queries}"
+    assert select_query_count == 2, (
+        f"Expected 2 queries, but got {select_query_count}. Queries: {queries}"
+    )

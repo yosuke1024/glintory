@@ -1,23 +1,25 @@
 import math
 import pathlib
-from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from glintory.config import settings
-from glintory.domain.scheduling import ScheduleExecutionStatus
+from glintory.infrastructure.schedule_execution_repository import (
+    ScheduleExecutionRepository,
+)
 from glintory.services.schedule_management import ScheduleManagementService
-from glintory.infrastructure.schedule_execution_repository import ScheduleExecutionRepository
 
 base_dir = pathlib.Path(__file__).parent.parent
 templates = Jinja2Templates(directory=str(base_dir / "templates"))
 
 router = APIRouter()
 
+
 def get_schedule_management_service(request: Request) -> ScheduleManagementService:
     app = request.app
     return ScheduleManagementService(session_factory=app.state.session_factory)
+
 
 def get_schedule_execution_repo(request: Request) -> ScheduleExecutionRepository:
     app = request.app
@@ -45,14 +47,19 @@ async def list_schedules(
     )
 
 
+from glintory.web.validation import execution_query_parameters
+
+
 @router.get("/schedule-executions", response_class=HTMLResponse)
 async def list_schedule_executions(
     request: Request,
-    source: str | None = Query(None),
-    status_filter: str | None = Query(None, alias="status"),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(25, ge=10, le=100),
+    params: dict = Depends(execution_query_parameters),
 ):
+    source = params["source"]
+    status_filter = params["status"]
+    page = params["page"]
+    per_page = params["per_page"]
+
     session = request.app.state.session_factory()
     try:
         repo = ScheduleExecutionRepository(session)
@@ -90,7 +97,9 @@ async def get_schedule_execution_detail(
         repo = ScheduleExecutionRepository(session)
         detail = repo.get_execution_detail(execution_id)
         if not detail:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found."
+            )
         return templates.TemplateResponse(
             request=request,
             name="schedule_executions/detail.html",

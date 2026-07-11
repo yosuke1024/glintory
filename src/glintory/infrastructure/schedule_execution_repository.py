@@ -1,36 +1,51 @@
 import uuid
-from datetime import UTC, datetime, timedelta
-from typing import Sequence
-from sqlalchemy import func, and_, select
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
+from typing import cast
+from sqlalchemy.engine import CursorResult
+
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from glintory.domain.models import Source, SourceSchedule, SchedulerLease, ScheduleExecution
+
+from glintory.domain.models import (
+    ScheduleExecution,
+    Source,
+    SourceSchedule,
+)
 from glintory.domain.scheduling import (
     ClaimedScheduleExecution,
-    ScheduleExecutionItem,
-    ScheduleExecutionStatus,
-    ScheduleExecutionNotFoundError,
     ScheduleExecutionAlreadyFinalizedError,
-    SchedulerLeaseLostError,
+    ScheduleExecutionItem,
+    ScheduleExecutionNotFoundError,
+    ScheduleExecutionStatus,
 )
 from glintory.infrastructure.scheduler_lease import SchedulerLeaseRepository
 from glintory.services.schedule_calculation import calculate_due_occurrence
 
-class ScheduleExecutionRepository:
-    def __init__(self, session: Session) -> None:
-        self.session = session
-        self.lease_repo = SchedulerLeaseRepository(session)
 
-    def recover_stale_executions(self, *, now: datetime, stale_threshold_dt: datetime) -> int:
+class ScheduleExecutionRepository:
+    def __init__(
+        self, session: Session, clock: Callable[[], datetime] | None = None
+    ) -> None:
+        self.session = session
+        self.clock = clock or (lambda: datetime.now(UTC))
+        self.lease_repo = SchedulerLeaseRepository(session, clock=self.clock)
+
+    def recover_stale_executions(
+        self, *, now: datetime, stale_threshold_dt: datetime
+    ) -> int:
         stmt = (
             self.session.query(ScheduleExecution)
             .filter(ScheduleExecution.status == ScheduleExecutionStatus.RUNNING)
             .filter(ScheduleExecution.started_at < stale_threshold_dt)
-            .update({
-                ScheduleExecution.status: ScheduleExecutionStatus.ABANDONED,
-                ScheduleExecution.completed_at: now,
-                ScheduleExecution.error_summary: "Scheduled execution was abandoned after exceeding the stale threshold.",
-            }, synchronize_session=False)
+            .update(
+                {
+                    ScheduleExecution.status: ScheduleExecutionStatus.ABANDONED,
+                    ScheduleExecution.completed_at: now,
+                    ScheduleExecution.error_summary: "Scheduled execution was abandoned after exceeding the stale threshold.",
+                },
+                synchronize_session=False,
+            )
         )
         self.session.flush()
         if stmt > 0:
@@ -51,8 +66,8 @@ class ScheduleExecutionRepository:
         query = (
             self.session.query(SourceSchedule, Source.name, Source.source_type)
             .join(Source, SourceSchedule.source_id == Source.id)
-            .filter(SourceSchedule.enabled == True)
-            .filter(Source.enabled == True)
+            .filter(SourceSchedule.enabled)
+            .filter(Source.enabled)
             .filter(SourceSchedule.next_run_at <= now)
             .order_by(SourceSchedule.next_run_at.asc(), SourceSchedule.source_id.asc())
             .limit(max_due)
@@ -81,17 +96,22 @@ class ScheduleExecutionRepository:
 
             # Insert execution record
             exec_id = str(uuid.uuid4())
-            new_exec = ScheduleExecution(
-                id=exec_id,
-                source_id=sched.source_id,
-                scheduled_for=occurrence.scheduled_for,
-                started_at=now,
-                status=ScheduleExecutionStatus.RUNNING,
-                coalesced_count=occurrence.coalesced_count,
+            stmt = (
+                sqlite_insert(ScheduleExecution)
+                .values(
+                    id=exec_id,
+                    source_id=sched.source_id,
+                    scheduled_for=occurrence.scheduled_for,
+                    started_at=now,
+                    status=ScheduleExecutionStatus.RUNNING.value,
+                    coalesced_count=occurrence.coalesced_count,
+                    created_at=now,
+                )
+                .on_conflict_do_nothing(index_elements=["source_id", "scheduled_for"])
             )
-            self.session.add(new_exec)
-            try:
-                self.session.flush()
+
+            result = cast(CursorResult, self.session.execute(stmt))
+            if result.rowcount > 0:
                 claimed.append(
                     ClaimedScheduleExecution(
                         execution_id=exec_id,
@@ -103,15 +123,6 @@ class ScheduleExecutionRepository:
                         coalesced_count=occurrence.coalesced_count,
                     )
                 )
-            except IntegrityError:
-                # Duplicate due slot already exists. Rollback this insert but keep next_run_at updated.
-                self.session.rollback()
-                # Re-fetch due to rollback clearing state, we must make sure to re-fetch the sched
-                sched = self.session.query(SourceSchedule).filter_by(source_id=sched.source_id).first()
-                if sched:
-                    sched.next_run_at = occurrence.next_run_at
-                    sched.updated_at = now
-                    self.session.flush()
 
         return claimed
 
@@ -124,7 +135,9 @@ class ScheduleExecutionRepository:
         collection_run_id: str | None = None,
         error_summary: str | None = None,
     ) -> None:
-        exec_record = self.session.query(ScheduleExecution).filter_by(id=execution_id).first()
+        exec_record = (
+            self.session.query(ScheduleExecution).filter_by(id=execution_id).first()
+        )
         if not exec_record:
             raise ScheduleExecutionNotFoundError(f"Execution {execution_id} not found.")
 
@@ -151,15 +164,15 @@ class ScheduleExecutionRepository:
         limit: int = 25,
         offset: int = 0,
     ) -> tuple[Sequence[ScheduleExecutionItem], int]:
-        query = (
-            self.session.query(ScheduleExecution, Source.name, Source.source_type)
-            .outerjoin(Source, ScheduleExecution.source_id == Source.id)
-        )
+        query = self.session.query(
+            ScheduleExecution, Source.name, Source.source_type
+        ).outerjoin(Source, ScheduleExecution.source_id == Source.id)
 
         if source_filter:
             # Match by source name or source ID
             query = query.filter(
-                (Source.name.icontains(source_filter)) | (ScheduleExecution.source_id == source_filter)
+                (Source.name.icontains(source_filter))
+                | (ScheduleExecution.source_id == source_filter)
             )
         if status_filter:
             query = query.filter(ScheduleExecution.status == status_filter)
@@ -167,7 +180,11 @@ class ScheduleExecutionRepository:
         total_count = query.count()
 
         results = (
-            query.order_by(ScheduleExecution.scheduled_for.desc(), ScheduleExecution.started_at.desc())
+            query.order_by(
+                ScheduleExecution.scheduled_for.desc(),
+                ScheduleExecution.started_at.desc(),
+                ScheduleExecution.id.desc(),
+            )
             .limit(limit)
             .offset(offset)
             .all()
@@ -176,6 +193,11 @@ class ScheduleExecutionRepository:
         def to_utc(dt: datetime | None) -> datetime | None:
             if dt is None:
                 return None
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=UTC)
+            return dt
+
+        def to_utc_non_optional(dt: datetime) -> datetime:
             if dt.tzinfo is None:
                 return dt.replace(tzinfo=UTC)
             return dt
@@ -190,8 +212,8 @@ class ScheduleExecutionRepository:
                     source_id=exec_record.source_id,
                     source_name=s_name,
                     source_type=s_type,
-                    scheduled_for=to_utc(exec_record.scheduled_for),
-                    started_at=to_utc(exec_record.started_at),
+                    scheduled_for=to_utc_non_optional(exec_record.scheduled_for),
+                    started_at=to_utc_non_optional(exec_record.started_at),
                     completed_at=to_utc(exec_record.completed_at),
                     status=ScheduleExecutionStatus(exec_record.status),
                     collection_run_id=exec_record.collection_run_id,
@@ -222,13 +244,18 @@ class ScheduleExecutionRepository:
                 return dt.replace(tzinfo=UTC)
             return dt
 
+        def to_utc_non_optional(dt: datetime) -> datetime:
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=UTC)
+            return dt
+
         return ScheduleExecutionItem(
             id=exec_record.id,
             source_id=exec_record.source_id,
             source_name=s_name,
             source_type=s_type,
-            scheduled_for=to_utc(exec_record.scheduled_for),
-            started_at=to_utc(exec_record.started_at),
+            scheduled_for=to_utc_non_optional(exec_record.scheduled_for),
+            started_at=to_utc_non_optional(exec_record.started_at),
             completed_at=to_utc(exec_record.completed_at),
             status=ScheduleExecutionStatus(exec_record.status),
             collection_run_id=exec_record.collection_run_id,

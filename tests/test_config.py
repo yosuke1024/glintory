@@ -34,4 +34,3 @@ def test_settings_validation():
     # Invalid schedule interval limits: max < min
     with pytest.raises(ValidationError):
         Settings(schedule_min_interval_minutes=30, schedule_max_interval_minutes=20)
-

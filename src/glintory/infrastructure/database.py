@@ -19,6 +19,8 @@ def reset_db_connections() -> None:
     Used for testing when settings.database_url changes.
     """
     global _engine, _SessionLocal
+    if _engine is not None:
+        _engine.dispose()
     _engine = None
     _SessionLocal = None
 

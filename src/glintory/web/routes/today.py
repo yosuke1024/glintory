@@ -90,18 +90,20 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
         )
 
     # Scheduler Summary
-    from glintory.domain.models import SourceSchedule, SchedulerLease, ScheduleExecution
-    from glintory.domain.scheduling import ScheduleExecutionStatus
+    from glintory.domain.models import ScheduleExecution, SchedulerLease, SourceSchedule
     from glintory.domain.operations import CollectionTriggerType
+    from glintory.domain.scheduling import ScheduleExecutionStatus
 
     scheduled_sources_count = db.query(SourceSchedule).count()
-    enabled_schedules_count = db.query(SourceSchedule).filter(SourceSchedule.enabled == True).count()
+    enabled_schedules_count = (
+        db.query(SourceSchedule).filter(SourceSchedule.enabled).count()
+    )
 
     due_schedules_count = (
         db.query(SourceSchedule)
         .join(Source, SourceSchedule.source_id == Source.id)
-        .filter(SourceSchedule.enabled == True)
-        .filter(Source.enabled == True)
+        .filter(SourceSchedule.enabled)
+        .filter(Source.enabled)
         .filter(SourceSchedule.next_run_at <= now)
         .count()
     )
@@ -117,7 +119,9 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
     last_scheduled_collection = (
         db.query(func.max(CollectionRun.completed_at))
         .filter(
-            CollectionRun.status.in_([CollectionRunStatus.SUCCEEDED, CollectionRunStatus.PARTIAL]),
+            CollectionRun.status.in_(
+                [CollectionRunStatus.SUCCEEDED, CollectionRunStatus.PARTIAL]
+            ),
             CollectionRun.trigger_type == CollectionTriggerType.SCHEDULED.value,
         )
         .scalar()
@@ -126,17 +130,19 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
     if last_scheduled_collection:
         if last_scheduled_collection.tzinfo is None:
             last_scheduled_collection = last_scheduled_collection.replace(tzinfo=UTC)
-        last_scheduled_collection_str = last_scheduled_collection.astimezone(UTC).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        )
+        last_scheduled_collection_str = last_scheduled_collection.astimezone(
+            UTC
+        ).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     failed_scheduled_executions_24h_count = (
         db.query(ScheduleExecution)
         .filter(
-            ScheduleExecution.status.in_([
-                ScheduleExecutionStatus.FAILED.value,
-                ScheduleExecutionStatus.ABANDONED.value,
-            ]),
+            ScheduleExecution.status.in_(
+                [
+                    ScheduleExecutionStatus.FAILED.value,
+                    ScheduleExecutionStatus.ABANDONED.value,
+                ]
+            ),
             ScheduleExecution.started_at >= last_24h,
         )
         .count()

@@ -1,10 +1,16 @@
-from datetime import UTC, datetime
 from collections.abc import Sequence
-from sqlalchemy import func, and_
+from datetime import UTC, datetime
+
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
-from glintory.domain.models import Source, SourceSchedule, ScheduleExecution
-from glintory.domain.scheduling import SourceScheduleItem, ScheduleExecutionStatus
-from glintory.domain.scheduling import ScheduleNotFoundError
+
+from glintory.domain.models import ScheduleExecution, Source, SourceSchedule
+from glintory.domain.scheduling import (
+    ScheduleExecutionStatus,
+    ScheduleNotFoundError,
+    SourceScheduleItem,
+)
+
 
 class ScheduleRepository:
     def __init__(self, session: Session) -> None:
@@ -16,19 +22,19 @@ class ScheduleRepository:
         enabled: bool | None = None,
         source_name_filter: str | None = None,
     ) -> Sequence[SourceScheduleItem]:
-        rn_sub = (
-            self.session.query(
-                ScheduleExecution.id.label("exec_id"),
-                ScheduleExecution.source_id.label("source_id"),
-                func.row_number()
-                .over(
-                    partition_by=ScheduleExecution.source_id,
-                    order_by=(ScheduleExecution.started_at.desc(), ScheduleExecution.id.desc()),
-                )
-                .label("rn"),
+        rn_sub = self.session.query(
+            ScheduleExecution.id.label("exec_id"),
+            ScheduleExecution.source_id.label("source_id"),
+            func.row_number()
+            .over(
+                partition_by=ScheduleExecution.source_id,
+                order_by=(
+                    ScheduleExecution.started_at.desc(),
+                    ScheduleExecution.id.desc(),
+                ),
             )
-            .subquery()
-        )
+            .label("rn"),
+        ).subquery()
 
         query = (
             self.session.query(Source, SourceSchedule, ScheduleExecution)
@@ -51,9 +57,15 @@ class ScheduleRepository:
         results = query.all()
         items = []
         for src, sched, exec_hist in results:
+
             def to_utc(dt: datetime | None) -> datetime | None:
                 if dt is None:
                     return None
+                if dt.tzinfo is None:
+                    return dt.replace(tzinfo=UTC)
+                return dt
+
+            def to_utc_non_optional(dt: datetime) -> datetime:
                 if dt.tzinfo is None:
                     return dt.replace(tzinfo=UTC)
                 return dt
@@ -72,29 +84,29 @@ class ScheduleRepository:
                     source_enabled=src.enabled,
                     schedule_enabled=sched.enabled,
                     interval_minutes=sched.interval_minutes,
-                    next_run_at=to_utc(sched.next_run_at),
+                    next_run_at=to_utc_non_optional(sched.next_run_at),
                     last_execution_status=status,
                     last_execution_at=last_exec_at,
-                    created_at=to_utc(sched.created_at),
-                    updated_at=to_utc(sched.updated_at),
+                    created_at=to_utc_non_optional(sched.created_at),
+                    updated_at=to_utc_non_optional(sched.updated_at),
                 )
             )
         return items
 
     def get_schedule_detail(self, source_id: str) -> SourceScheduleItem | None:
-        rn_sub = (
-            self.session.query(
-                ScheduleExecution.id.label("exec_id"),
-                ScheduleExecution.source_id.label("source_id"),
-                func.row_number()
-                .over(
-                    partition_by=ScheduleExecution.source_id,
-                    order_by=(ScheduleExecution.started_at.desc(), ScheduleExecution.id.desc()),
-                )
-                .label("rn"),
+        rn_sub = self.session.query(
+            ScheduleExecution.id.label("exec_id"),
+            ScheduleExecution.source_id.label("source_id"),
+            func.row_number()
+            .over(
+                partition_by=ScheduleExecution.source_id,
+                order_by=(
+                    ScheduleExecution.started_at.desc(),
+                    ScheduleExecution.id.desc(),
+                ),
             )
-            .subquery()
-        )
+            .label("rn"),
+        ).subquery()
 
         result = (
             self.session.query(Source, SourceSchedule, ScheduleExecution)
@@ -117,6 +129,11 @@ class ScheduleRepository:
                 return dt.replace(tzinfo=UTC)
             return dt
 
+        def to_utc_non_optional(dt: datetime) -> datetime:
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=UTC)
+            return dt
+
         status = None
         last_exec_at = None
         if exec_hist:
@@ -130,15 +147,19 @@ class ScheduleRepository:
             source_enabled=src.enabled,
             schedule_enabled=sched.enabled,
             interval_minutes=sched.interval_minutes,
-            next_run_at=to_utc(sched.next_run_at),
+            next_run_at=to_utc_non_optional(sched.next_run_at),
             last_execution_status=status,
             last_execution_at=last_exec_at,
-            created_at=to_utc(sched.created_at),
-            updated_at=to_utc(sched.updated_at),
+            created_at=to_utc_non_optional(sched.created_at),
+            updated_at=to_utc_non_optional(sched.updated_at),
         )
 
     def get_schedule(self, source_id: str) -> SourceSchedule | None:
-        return self.session.query(SourceSchedule).filter(SourceSchedule.source_id == source_id).first()
+        return (
+            self.session.query(SourceSchedule)
+            .filter(SourceSchedule.source_id == source_id)
+            .first()
+        )
 
     def save_schedule(self, schedule: SourceSchedule) -> None:
         self.session.add(schedule)

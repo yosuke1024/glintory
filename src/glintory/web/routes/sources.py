@@ -1,3 +1,4 @@
+import contextlib
 import math
 import pathlib
 from typing import Annotated
@@ -14,9 +15,9 @@ from glintory.domain.operations import (
     SourceDisabledError,
     SourceNotFoundError,
 )
-from glintory.services.source_operations import SourceOperationsService
+from glintory.domain.scheduling import InvalidScheduleError, ScheduleNotFoundError
 from glintory.services.schedule_management import ScheduleManagementService
-from glintory.domain.scheduling import ScheduleNotFoundError, InvalidScheduleError
+from glintory.services.source_operations import SourceOperationsService
 from glintory.web.csrf import generate_csrf_token, set_csrf_cookie, validate_csrf
 from glintory.web.forms import parse_urlencoded_form
 
@@ -88,16 +89,19 @@ async def get_source_detail(
     # Retrieve schedule info if any
     schedule_service = get_schedule_management_service(request)
     schedule = None
-    try:
+    with contextlib.suppress(ScheduleNotFoundError):
         schedule = schedule_service.get_schedule(source_id)
-    except ScheduleNotFoundError:
-        pass
 
     csrf_token = generate_csrf_token()
     response = templates.TemplateResponse(
         request=request,
         name="sources/detail.html",
-        context={"source": source, "runs": runs, "schedule": schedule, "csrf_token": csrf_token},
+        context={
+            "source": source,
+            "runs": runs,
+            "schedule": schedule,
+            "csrf_token": csrf_token,
+        },
     )
     set_csrf_cookie(response, csrf_token, request)
     return response

@@ -1,20 +1,27 @@
-import datetime as dt
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Callable
+
 from sqlalchemy.orm import Session
-from glintory.domain.models import Source, SourceSchedule
-from glintory.domain.scheduling import (
-    SourceScheduleItem,
-    ScheduleNotFoundError,
-    InvalidScheduleError,
-)
-from glintory.domain.operations import SourceNotFoundError
-from glintory.infrastructure.schedule_repository import ScheduleRepository
+
 from glintory.config import settings
+from glintory.domain.models import Source, SourceSchedule
+from glintory.domain.operations import SourceNotFoundError
+from glintory.domain.scheduling import (
+    InvalidScheduleError,
+    ScheduleNotFoundError,
+    SourceScheduleItem,
+)
+from glintory.infrastructure.schedule_repository import ScheduleRepository
+
 
 class ScheduleManagementService:
-    def __init__(self, session_factory: Callable[[], Session]) -> None:
+    def __init__(
+        self,
+        session_factory: Callable[[], Session],
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         self.session_factory = session_factory
+        self.clock = clock or (lambda: datetime.now(UTC))
 
     def list_schedules(
         self,
@@ -25,7 +32,11 @@ class ScheduleManagementService:
         session = self.session_factory()
         try:
             repo = ScheduleRepository(session)
-            return list(repo.list_schedules(enabled=enabled, source_name_filter=source_name_filter))
+            return list(
+                repo.list_schedules(
+                    enabled=enabled, source_name_filter=source_name_filter
+                )
+            )
         finally:
             session.close()
 
@@ -35,7 +46,9 @@ class ScheduleManagementService:
             repo = ScheduleRepository(session)
             item = repo.get_schedule_detail(source_id)
             if not item:
-                raise ScheduleNotFoundError(f"Schedule for Source {source_id} not found.")
+                raise ScheduleNotFoundError(
+                    f"Schedule for Source {source_id} not found."
+                )
             return item
         finally:
             session.close()
@@ -52,13 +65,19 @@ class ScheduleManagementService:
         min_i = settings.schedule_min_interval_minutes
         max_i = settings.schedule_max_interval_minutes
         if not (min_i <= interval_minutes <= max_i):
-            raise InvalidScheduleError(f"interval_minutes must be between {min_i} and {max_i} minutes.")
+            raise InvalidScheduleError(
+                f"interval_minutes must be between {min_i} and {max_i} minutes."
+            )
 
-        now = datetime.now(UTC)
+        now = self.clock()
 
         if first_run_at is not None:
-            if first_run_at.tzinfo is None or first_run_at.tzinfo.utcoffset(first_run_at) != timedelta(0):
-                raise InvalidScheduleError("first_run_at must be timezone-aware UTC datetime.")
+            if first_run_at.tzinfo is None or first_run_at.tzinfo.utcoffset(
+                first_run_at
+            ) != timedelta(0):
+                raise InvalidScheduleError(
+                    "first_run_at must be timezone-aware UTC datetime."
+                )
             if first_run_at < now:
                 raise InvalidScheduleError("first_run_at cannot be in the past.")
             next_run_at = first_run_at
@@ -106,9 +125,11 @@ class ScheduleManagementService:
             repo = ScheduleRepository(session)
             sched = repo.get_schedule(source_id)
             if not sched:
-                raise ScheduleNotFoundError(f"Schedule for Source {source_id} not found.")
+                raise ScheduleNotFoundError(
+                    f"Schedule for Source {source_id} not found."
+                )
 
-            now = datetime.now(UTC)
+            now = self.clock()
             sched.enabled = True
             next_run = sched.next_run_at
             if next_run.tzinfo is None:
@@ -134,10 +155,12 @@ class ScheduleManagementService:
             repo = ScheduleRepository(session)
             sched = repo.get_schedule(source_id)
             if not sched:
-                raise ScheduleNotFoundError(f"Schedule for Source {source_id} not found.")
+                raise ScheduleNotFoundError(
+                    f"Schedule for Source {source_id} not found."
+                )
 
             sched.enabled = False
-            sched.updated_at = datetime.now(UTC)
+            sched.updated_at = self.clock()
             session.commit()
 
             item = repo.get_schedule_detail(source_id)

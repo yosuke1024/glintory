@@ -76,7 +76,9 @@ class SourceOperationsRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def _list_sources_internal(self) -> Sequence[tuple[SourceOperationItem, dict[str, Any]]]:
+    def _list_sources_internal(
+        self,
+    ) -> Sequence[tuple[SourceOperationItem, dict[str, Any]]]:
         # 1. Fetch all sources
         sources = (
             self.session.query(Source)
@@ -170,7 +172,9 @@ class SourceOperationsRepository:
     def list_sources(self) -> Sequence[SourceOperationItem]:
         return [item for item, _ in self._list_sources_internal()]
 
-    def list_sources_with_config(self) -> Sequence[tuple[SourceOperationItem, dict[str, Any]]]:
+    def list_sources_with_config(
+        self,
+    ) -> Sequence[tuple[SourceOperationItem, dict[str, Any]]]:
         return self._list_sources_internal()
 
     def get_source_detail(self, source_id: str) -> Source | None:
