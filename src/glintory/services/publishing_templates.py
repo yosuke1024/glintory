@@ -279,7 +279,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
             <h4 class="card-title">{{ op.title }}</h4>
             <div class="score-value">{{ op.total_score }}</div>
           </div>
-          <p>{{ op.proposed_solution[:150] }}...</p>
+          <p>{{ (op.proposed_solution or '')[:150] }}...</p>
           <div class="meta-info">
             <span>Confidence: {{ op.confidence }}</span>
             <span>Status: {{ op.status }}</span>
