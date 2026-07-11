@@ -111,6 +111,7 @@ class LlamaServerContext:
         ]
         
         # Write server output to a log file for debugging on failure
+        binary_dir = os.path.dirname(os.path.abspath(self.binary_path))
         build_dir = os.path.abspath("build")
         os.makedirs(build_dir, exist_ok=True)
         log_path = os.path.join(build_dir, "llama_server.log")
@@ -119,9 +120,9 @@ class LlamaServerContext:
         env = os.environ.copy()
         ld_path = env.get("LD_LIBRARY_PATH", "")
         if ld_path:
-            env["LD_LIBRARY_PATH"] = f"{log_dir}:{ld_path}"
+            env["LD_LIBRARY_PATH"] = f"{binary_dir}:{ld_path}"
         else:
-            env["LD_LIBRARY_PATH"] = log_dir
+            env["LD_LIBRARY_PATH"] = binary_dir
 
         self.process = subprocess.Popen(
             cmd,
