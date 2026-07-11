@@ -114,9 +114,82 @@ class OpportunityAnalysisService:
                     "Rejected: Single Show HN submission cannot be promoted.",
                 )
 
+        # Build combined lowercase text for keyword parsing
+        combined_text = "\n".join(f"{sig.title or ''}\n{sig.excerpt or ''}" for sig in signals).lower()
+
+        # Word boundary matching helper for english keywords
+        def has_word(pattern: str, text: str) -> bool:
+            if pattern.replace(" ", "").isalnum() and pattern.isascii():
+                escaped = re.escape(pattern)
+                return bool(re.search(rf"\b{escaped}\b", text))
+            return pattern in text
+
+        # 1. Quality Gate Checks (Must satisfy all 9)
+        user_kws = [
+            "customer", "target user", "developer", "target audience",
+            "for developers", "for users", "ユーザー", "顧客", "開発者", "ターゲットユーザー"
+        ]
+        problem_kws = [
+            "problem", "pain", "issue", "difficult", "annoy", "error", "fail",
+            "broken", "limit", "課題", "問題", "困っ", "痛手", "バグ", "エラー"
+        ]
+        workaround_kws = [
+            "workaround", "instead of", "alternative", "current tool",
+            "manually", "excel", "scripts", "回避", "代替", "手動", "スプレッドシート"
+        ]
+        gap_kws = [
+            "why", "limit", "lack", "cannot", "expensive", "slow",
+            "不足", "できない", "高価", "遅い"
+        ]
+        mvp_kws = [
+            "mvp", "solution", "feature", "idea", "should", "wish",
+            "提案", "欲しい", "必要", "機能"
+        ]
+
+        has_user = any(has_word(kw, combined_text) for kw in user_kws)
+        has_problem = any(has_word(kw, combined_text) for kw in problem_kws)
+        has_workaround = any(has_word(kw, combined_text) for kw in workaround_kws)
+        has_gap = any(has_word(kw, combined_text) for kw in gap_kws)
+        has_mvp = any(has_word(kw, combined_text) for kw in mvp_kws)
+
+        is_solo_realistic = not any(has_word(kw, combined_text) for kw in [
+            "enterprise-grade", "multi-tenant", "collaboration", "rbac",
+            "salesforce integration", "large scale", "組織向け", "共同編集", "権限管理"
+        ])
+        is_heavy_backend_free = not any(has_word(kw, combined_text) for kw in [
+            "heavy backend", "complex backend", "microservices", "kubernetes", "k8s",
+            "large scale database", "heavy server", "重いバックエンド", "マイクロサービス"
+        ])
+        is_ai_cost_free = not any(has_word(kw, combined_text) for kw in [
+            "heavy api cost", "expensive api", "expensive ai", "high hosting cost",
+            "high running cost", "高額なapi", "ai費用", "高額なホスティング"
+        ])
+        is_enterprise_sales_free = not any(has_word(kw, combined_text) for kw in [
+            "enterprise sales", "sales cycle", "sales team", "b2b sales",
+            "エンタープライズ営業", "営業チーム", "営業プロセス"
+        ])
+
+        quality_passed = (
+            has_user and has_problem and has_workaround and has_gap and has_mvp and
+            is_solo_realistic and is_heavy_backend_free and is_ai_cost_free and is_enterprise_sales_free
+        )
+
+        if not quality_passed:
+            details = (
+                f"User:{has_user}, Problem:{has_problem}, Workaround:{has_workaround}, "
+                f"Gap:{has_gap}, MVP:{has_mvp}, Solo:{is_solo_realistic}, "
+                f"Backend:{is_heavy_backend_free}, AICost:{is_ai_cost_free}, Sales:{is_enterprise_sales_free}"
+            )
+            return (
+                metrics,
+                False,
+                f"Rejected: Quality gate failed. Missing structural elements or violating constraints. ({details})",
+            )
+
+        # 2. Evidence Gate Checks (Must satisfy Condition A or Condition B)
         has_demand = demand_count > 0
 
-        # Condition A: 2+ independent evidences, >= 1 demand
+        # Condition A: Multiple independent evidences with demand
         if independent_count >= 2:
             if has_demand:
                 return (
@@ -130,93 +203,9 @@ class OpportunityAnalysisService:
                 "Rejected Condition A: Multiple independent evidences but no demand.",
             )
 
-        # Condition B: Single independent evidence, must be strong demand
+        # Condition B: Single independent evidence, must be demand
         single_sig = signals[0]
-        if single_sig.signal_role != SignalRole.DEMAND:
-            return (
-                metrics,
-                False,
-                "Rejected Condition B: Single evidence is not demand.",
-            )
-
-        text_to_check = f"{single_sig.title or ''}\n{single_sig.excerpt or ''}".lower()
-        user_kws = [
-            "customer",
-            "target user",
-            "developer",
-            "target audience",
-            "for developers",
-            "for users",
-            "ユーザー",
-            "顧客",
-            "開発者",
-            "ターゲットユーザー",
-        ]
-        problem_kws = [
-            "problem",
-            "pain",
-            "issue",
-            "difficult",
-            "annoy",
-            "error",
-            "fail",
-            "broken",
-            "limit",
-            "課題",
-            "問題",
-            "困っ",
-            "痛手",
-            "バグ",
-            "エラー",
-        ]
-        workaround_kws = [
-            "workaround",
-            "instead of",
-            "alternative",
-            "current tool",
-            "manually",
-            "excel",
-            "scripts",
-            "回避",
-            "代替",
-            "手動",
-            "スプレッドシート",
-        ]
-        gap_kws = [
-            "why",
-            "limit",
-            "lack",
-            "cannot",
-            "expensive",
-            "slow",
-            "不足",
-            "できない",
-            "高価",
-            "遅い",
-        ]
-        mvp_kws = [
-            "mvp",
-            "solution",
-            "feature",
-            "idea",
-            "should",
-            "wish",
-            "提案",
-            "欲しい",
-            "必要",
-            "機能",
-        ]
-
-        has_user = any(kw in text_to_check for kw in user_kws)
-        has_problem = any(kw in text_to_check for kw in problem_kws)
-        has_workaround = any(kw in text_to_check for kw in workaround_kws)
-        has_gap = any(kw in text_to_check for kw in gap_kws)
-        has_mvp = any(kw in text_to_check for kw in mvp_kws)
-
-        matched_elements = sum(
-            [has_user, has_problem, has_workaround, has_gap, has_mvp]
-        )
-        if matched_elements == 5:
+        if single_sig.signal_role == SignalRole.DEMAND:
             return (
                 metrics,
                 True,
@@ -226,7 +215,7 @@ class OpportunityAnalysisService:
         return (
             metrics,
             False,
-            f"Rejected Condition B: Single demand is missing elements (matched: {matched_elements}/5). Required all 5 elements.",
+            "Rejected Condition B: Single evidence is not demand.",
         )
 
     def analyze_and_cluster(
@@ -369,12 +358,13 @@ class OpportunityAnalysisService:
 
                         if opp.status in (
                             OpportunityStatus.INBOX,
+                            OpportunityStatus.RESEARCH,
                             OpportunityStatus.REJECTED,
                         ):
                             opp.status = (
                                 OpportunityStatus.INBOX
                                 if passed
-                                else OpportunityStatus.REJECTED
+                                else OpportunityStatus.RESEARCH
                             )
                         opp.evidence_updated_at = now
             else:
@@ -395,7 +385,7 @@ class OpportunityAnalysisService:
                     last_clustered_at=now,
                     status=OpportunityStatus.INBOX
                     if passed
-                    else OpportunityStatus.REJECTED,
+                    else OpportunityStatus.RESEARCH,
                     evidence_updated_at=now,
                     independent_evidence_count=metrics["independent_evidence_count"],
                     demand_evidence_count=metrics["demand_evidence_count"],

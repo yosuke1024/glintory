@@ -171,9 +171,10 @@ def build_static_site(
             session.query(Opportunity)
             .filter(
                 Opportunity.current_scoring_version == "v2",
+                Opportunity.gate_status == "passed",
                 Opportunity.status != OpportunityStatus.REJECTED,
                 Opportunity.status != OpportunityStatus.ARCHIVED,
-                Opportunity.confidence != Confidence.LOW,
+                Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH]),
             )
             .order_by(
                 Opportunity.total_score.desc(),
@@ -224,7 +225,11 @@ def build_static_site(
             "top_opportunities": [
                 {
                     "id": o.id,
-                    "title": o.title,
+                    "title_ja": o.title_ja,
+                    "title_en": o.title_en or o.title,
+                    "summary_ja": o.summary_ja,
+                    "summary_en": o.summary_en or o.proposed_solution,
+                    "translation_status": o.translation_status or "pending",
                     "total_score": o.total_score,
                     "confidence": o.confidence.value
                     if hasattr(o.confidence, "value")
@@ -241,8 +246,11 @@ def build_static_site(
             ops_json_list.append(
                 {
                     "id": o.id,
-                    "title": o.title,
-                    "summary": o.proposed_solution,
+                    "title_ja": o.title_ja,
+                    "title_en": o.title_en or o.title,
+                    "summary_ja": o.summary_ja,
+                    "summary_en": o.summary_en or o.proposed_solution,
+                    "translation_status": o.translation_status or "pending",
                     "total_score": o.total_score,
                     "confidence": o.confidence.value
                     if hasattr(o.confidence, "value")
@@ -453,7 +461,51 @@ def build_static_site(
         # Render diagnostics page
         from glintory.domain.models import CollectionRun
         import sqlalchemy as sa
-        from glintory.domain.enums import CollectionRunStatus, Confidence
+        from glintory.domain.enums import CollectionRunStatus, Confidence, EvidenceRelationType
+
+        # Load all v2 opportunities with their signals and sources for representative source type analysis
+        v2_opps = (
+            session.query(Opportunity)
+            .filter(Opportunity.current_scoring_version == "v2")
+            .all()
+        )
+        
+        opp_rep_sources = {}
+        for opp in v2_opps:
+            links = (
+                session.query(OpportunitySignal, Signal, Source.source_type)
+                .join(Signal, OpportunitySignal.signal_id == Signal.id)
+                .join(Source, Signal.source_id == Source.id)
+                .filter(OpportunitySignal.opportunity_id == opp.id)
+                .filter(OpportunitySignal.is_excluded.is_(False))
+                .all()
+            )
+            
+            rep_source_type = None
+            centroid_sigs = [
+                (sig, source_type)
+                for opp_sig, sig, source_type in links
+                if opp_sig.relation_type in (EvidenceRelationType.SUPPORTING, EvidenceRelationType.RELATED)
+            ]
+            if centroid_sigs:
+                sorted_sigs = sorted(
+                    centroid_sigs,
+                    key=lambda x: (x[0].collected_at, x[0].id)
+                )
+                rep_source_type = sorted_sigs[0][1]
+            opp_rep_sources[opp.id] = rep_source_type
+
+        # Check if an opportunity is published based on strict rules
+        def is_opp_published(opp):
+            if opp.current_scoring_version != "v2":
+                return False
+            if opp.gate_status != "passed":
+                return False
+            if opp.status in (OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED):
+                return False
+            if opp.confidence not in (Confidence.MEDIUM, Confidence.HIGH):
+                return False
+            return True
 
         # Compile pipeline stats by Source Type
         track_types = ["github", "hackernews", "rss"]
@@ -462,7 +514,11 @@ def build_static_site(
             enabled_count = (
                 session.query(SourceSchedule)
                 .join(Source, SourceSchedule.source_id == Source.id)
-                .filter(Source.source_type == stype, SourceSchedule.enabled.is_(True))
+                .filter(
+                    Source.source_type == stype,
+                    SourceSchedule.enabled.is_(True),
+                    Source.enabled.is_(True)
+                )
                 .count()
             )
             last_run_exec = (
@@ -474,10 +530,18 @@ def build_static_site(
             )
             last_run_time = last_run_exec.started_at if last_run_exec else None
 
+            collection_runs = (
+                session.query(CollectionRun)
+                .join(Source, CollectionRun.source_id == Source.id)
+                .filter(Source.source_type == stype)
+                .count()
+            )
+
             run_sums = (
                 session.query(
                     sa.func.sum(CollectionRun.fetched_count),
                     sa.func.sum(CollectionRun.inserted_count),
+                    sa.func.sum(CollectionRun.updated_count),
                     sa.func.sum(CollectionRun.skipped_count),
                     sa.func.sum(sa.case((CollectionRun.status == CollectionRunStatus.FAILED, 1), else_=0))
                 )
@@ -486,44 +550,73 @@ def build_static_site(
                 .first()
             )
             fetched_sum = int(run_sums[0] or 0) if run_sums else 0
-            persisted_sum = int(run_sums[1] or 0) if run_sums else 0
-            skipped_sum = int(run_sums[2] or 0) if run_sums else 0
-            failed_sum = int(run_sums[3] or 0) if run_sums else 0
+            inserted_sum = int(run_sums[1] or 0) if run_sums else 0
+            updated_sum = int(run_sums[2] or 0) if run_sums else 0
+            persisted_sum = inserted_sum + updated_sum
+            skipped_sum = int(run_sums[3] or 0) if run_sums else 0
+            failed_sum = int(run_sums[4] or 0) if run_sums else 0
 
-            signals_analyzed = (
-                session.query(Signal)
+            # Signals associated with any v2 opportunity (submitted to analysis)
+            signals_submitted = (
+                session.query(Signal.id)
+                .join(OpportunitySignal, OpportunitySignal.signal_id == Signal.id)
+                .join(Opportunity, OpportunitySignal.opportunity_id == Opportunity.id)
                 .join(Source, Signal.source_id == Source.id)
-                .filter(Source.source_type == stype)
+                .filter(Source.source_type == stype, Opportunity.current_scoring_version == "v2")
+                .distinct()
                 .count()
             )
-            evidence_used = (
-                session.query(OpportunitySignal)
-                .join(Signal, OpportunitySignal.signal_id == Signal.id)
-                .join(Source, Signal.source_id == Source.id)
-                .filter(Source.source_type == stype, OpportunitySignal.is_excluded.is_(False))
-                .count()
-            )
+
+            # Filter opportunities by representative source type
+            opps_by_type = [opp for opp in v2_opps if opp_rep_sources.get(opp.id) == stype]
+            candidates = len(opps_by_type)
+            passed_count = sum(1 for opp in opps_by_type if opp.gate_status == "passed")
+            rejected_count = sum(1 for opp in opps_by_type if opp.gate_status == "rejected")
+            scored_count = sum(1 for opp in opps_by_type if opp.last_scored_at is not None)
+            enriched_count = sum(1 for opp in opps_by_type if opp.enrichment_status == "completed")
+            published_count = sum(1 for opp in opps_by_type if is_opp_published(opp))
+
+            # Evidence used by PUBLISHED opportunities of this source type
+            published_opp_ids = [opp.id for opp in v2_opps if is_opp_published(opp)]
+            if published_opp_ids:
+                evidence_used = (
+                    session.query(OpportunitySignal)
+                    .join(Signal, OpportunitySignal.signal_id == Signal.id)
+                    .join(Source, Signal.source_id == Source.id)
+                    .filter(
+                        Source.source_type == stype,
+                        OpportunitySignal.opportunity_id.in_(published_opp_ids),
+                        OpportunitySignal.is_excluded.is_(False)
+                    )
+                    .count()
+                )
+            else:
+                evidence_used = 0
 
             pipeline_stats[stype] = {
                 "enabled_sources": enabled_count,
                 "last_run": last_run_time,
+                "collection_runs": collection_runs,
                 "fetched": fetched_sum,
+                "inserted": inserted_sum,
+                "updated": updated_sum,
                 "persisted": persisted_sum,
                 "skipped": skipped_sum,
                 "failed": failed_sum,
-                "signals_analyzed": signals_analyzed,
+                "signals_analyzed": signals_submitted,
+                "candidates": candidates,
+                "gate_passed": passed_count,
+                "gate_rejected": rejected_count,
+                "scored": scored_count,
+                "enriched": enriched_count,
+                "published": published_count,
                 "evidence_used": evidence_used,
             }
 
-        opp_candidates = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2").count()
-        gate_passed = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2", Opportunity.gate_status == "passed").count()
-        gate_rejected = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2", Opportunity.gate_status == "rejected").count()
-        published_opps = session.query(Opportunity).filter(
-            Opportunity.current_scoring_version == "v2",
-            Opportunity.status != OpportunityStatus.REJECTED,
-            Opportunity.status != OpportunityStatus.ARCHIVED,
-            Opportunity.confidence != Confidence.LOW,
-        ).count()
+        opp_candidates = len(v2_opps)
+        gate_passed = sum(1 for opp in v2_opps if opp.gate_status == "passed")
+        gate_rejected = sum(1 for opp in v2_opps if opp.gate_status == "rejected")
+        published_opps = sum(1 for opp in v2_opps if is_opp_published(opp))
 
         global_stats = {
             "opportunity_candidates": opp_candidates,
@@ -611,7 +704,7 @@ def build_static_site(
     <priority>0.6</priority>
   </url>""")
             sitemap_items.append(f"""  <url>
-    <loc>{make_loc(f"/opportunities/{op.id}/ja/")}</loc>
+    <loc>{make_loc(f"/opportunities/{op.id}/en/")}</loc>
     <lastmod>{get_now_str()}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>

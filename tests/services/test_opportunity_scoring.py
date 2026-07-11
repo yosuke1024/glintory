@@ -230,6 +230,7 @@ async def test_opportunity_scoring_service_integration(
         generation_method="deterministic_cluster",
         status=OpportunityStatus.INBOX,
         confidence=Confidence.LOW,
+        current_scoring_version="v1",
     )
     db_session.add(opp)
     db_session.commit()

@@ -132,12 +132,15 @@ class SignalNormalizer:
                         raise ValueError("missing_signal_type_hint")
 
                     try:
-                        signal_type = SignalType(hint_val)
+                        default_hint = SignalType(hint_val)
                     except ValueError as e:
                         raise ValueError("invalid_signal_type_hint") from e
 
-                    if signal_type == SignalType.MANUAL:
+                    if default_hint == SignalType.MANUAL:
                         raise ValueError("manual_signal_type_not_allowed")
+
+                    from glintory.services.signal_classification import _classify_rss_entry
+                    signal_type = _classify_rss_entry(item.title, item.excerpt, default_hint)
 
                     default_categories = item.metadata.get("default_categories") or ()
                     default_tags = item.metadata.get("default_tags") or ()

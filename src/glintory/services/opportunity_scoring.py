@@ -703,21 +703,58 @@ class OpportunityScoringEngine:
         evidence_components = []
 
         # 1. Problem Clarity (0-25)
-        prob_score = 0
+        # Base score from demand count
+        base_prob_score = 0
         if demand_evidence_count == 1:
-            prob_score = 10
+            base_prob_score = 10
         elif demand_evidence_count == 2:
-            prob_score = 18
+            base_prob_score = 16
         elif demand_evidence_count >= 3:
-            prob_score = 25
+            base_prob_score = 20
+
+        # Contents evaluation: check structural elements inside evidence texts
+        combined_ev_text = ""
+        for sig in scoring_input.signals:
+            combined_ev_text += " " + (sig.title or "").lower()
+            combined_ev_text += " " + (sig.excerpt or "").lower()
+
+        # Word boundary checker helper
+        def has_word_local(pattern: str, text: str) -> bool:
+            if pattern.replace(" ", "").isalnum() and pattern.isascii():
+                return bool(re.search(rf"\b{re.escape(pattern)}\b", text))
+            return pattern in text
+
+        # Check clarity elements
+        problem_kws = ["problem", "pain", "issue", "difficult", "annoy", "error", "fail", "broken", "limit", "課題", "問題", "困っ", "バグ", "エラー"]
+        workaround_kws = ["workaround", "instead of", "alternative", "current tool", "manually", "excel", "scripts", "回避", "代替", "手動", "スプレッドシート"]
+        gap_kws = ["why", "limit", "lack", "cannot", "expensive", "slow", "不足", "できない", "高価", "遅い"]
+
+        has_prob_el = any(has_word_local(kw, combined_ev_text) for kw in problem_kws)
+        has_work_el = any(has_word_local(kw, combined_ev_text) for kw in workaround_kws)
+        has_gap_el = any(has_word_local(kw, combined_ev_text) for kw in gap_kws)
+
+        bonus = 0
+        if has_prob_el:
+            bonus += 2
+        if has_work_el:
+            bonus += 2
+        if has_gap_el:
+            bonus += 1
+
+        prob_score = min(25, base_prob_score + bonus)
 
         evidence_components.append(
             ScoreComponent(
                 name="problem_clarity_and_severity",
                 score=prob_score,
                 maximum=25,
-                explanation="Clarity and severity based on demand signal counts.",
-                facts={"demand_evidence_count": demand_evidence_count},
+                explanation="Clarity and severity based on demand signal counts and content analysis.",
+                facts={
+                    "demand_evidence_count": demand_evidence_count,
+                    "has_problem_element": has_prob_el,
+                    "has_workaround_element": has_work_el,
+                    "has_gap_element": has_gap_el,
+                },
             )
         )
 
@@ -753,11 +790,22 @@ class OpportunityScoringEngine:
             combined_text += " " + (sig.title or "").lower()
             combined_text += " " + (sig.excerpt or "").lower()
 
+        # Regex helper with word boundaries for english keywords
+        def check_kws(kws: list[str], text: str) -> bool:
+            for kw in kws:
+                if kw.isalnum() and kw.isascii():
+                    if re.search(rf"\b{re.escape(kw)}\b", text):
+                        return True
+                else:
+                    if kw in text:
+                        return True
+            return False
+
         # 3. Solo Developer Suitability (0-20)
-        has_client = any(kw in combined_text for kw in ["cli", "extension", "static", "desktop", "local", "offline"])
-        has_backend = any(kw in combined_text for kw in ["backend", "server", "database", "cloud", "realtime", "websocket", "sync"])
-        has_heavy_api = any(kw in combined_text for kw in ["openai", "gemini", "api", "integration", "stripe"])
-        has_team = any(kw in combined_text for kw in ["enterprise", "team", "organization", "collaboration", "rbac", "multi-tenant"])
+        has_client = check_kws(["cli", "extension", "static", "desktop", "local", "offline"], combined_text)
+        has_backend = check_kws(["backend", "server", "database", "cloud", "realtime", "websocket", "sync"], combined_text)
+        has_heavy_api = check_kws(["openai", "gemini", "api", "integration", "stripe"], combined_text)
+        has_team = check_kws(["enterprise", "team", "organization", "collaboration", "rbac", "multi-tenant"], combined_text)
 
         if not has_client and not has_backend and not has_heavy_api and not has_team:
             solo_suitability = 2
@@ -791,8 +839,8 @@ class OpportunityScoringEngine:
         )
 
         # 4. Distribution and Reach (0-15)
-        has_dist = any(kw in combined_text for kw in ["store", "npm", "pypi", "release", "self-serve", "marketplace", "pwa", "download"])
-        has_sales = any(kw in combined_text for kw in ["sales", "enterprise", "b2b", "organization", "sales cycle"])
+        has_dist = check_kws(["store", "npm", "pypi", "release", "self-serve", "marketplace", "pwa", "download"], combined_text)
+        has_sales = check_kws(["sales", "enterprise", "b2b", "organization", "sales cycle"], combined_text)
 
         if not has_dist and not has_sales:
             reach_score = 1
@@ -820,8 +868,8 @@ class OpportunityScoringEngine:
         )
 
         # 5. Monetization and Asset Value (0-10)
-        has_mon = any(kw in combined_text for kw in ["sub", "saas", "license", "byok", "ad", "sponsor", "pay", "premium", "charge", "stripe", "buy"])
-        has_infra = any(kw in combined_text for kw in ["infra", "server cost", "hosting", "bandwidth", "gpu", "database"])
+        has_mon = check_kws(["sub", "saas", "license", "byok", "ad", "sponsor", "pay", "premium", "charge", "stripe", "buy"], combined_text)
+        has_infra = check_kws(["infra", "server cost", "hosting", "bandwidth", "gpu", "database"], combined_text)
 
         if not has_mon and not has_infra:
             mon_score = 1

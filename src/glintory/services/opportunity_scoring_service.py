@@ -83,7 +83,7 @@ class OpportunityScoringService:
             else:
                 limit = max_opportunities or 1000
                 scoring_inputs = repo.load_scoring_inputs(
-                    active_only=True, max_opportunities=limit
+                    active_only=True, max_opportunities=limit, scoring_version=self.scoring_version
                 )
 
             # Retrieve latest snapshot hashes to determine what has changed

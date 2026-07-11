@@ -6,12 +6,12 @@
   "include_undated": true,
   "signal_type": "trend",
   "default_tags": [
-    "show-hn",
-    "rss"
+    "lobsters",
+    "developer-community"
   ],
   "default_categories": [
     "rss",
-    "show-hn"
+    "developer-community"
   ],
   "strict_parsing": false,
   "use_content_fallback": true

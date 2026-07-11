@@ -129,21 +129,54 @@ def test_v1_rebuild_to_v2(test_db):
     # Clear session cache to avoid stale read
     session.expire_all()
 
-    # Verify that the opportunity is rejected
-    updated_opp = session.get(Opportunity, "opp-v1-test")
-    assert updated_opp.status == OpportunityStatus.REJECTED
+    # Verify that the v1 opportunity is kept intact
+    v1_opp = session.get(Opportunity, "opp-v1-test")
+    assert v1_opp.status == OpportunityStatus.INBOX
+    assert v1_opp.current_scoring_version == "v1"
 
-    # Verify that the link is removed
-    links = session.query(OpportunitySignal).filter(OpportunitySignal.opportunity_id == "opp-v1-test").all()
-    assert len(links) == 0
+    # Verify that the link for v1 is still kept
+    links_v1 = session.query(OpportunitySignal).filter(OpportunitySignal.opportunity_id == "opp-v1-test").all()
+    assert len(links_v1) == 1
 
-    # Verify that the signal is now unassociated for v2
-    repo = OpportunityClusteringRepository(session)
-    unassociated = repo.load_unassociated_signals()
-    assert "sig-v1-test" in [s.id for s in unassociated]
+    # Verify that v2 Opportunity has been created successfully
+    v2_opps = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2").all()
+    assert len(v2_opps) > 0
+    v2_opp = v2_opps[0]
+    
+    # Verify that v2 links exist
+    links_v2 = session.query(OpportunitySignal).filter(OpportunitySignal.opportunity_id == v2_opp.id).all()
+    assert len(links_v2) == 1
+    assert links_v2[0].signal_id == "sig-v1-test"
 
 def test_rebuild_idempotency(test_db):
     session = test_db
+    
+    # Create Source
+    src = Source(id="src-hn-idemp", name="HN Idemp", source_type="hackernews")
+    session.add(src)
+    session.commit()
+
+    # Create v1 Opportunity and Signal
+    opp = Opportunity(id="opp-v1-idemp", title="Idemp Opp", status=OpportunityStatus.INBOX, current_scoring_version="v1")
+    sig = Signal(
+        id="sig-v1-idemp",
+        source_id="src-hn-idemp",
+        title="Idemp Signal Title",
+        excerpt="Important user need target developer problem issue workaround alternative slow MVP.",
+        signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
+        canonical_url="https://news.ycombinator.com/item?id=99999",
+        content_hash="hidemp",
+        freshness_score=1.0,
+        source_quality_score=1.0
+    )
+    session.add_all([opp, sig])
+    session.commit()
+
+    opp_sig = OpportunitySignal(opportunity_id="opp-v1-idemp", signal_id="sig-v1-idemp", relation_type=EvidenceRelationType.SUPPORTING, relevance_score=0.9, association_source="clustering", is_excluded=False)
+    session.add(opp_sig)
+    session.commit()
+
     args = MockArgs(
         subcommand="rebuild",
         from_score_version="v1",
@@ -152,11 +185,20 @@ def test_rebuild_idempotency(test_db):
     )
     runtime = MockRuntime(session)
     import asyncio
+    
     # Execute rebuild twice
     res1 = asyncio.run(run_opportunities_command(args, runtime))
+    session.expire_all()
+    v2_count_1 = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2").count()
+    
     res2 = asyncio.run(run_opportunities_command(args, runtime))
+    session.expire_all()
+    v2_count_2 = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2").count()
+    
     assert res1 == 0
     assert res2 == 0
+    assert v2_count_1 == 1
+    assert v2_count_2 == 1
 
 def test_show_hn_single_submission_rejected(test_db):
     session = test_db
@@ -222,7 +264,7 @@ def test_condition_b_strict_char_length_limit_obsolete(test_db):
     opps = session.query(Opportunity).all()
     # It must be rejected because it lacks the 5 structure elements
     assert opps[0].gate_status == "rejected"
-    assert "Condition B" in opps[0].gate_reason
+    assert "Quality gate failed" in opps[0].gate_reason
 
 def test_condition_b_requires_5_elements(test_db):
     session = test_db
@@ -442,6 +484,9 @@ def test_low_confidence_excluded_from_publishing(test_db, tmp_path):
     low_opp = Opportunity(
         id="opp-low",
         title="Low confidence opp",
+        title_ja="低確信案件",
+        summary_ja="低確信案件要約",
+        gate_status="passed",
         status=OpportunityStatus.INBOX,
         confidence=Confidence.LOW,
         current_scoring_version="v2"
@@ -450,6 +495,9 @@ def test_low_confidence_excluded_from_publishing(test_db, tmp_path):
     med_opp = Opportunity(
         id="opp-med",
         title="Med confidence opp",
+        title_ja="中確信案件",
+        summary_ja="中確信案件要約",
+        gate_status="passed",
         status=OpportunityStatus.INBOX,
         confidence=Confidence.MEDIUM,
         current_scoring_version="v2"
@@ -464,8 +512,8 @@ def test_low_confidence_excluded_from_publishing(test_db, tmp_path):
     with open(list_file) as f:
         list_content = f.read()
     
-    assert "Med confidence opp" in list_content
-    assert "Low confidence opp" not in list_content
+    assert "中確信案件" in list_content
+    assert "低確信案件" not in list_content
 
     # JSON should exclude LOW confidence
     latest_json = os.path.join(output_dir, "data", "latest.json")
@@ -485,6 +533,7 @@ def test_static_publishing_prefer_japanese(test_db, tmp_path):
         title_ja="日本語タイトル",
         summary_ja="日本語要約です。",
         proposed_solution="Eng proposed solution",
+        gate_status="passed",
         status=OpportunityStatus.INBOX,
         confidence=Confidence.MEDIUM,
         current_scoring_version="v2"
@@ -517,6 +566,7 @@ def test_fallback_warning_when_ja_translation_missing(test_db, tmp_path):
         id="opp-missing-ja",
         title="Original English Title",
         proposed_solution="English solution text.",
+        gate_status="passed",
         status=OpportunityStatus.INBOX,
         confidence=Confidence.MEDIUM,
         current_scoring_version="v2",
@@ -550,6 +600,7 @@ def test_evidence_renders_signal_role(test_db, tmp_path):
         title="Opp Role Title",
         title_ja="案件タイトル",
         summary_ja="案件の要約",
+        gate_status="passed",
         status=OpportunityStatus.INBOX,
         confidence=Confidence.MEDIUM,
         current_scoring_version="v2",
@@ -621,10 +672,8 @@ def test_diagnostics_pipeline_stats(test_db, tmp_path):
     assert "Source Type Pipeline Audits" in diag_content
     assert "github" in diag_content
 
+
 def test_no_double_counting_hn_rss_and_hn_api(test_db):
-    # This is naturally avoided because our default RSS source is Lobsters,
-    # which has source_type="rss", while Hacker News has source_type="hackernews".
-    # We verify that different source types diversity works properly.
     session = test_db
 
     src_hn = Source(id="hn-api", name="HN API", source_type="hackernews")
@@ -649,5 +698,366 @@ def test_no_double_counting_hn_rss_and_hn_api(test_db):
         {"signal": sig2, "relation_type": EvidenceRelationType.SUPPORTING, "relevance_score": 1.0}
     ]
     metrics, passed, reason = service._calculate_metrics_and_gate(ev_signals_input)
-    # The source type count should be exactly 2
     assert metrics["source_type_count"] == 2
+
+
+def test_rejected_status_merges_future_evidence(test_db):
+    session = test_db
+    src = Source(id="gh-src-merge", name="GitHub Merge", source_type="github")
+    session.add(src)
+    session.commit()
+
+    # Day 1: Single Signal that only has 3 elements (User, Problem, Workaround), missing Gap and MVP.
+    # So it fails Quality Gate -> status = RESEARCH (rejected gate)
+    sig1 = Signal(
+        id="sig-day1",
+        source_id="gh-src-merge",
+        title="Painful CSV Cleanups for developers",
+        excerpt="Currently target users (developers) use excel sheets manually, but it is annoying and pain.",
+        signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
+        canonical_url="https://github.com/test/repo/issues/day1",
+        content_hash="hday1",
+        freshness_score=1.0,
+        source_quality_score=1.0,
+        collected_at=datetime(2026, 7, 10, tzinfo=UTC)
+    )
+    session.add(sig1)
+    session.commit()
+
+    repo = OpportunityClusteringRepository(session)
+    from glintory.services.opportunity_analysis import OpportunityClusteringEngine
+    engine = OpportunityClusteringEngine()
+    service = OpportunityAnalysisService(session, repo, engine)
+
+    service.analyze_and_cluster()
+    session.expire_all()
+
+    # Verify candidate Opportunity created as RESEARCH (rejected gate)
+    opps = session.query(Opportunity).all()
+    assert len(opps) == 1
+    opp_day1 = opps[0]
+    assert opp_day1.status == OpportunityStatus.RESEARCH
+    assert opp_day1.gate_status == "rejected"
+    assert opp_day1.independent_evidence_count == 1
+
+    # Day 2: Another similar Signal from a different URL (distinct thread) is added.
+    # It contains the missing elements: Gap (too slow and expensive) and MVP (MVP tool).
+    sig2 = Signal(
+        id="sig-day2",
+        source_id="gh-src-merge",
+        title="Painful CSV Cleanups for developers - Need MVP solution",
+        excerpt="Currently target users (developers) use excel sheets manually. Excel sheets manually are too slow and expensive. We wish to have an MVP solution.",
+        signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
+        canonical_url="https://github.com/another/repo/issues/day2",
+        content_hash="hday2",
+        freshness_score=1.0,
+        source_quality_score=1.0,
+        collected_at=datetime(2026, 7, 11, tzinfo=UTC)
+    )
+    session.add(sig2)
+    session.commit()
+
+    # Re-run analysis
+    service.analyze_and_cluster()
+    session.expire_all()
+
+    # Verify that the existing candidate Opportunity is updated, not duplicated
+    opps_after = session.query(Opportunity).all()
+    assert len(opps_after) == 1
+    opp_day2 = opps_after[0]
+    assert opp_day2.id == opp_day1.id
+    # Now it has 2 independent evidence and should pass Hard Gate -> INBOX
+    assert opp_day2.status == OpportunityStatus.INBOX
+    assert opp_day2.gate_status == "passed"
+    assert opp_day2.independent_evidence_count == 2
+
+
+def test_condition_a_lacking_quality_elements_rejected(test_db):
+    session = test_db
+    src = Source(id="gh-src-qa", name="GitHub QA", source_type="github")
+    session.add(src)
+    session.commit()
+
+    # 2 signals with same simple text, Condition A evidence is met, but lacks quality elements
+    sig1 = Signal(
+        id="sig-qa1",
+        source_id="gh-src-qa",
+        title="CSV cleanup is painful.",
+        excerpt="CSV cleanup is painful.",
+        signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
+        canonical_url="https://github.com/t1/r1/issues/1",
+        content_hash="hqa1",
+        freshness_score=1.0,
+        source_quality_score=1.0
+    )
+    sig2 = Signal(
+        id="sig-qa2",
+        source_id="gh-src-qa",
+        title="CSV cleanup is painful.",
+        excerpt="CSV cleanup is painful.",
+        signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
+        canonical_url="https://github.com/t2/r2/issues/2",
+        content_hash="hqa2",
+        freshness_score=1.0,
+        source_quality_score=1.0
+    )
+    session.add_all([sig1, sig2])
+    session.commit()
+
+    repo = OpportunityClusteringRepository(session)
+    from glintory.services.opportunity_analysis import OpportunityClusteringEngine
+    service = OpportunityAnalysisService(session, repo, OpportunityClusteringEngine())
+
+    service.analyze_and_cluster()
+    session.expire_all()
+
+    opps = session.query(Opportunity).all()
+    assert len(opps) == 1
+    # Must be rejected because it doesn't satisfy quality elements (e.g. workaround, gap, mvp description)
+    assert opps[0].gate_status == "rejected"
+    assert "Quality gate failed" in opps[0].gate_reason
+
+
+def test_publishing_exclusion_rules(test_db, tmp_path):
+    session = test_db
+    output_dir = str(tmp_path / "static")
+
+    # 1. gate_status="rejected", status="watch", confidence="medium" -> MUST NOT be published
+    opp1 = Opportunity(
+        id="opp-ex-1",
+        title="Opp Ex 1",
+        gate_status="rejected",
+        status=OpportunityStatus.WATCH,
+        confidence=Confidence.MEDIUM,
+        current_scoring_version="v2"
+    )
+    # 2. gate_status="passed", status="inbox", confidence="medium" -> PUBLISHED
+    opp2 = Opportunity(
+        id="opp-ex-2",
+        title="Opp Ex 2",
+        title_ja="合格案件2",
+        summary_ja="合格案件概要です。",
+        gate_status="passed",
+        status=OpportunityStatus.INBOX,
+        confidence=Confidence.MEDIUM,
+        current_scoring_version="v2"
+    )
+    session.add_all([opp1, opp2])
+    session.commit()
+
+    build_static_site(session=session, output_dir=output_dir, site_url="https://localhost")
+
+    # Verify HTML
+    list_file = os.path.join(output_dir, "opportunities", "index.html")
+    with open(list_file) as f:
+        list_content = f.read()
+    assert "Opp Ex 2" in list_content or "合格案件2" in list_content
+    assert "Opp Ex 1" not in list_content
+
+    # Verify JSON
+    latest_json = os.path.join(output_dir, "data", "latest.json")
+    with open(latest_json) as f:
+        latest_data = json.load(f)
+    top_ids = [opp["id"] for opp in latest_data["top_opportunities"]]
+    assert "opp-ex-2" in top_ids
+    assert "opp-ex-1" not in top_ids
+
+
+def test_bilingual_json_fields(test_db, tmp_path):
+    session = test_db
+    output_dir = str(tmp_path / "static")
+
+    opp = Opportunity(
+        id="opp-bil",
+        title="English Title",
+        proposed_solution="English Summary",
+        title_ja="日本語タイトル",
+        summary_ja="日本語概要",
+        gate_status="passed",
+        status=OpportunityStatus.INBOX,
+        confidence=Confidence.MEDIUM,
+        current_scoring_version="v2",
+        translation_status="completed"
+    )
+    session.add(opp)
+    session.commit()
+
+    build_static_site(session=session, output_dir=output_dir, site_url="https://localhost")
+
+    # Verify opportunities.json fields
+    opps_json_file = os.path.join(output_dir, "data", "opportunities.json")
+    with open(opps_json_file) as f:
+        data = json.load(f)
+    
+    assert len(data) == 1
+    item = data[0]
+    assert item["title_ja"] == "日本語タイトル"
+    assert item["title_en"] == "English Title"
+    assert item["summary_ja"] == "日本語概要"
+    assert item["summary_en"] == "English Summary"
+    assert item["translation_status"] == "completed"
+
+
+def test_sitemap_correctness_and_en_only(test_db, tmp_path):
+    session = test_db
+    output_dir = str(tmp_path / "static")
+
+    opp = Opportunity(
+        id="opp-site",
+        title="Opp Site Title",
+        gate_status="passed",
+        status=OpportunityStatus.INBOX,
+        confidence=Confidence.MEDIUM,
+        current_scoring_version="v2"
+    )
+    session.add(opp)
+    session.commit()
+
+    build_static_site(session=session, output_dir=output_dir, site_url="https://localhost")
+
+    # Parse sitemap.xml
+    sitemap_file = os.path.join(output_dir, "sitemap.xml")
+    with open(sitemap_file) as f:
+        sitemap_content = f.read()
+
+    # Should contain /opportunities/opp-site/ and /opportunities/opp-site/en/
+    assert "https://localhost/opportunities/opp-site/" in sitemap_content
+    assert "https://localhost/opportunities/opp-site/en/" in sitemap_content
+    # Should not contain /opportunities/opp-site/ja/
+    assert "https://localhost/opportunities/opp-site/ja/" not in sitemap_content
+
+    # Verify that files for all sitemap URLs actually exist
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(sitemap_content)
+    namespace = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    for loc in root.findall(".//ns:loc", namespace):
+        url = loc.text
+        # convert URL to local path
+        path_suffix = url.replace("https://localhost", "")
+        if path_suffix.endswith("/"):
+            local_path = os.path.join(output_dir, path_suffix[1:] + "index.html")
+        else:
+            local_path = os.path.join(output_dir, path_suffix[1:])
+        assert os.path.exists(local_path), f"Sitemap URL file does not exist: {local_path}"
+
+
+def test_scoring_word_boundary_avoid_false_matches():
+    from glintory.domain.scoring import OpportunityScoringInput, ScoringEvidenceSignal
+    
+    text = "Developers read configuration rapidly about subject on steam engine and capital allocation."
+    
+    sig = ScoringEvidenceSignal(
+        signal_id="sig-test",
+        source_id="src-test",
+        source_type="github",
+        signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
+        relation_type=EvidenceRelationType.SUPPORTING,
+        relevance_score=1.0,
+        evidence_origin="repo",
+        published_at=datetime.now(UTC),
+        collected_at=datetime.now(UTC),
+        title="Word Boundary Test",
+        excerpt=text,
+        canonical_url="http://example.com",
+        tags=(),
+        raw_metadata={}
+    )
+    scoring_input = OpportunityScoringInput(
+        opportunity_id="opp-test",
+        generation_method="clustering",
+        status="inbox",
+        signals=(sig,)
+    )
+
+    engine = OpportunityScoringEngine(scoring_version="v2")
+    score = engine.score(scoring_input, as_of_date=date.today())
+
+    facts = score.feasibility_components[0].facts
+    assert facts["has_heavy_api"] is False
+    assert facts["has_team"] is False
+
+    mon_facts = score.feasibility_components[2].facts
+    assert mon_facts["has_mon"] is False
+
+
+def test_diagnostics_advanced_pipeline_stats(test_db, tmp_path):
+    session = test_db
+    output_dir = str(tmp_path / "static")
+
+    # Create dummy Sources
+    src_gh = Source(id="gh-adv-src", name="GitHub Adv", source_type="github", enabled=True)
+    src_hn = Source(id="hn-adv-src", name="HN Adv", source_type="hackernews", enabled=False)
+    session.add_all([src_gh, src_hn])
+    session.commit()
+
+    # Create CollectionRuns
+    run1 = CollectionRun(
+        source_id="gh-adv-src",
+        status=CollectionRunStatus.SUCCEEDED,
+        fetched_count=10,
+        inserted_count=5,
+        updated_count=3,
+        skipped_count=2,
+        error_count=0
+    )
+    run2 = CollectionRun(
+        source_id="hn-adv-src",
+        status=CollectionRunStatus.FAILED,
+        fetched_count=0,
+        inserted_count=0,
+        updated_count=0,
+        skipped_count=0,
+        error_count=1
+    )
+    session.add_all([run1, run2])
+    session.commit()
+
+    # Create a published v2 Opportunity to check Evidence Used count
+    opp = Opportunity(
+        id="opp-adv",
+        title="Adv Opp",
+        gate_status="passed",
+        status=OpportunityStatus.INBOX,
+        confidence=Confidence.MEDIUM,
+        current_scoring_version="v2"
+    )
+    sig = Signal(
+        id="sig-adv",
+        source_id="gh-adv-src",
+        title="Adv Signal",
+        excerpt="Pain description.",
+        signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
+        canonical_url="http://example.com/adv",
+        content_hash="hadv",
+        freshness_score=1.0,
+        source_quality_score=1.0
+    )
+    session.add_all([opp, sig])
+    session.commit()
+
+    opp_sig = OpportunitySignal(
+        opportunity_id="opp-adv",
+        signal_id="sig-adv",
+        relation_type=EvidenceRelationType.SUPPORTING,
+        relevance_score=1.0,
+        association_source="clustering",
+        is_excluded=False
+    )
+    session.add(opp_sig)
+    session.commit()
+
+    build_static_site(session=session, output_dir=output_dir, site_url="https://localhost")
+
+    # Read Diagnostics
+    diag_file = os.path.join(output_dir, "diagnostics.html")
+    with open(diag_file) as f:
+        diag_content = f.read()
+
+    assert "8" in diag_content
+

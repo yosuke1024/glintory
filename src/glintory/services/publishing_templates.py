@@ -281,7 +281,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
               {% if op.title_ja %}
                 {{ op.title_ja }}
               {% else %}
-                [日本語要約未生成] {{ op.title }}
+                日本語要約はまだ生成されていません。
               {% endif %}
             </h4>
             <div class="score-value">{{ op.total_score }}</div>
@@ -290,7 +290,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
             {% if op.summary_ja %}
               {{ op.summary_ja[:150] }}...
             {% else %}
-              {{ (op.proposed_solution or '')[:150] }}...
+              英語版を確認してください。
             {% endif %}
           </p>
           <div class="meta-info">
@@ -379,7 +379,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
                 {% if op_data.op.title_ja %}
                   {{ op_data.op.title_ja }}
                 {% else %}
-                  [日本語要約未生成] {{ op_data.op.title }}
+                  日本語要約はまだ生成されていません。
                 {% endif %}
               </a>
             </td>
@@ -487,7 +487,7 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h1 style="margin: 0; font-size: 2.25rem;">
           {% if locale == 'ja' and translation_fallback %}
-            [日本語要約未生成] {{ op.title }}
+            日本語要約はまだ生成されていません。
           {% else %}
             {{ loc_data.title }}
           {% endif %}
@@ -692,35 +692,53 @@ DIAGNOSTICS_TEMPLATE = """<!DOCTYPE html>
     <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
       <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
         <thead>
-          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02);">
-            <th style="padding: 1rem;">Source Type</th>
-            <th style="padding: 1rem;">Enabled Sources</th>
-            <th style="padding: 1rem;">Last Run</th>
-            <th style="padding: 1rem;">Fetched</th>
-            <th style="padding: 1rem;">Persisted</th>
-            <th style="padding: 1rem;">Skipped</th>
-            <th style="padding: 1rem;">Failed</th>
-            <th style="padding: 1rem;">Signals Analyzed</th>
-            <th style="padding: 1rem;">Evidence Used</th>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 0.75rem;">Source Type</th>
+            <th style="padding: 0.75rem;">Enabled Sources</th>
+            <th style="padding: 0.75rem;">Last Run</th>
+            <th style="padding: 0.75rem;">Collection Runs</th>
+            <th style="padding: 0.75rem;">Fetched</th>
+            <th style="padding: 0.75rem;">Inserted</th>
+            <th style="padding: 0.75rem;">Updated</th>
+            <th style="padding: 0.75rem;">Persisted</th>
+            <th style="padding: 0.75rem;">Skipped</th>
+            <th style="padding: 0.75rem;">Failed Runs</th>
+            <th style="padding: 0.75rem;">Signals Submitted to Analysis</th>
+            <th style="padding: 0.75rem;">Candidate Opportunities</th>
+            <th style="padding: 0.75rem;">Gate Passed</th>
+            <th style="padding: 0.75rem;">Gate Rejected</th>
+            <th style="padding: 0.75rem;">Scored</th>
+            <th style="padding: 0.75rem;">Enriched</th>
+            <th style="padding: 0.75rem;">Published</th>
+            <th style="padding: 0.75rem;">Evidence Used by Published Opportunities</th>
           </tr>
         </thead>
         <tbody>
           {% for stype in ["github", "hackernews", "rss"] %}
             {% set stats = pipeline_stats[stype] %}
-            <tr style="border-bottom: 1px solid var(--border);">
-              <td style="padding: 1rem; font-weight: 600; text-transform: uppercase; color: var(--accent);">{{ stype }}</td>
-              <td style="padding: 1rem;">{{ stats.enabled_sources }}</td>
-              <td style="padding: 1rem; font-size: 0.85rem;">{{ stats.last_run | format_datetime }}</td>
-              <td style="padding: 1rem;">{{ stats.fetched }}</td>
-              <td style="padding: 1rem;">{{ stats.persisted }}</td>
-              <td style="padding: 1rem;">{{ stats.skipped }}</td>
-              <td style="padding: 1rem;">
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--accent);">{{ stype }}</td>
+              <td style="padding: 0.75rem;">{{ stats.enabled_sources }}</td>
+              <td style="padding: 0.75rem; font-size: 0.75rem;">{{ stats.last_run | format_datetime }}</td>
+              <td style="padding: 0.75rem;">{{ stats.collection_runs }}</td>
+              <td style="padding: 0.75rem;">{{ stats.fetched }}</td>
+              <td style="padding: 0.75rem;">{{ stats.inserted }}</td>
+              <td style="padding: 0.75rem;">{{ stats.updated }}</td>
+              <td style="padding: 0.75rem;">{{ stats.persisted }}</td>
+              <td style="padding: 0.75rem;">{{ stats.skipped }}</td>
+              <td style="padding: 0.75rem;">
                 <span style="color: {% if stats.failed > 0 %}#f87171{% else %}inherit{% endif %};">
                   {{ stats.failed }}
                 </span>
               </td>
-              <td style="padding: 1rem;">{{ stats.signals_analyzed }}</td>
-              <td style="padding: 1rem;">{{ stats.evidence_used }}</td>
+              <td style="padding: 0.75rem;">{{ stats.signals_analyzed }}</td>
+              <td style="padding: 0.75rem;">{{ stats.candidates }}</td>
+              <td style="padding: 0.75rem;">{{ stats.gate_passed }}</td>
+              <td style="padding: 0.75rem;">{{ stats.gate_rejected }}</td>
+              <td style="padding: 0.75rem;">{{ stats.scored }}</td>
+              <td style="padding: 0.75rem;">{{ stats.enriched }}</td>
+              <td style="padding: 0.75rem;">{{ stats.published }}</td>
+              <td style="padding: 0.75rem;">{{ stats.evidence_used }}</td>
             </tr>
           {% endfor %}
         </tbody>

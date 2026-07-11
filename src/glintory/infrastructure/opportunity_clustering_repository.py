@@ -25,9 +25,7 @@ class OpportunityClusteringRepository:
         opps = (
             self.session.query(Opportunity)
             .filter(
-                Opportunity.status.notin_(
-                    [OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED]
-                ),
+                Opportunity.status != OpportunityStatus.ARCHIVED,
                 Opportunity.current_scoring_version == "v2",
             )
             .all()

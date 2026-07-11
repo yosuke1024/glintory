@@ -359,6 +359,7 @@ def test_static_publishing_conformance(test_db, tmp_path):
         confidence=Confidence.MEDIUM,
         status=OpportunityStatus.INBOX,
         current_scoring_version="v2",
+        gate_status="passed",
         last_scored_at=datetime.now(UTC),
         evidence_updated_at=datetime.now(UTC),
     )

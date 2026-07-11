@@ -151,3 +151,36 @@ def classify_signal_role(
             return SignalRole.CONTEXT
 
     return SignalRole.UNKNOWN
+
+
+def _classify_rss_entry(
+    title: str,
+    excerpt: str | None,
+    default_hint: SignalType,
+) -> SignalType:
+    import re
+    search_text = title.lower()
+    if excerpt:
+        search_text += " " + excerpt.lower()
+
+    def has_word(pattern: str, text: str) -> bool:
+        if pattern.replace(" ", "").isalnum() and pattern.isascii():
+            return bool(re.search(rf"\b{re.escape(pattern)}\b", text))
+        return pattern in text
+
+    pain_phrases = [
+        "too expensive", "hard to use", "hard to configure", "too complex",
+        "manual process", "privacy concern", "missing support", "looking for an alternative",
+        "self-hosted alternative", "doesn't work", "does not work", "frustrating"
+    ]
+    launch_phrases = [
+        "announcing", "introducing", "released", "launching", "created a",
+        "showcase", "my project", "my tool"
+    ]
+
+    if any(has_word(phrase, search_text) for phrase in pain_phrases):
+        return SignalType.PAIN
+    if any(has_word(phrase, search_text) for phrase in launch_phrases):
+        return SignalType.LAUNCH
+
+    return default_hint

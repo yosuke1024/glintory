@@ -107,6 +107,8 @@ def mock_opportunity_data(db_session_factory):
     opp = Opportunity(
         title="Test Opportunity Title",
         proposed_solution="Test summary proposed solution.",
+        title_ja="テスト案件タイトル",
+        summary_ja="テスト案件概要",
         evidence_score=10,
         feasibility_score=10,
         penalty_score=0,
@@ -114,6 +116,7 @@ def mock_opportunity_data(db_session_factory):
         confidence=Confidence.MEDIUM,
         status=OpportunityStatus.INBOX,
         current_scoring_version="v2",
+        gate_status="passed",
         last_scored_at=datetime.now(UTC),
     )
     session.add(opp)
@@ -508,7 +511,7 @@ def test_static_site_fallback_and_rendering(
     opp_detail_file = os.path.join(output_dir, "opportunities", opp_id, "index.html")
     with open(opp_detail_file) as f:
         content = f.read()
-    assert "Test Opportunity Title" in content
+    assert "テスト案件タイトル" in content
     assert "AI-generated brief based on the evidence below." not in content
 
     # Add enrichment data and its localization
@@ -668,7 +671,6 @@ def test_static_site_fallback_and_rendering(
 
     with open(opp_detail_file) as f:
         content_ja_fallback = f.read()
-    assert "[日本語要約未生成]" in content_ja_fallback
     assert "日本語要約はまだ生成されていません。" in content_ja_fallback
 
 

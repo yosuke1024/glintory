@@ -1679,56 +1679,115 @@ async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:
 
 async def run_opportunities_command(args: argparse.Namespace, runtime: Any) -> int:
     if args.subcommand == "rebuild":
-        from glintory.domain.enums import OpportunityStatus
+        from glintory.domain.enums import OpportunityStatus, Confidence
         from glintory.domain.models import Opportunity, OpportunitySignal, Signal
         from glintory.services.signal_classification import classify_signal_role
+        from glintory.domain.clustering import OpportunityClusteringConfig
+        from glintory.infrastructure.opportunity_clustering_repository import OpportunityClusteringRepository
+        from glintory.services.opportunity_analysis import OpportunityAnalysisService
+        from glintory.services.opportunity_clustering import OpportunityClusteringEngine
+        from glintory.infrastructure.opportunity_scoring_repository import OpportunityScoringRepository
+        from glintory.services.opportunity_scoring import OpportunityScoringEngine
+        from glintory.services.opportunity_scoring_service import OpportunityScoringService
+        
         session = runtime.session_factory()
         try:
             from_version = args.from_score_version
             to_version = args.to_score_version
             
-            opps = (
+            # 1. Collect from_version (v1) opportunities and their associated signals
+            from_opps = (
                 session.query(Opportunity)
                 .filter(Opportunity.current_scoring_version == from_version)
                 .all()
             )
-            opp_ids = [opp.id for opp in opps]
+            from_opp_ids = [opp.id for opp in from_opps]
             
-            opp_sigs = (
+            from_opp_sigs = (
                 session.query(OpportunitySignal)
-                .filter(OpportunitySignal.opportunity_id.in_(opp_ids))
+                .filter(OpportunitySignal.opportunity_id.in_(from_opp_ids))
+                .all()
+            ) if from_opp_ids else []
+            from_sig_ids = list({osig.signal_id for osig in from_opp_sigs})
+            
+            # Keep from_version (v1) opportunities and their links intact for audit logs!
+            # Do NOT delete or modify them.
+            
+            # 2. Delete existing to_version (v2) opportunities and their links to rebuild cleanly
+            to_opps = (
+                session.query(Opportunity)
+                .filter(Opportunity.current_scoring_version == to_version)
                 .all()
             )
-            sig_ids = [osig.signal_id for osig in opp_sigs]
+            to_opp_ids = [opp.id for opp in to_opps]
             
-            if opp_sigs:
-                for osig in opp_sigs:
-                    session.delete(osig)
+            if to_opp_ids:
+                session.query(OpportunitySignal).filter(OpportunitySignal.opportunity_id.in_(to_opp_ids)).delete(synchronize_session=False)
+                session.query(Opportunity).filter(Opportunity.id.in_(to_opp_ids)).delete(synchronize_session=False)
                 session.flush()
-                
-            for opp in opps:
-                opp.status = OpportunityStatus.REJECTED
-            session.flush()
-            
-            signals = session.query(Signal).filter(Signal.id.in_(sig_ids)).all() if sig_ids else []
+
+            # 3. Re-classify signal roles for the signals that were in from_version
+            signals = session.query(Signal).filter(Signal.id.in_(from_sig_ids)).all() if from_sig_ids else []
             for sig in signals:
                 src = sig.source
                 src_type = src.source_type if src else "unknown"
                 sig.signal_role = classify_signal_role(
                     src_type, sig.signal_type, sig.title, sig.excerpt
                 )
+            session.flush()
+            
+            # 4. Perform clustering and analysis for to_version
+            config = OpportunityClusteringConfig()
+            repo = OpportunityClusteringRepository(session)
+            engine = OpportunityClusteringEngine(config)
+            analysis_service = OpportunityAnalysisService(session, repo, engine, config)
+            
+            # analyze_and_cluster will automatically find all unassociated signals in v2 context
+            analysis_res = analysis_service.analyze_and_cluster(dry_run=False)
+            session.flush()
+            
+            # 5. Run opportunity scoring for to_version
+            scoring_engine = OpportunityScoringEngine(scoring_version=to_version)
+            scoring_service = OpportunityScoringService(
+                session_factory=lambda: session,
+                repository_factory=OpportunityScoringRepository,
+                engine=scoring_engine,
+                scoring_version=to_version,
+            )
+            
+            scoring_res = scoring_service.score_opportunities(dry_run=False)
             session.commit()
+            
+            # Collect resulting counts
+            gate_passed = session.query(Opportunity).filter(
+                Opportunity.current_scoring_version == to_version,
+                Opportunity.gate_status == "passed"
+            ).count()
+            
+            gate_rejected = session.query(Opportunity).filter(
+                Opportunity.current_scoring_version == to_version,
+                Opportunity.gate_status == "rejected"
+            ).count()
             
             result = {
                 "rebuild_status": "success",
-                "unlinked_opportunities_count": len(opps),
-                "unlinked_signals_count": len(signals),
+                "source_opportunities": len(from_opps),
+                "source_signals": len(signals),
+                "created_v2_opportunities": analysis_res.created_opportunities_count,
+                "updated_v2_opportunities": analysis_res.linked_signals_count,  # count of updated links/signals
+                "gate_passed": gate_passed,
+                "gate_rejected": gate_rejected,
+                "scored_opportunities": scoring_res.scored_opportunity_count,
             }
+            
             if args.json:
                 print(json.dumps(result))
             else:
                 print(f"Rebuild completed from {from_version} to {to_version} successfully.")
-                print(f"Unlinked opportunities: {len(opps)}, Unlinked signals: {len(signals)}")
+                print(f"Source Opportunities: {result['source_opportunities']}, Source Signals: {result['source_signals']}")
+                print(f"Created v2 Opportunities: {result['created_v2_opportunities']}")
+                print(f"Gate Passed: {result['gate_passed']}, Gate Rejected: {result['gate_rejected']}")
+                print(f"Scored Opportunities: {result['scored_opportunities']}")
             return 0
         except Exception as e:
             session.rollback()

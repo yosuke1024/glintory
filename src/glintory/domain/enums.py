@@ -10,6 +10,7 @@ class CollectionRunStatus(StrEnum):
 
 
 class OpportunityStatus(StrEnum):
+    RESEARCH = "research"
     INBOX = "inbox"
     WATCH = "watch"
     VALIDATE = "validate"
