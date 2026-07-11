@@ -293,6 +293,7 @@ jobs:
           from sqlalchemy.orm import sessionmaker
           from glintory.domain.models import OpportunityEnrichment, OpportunityEnrichmentLocalization
           from glintory.config import settings
+          from glintory.domain.enrichment_contract import PROMPT_VERSION
 
           db_url = settings.database_url
           engine = create_engine(db_url)
@@ -333,9 +334,8 @@ jobs:
           if enrichment.model_sha256 != expected_model_sha:
               sys.stderr.write(f"Verification failed: expected model_sha256 '{expected_model_sha}', got '{enrichment.model_sha256}'\n")
               sys.exit(1)
-          expected_prompt_ver = settings.local_llm_prompt_version
-          if enrichment.prompt_version != expected_prompt_ver:
-              sys.stderr.write(f"Verification failed: expected prompt_version '{expected_prompt_ver}', got '{enrichment.prompt_version}'\n")
+          if enrichment.prompt_version != PROMPT_VERSION:
+              sys.stderr.write(f"Verification failed: expected prompt_version '{PROMPT_VERSION}', got '{enrichment.prompt_version}'\n")
               sys.exit(1)
 
           if "smoke_sig" not in enrichment.evidence_refs:
