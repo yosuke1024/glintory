@@ -607,12 +607,19 @@ uv run glintory enrich run --json
 ```
 
 #### 設定項目 (環境変数)
+> [!IMPORTANT]
+> `GLINTORY_LOCAL_LLM_ENABLED` が `true` の場合、以下の必須と記載されているすべての設定が正しく設定されている必要があります。
+
 - `GLINTORY_LOCAL_LLM_ENABLED`: ローカルLLMを有効化するかどうか (`true` / `false`)
 - `GLINTORY_LOCAL_LLM_MODEL_REPO`: モデルのダウンロード元 Hugging Face リポジトリ (デフォルト: `Qwen/Qwen3-1.7B-GGUF`)
 - `GLINTORY_LOCAL_LLM_MODEL_FILE`: モデルの GGUF ファイル名 (デフォルト: `Qwen3-1.7B-Q8_0.gguf`)
-- `GLINTORY_LOCAL_LLM_MODEL_REVISION`: Hugging Face のコミットハッシュ等によるピン留め指定
-- `GLINTORY_LOCAL_LLM_MODEL_SHA256`: モデル GGUF ファイルの SHA-256 期待値
-- `GLINTORY_LOCAL_LLM_BINARY_PATH`: `llama-server` バイナリの実行パス (デフォルト: `./bin/llama-server`)
+- `GLINTORY_LOCAL_LLM_MODEL_PATH`: モデル GGUF ファイルのローカルパス (有効化時は必須)
+- `GLINTORY_LOCAL_LLM_MODEL_REVISION`: Hugging Face のコミットハッシュ等によるピン留め指定 (有効化時は必須)
+- `GLINTORY_LOCAL_LLM_MODEL_SHA256`: モデル GGUF ファイルの SHA-256 期待値 (有効化時は必須、64桁の16進数)
+- `GLINTORY_LOCAL_LLM_BINARY_PATH`: `llama-server` バイナリの実行パス (デフォルト: `./bin/llama-server`、有効化時は必須)
+- `GLINTORY_LOCAL_LLM_BINARY_SHA256`: `llama-server` バイナリの SHA-256 期待値 (有効化時は必須、64桁の16進数)
+- `GLINTORY_LOCAL_LLM_RUNTIME_VERSION`: `llama-server` の期待するバージョン (有効化時は必須)
+- `GLINTORY_LOCAL_LLM_RUNTIME_COMMIT`: `llama-server` の期待する Git コミットハッシュ (有効化時は必須、40桁の16進数)
 - `GLINTORY_LOCAL_LLM_PORT`: 推論サーバーのバインドポート (デフォルト: `8088`)
 - `GLINTORY_LOCAL_LLM_MAX_INPUT_CHARS`: 推論に入力される最大文字数 (デフォルト: `12000`)
 - `GLINTORY_LOCAL_LLM_MAX_OPPORTUNITIES`: 1回のワークフローで処理する最大 Opportunity 数 (デフォルト: `10`)

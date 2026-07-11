@@ -215,3 +215,78 @@ def test_migration_check_constraints_and_repair(temp_db_path):
                 "VALUES ('run-invalid-status-new', 'src-repair', 'nonsense', '2026-07-07 00:00:00', 'cli', 0, 0, 0, 0, 0, 0, '{}', '2026-07-07 00:00:00')"
             )
         )
+
+
+def test_migration_runtime_audit_fields(temp_db_path):
+    project_root = pathlib.Path(__file__).parent.parent
+    alembic_cfg = Config(str(project_root / "alembic.ini"))
+
+    # 1. Upgrade to the revision prior to runtime audit fields (9d9d5e869311)
+    command.upgrade(alembic_cfg, "9d9d5e869311")
+
+    engine = create_engine(f"sqlite:///{temp_db_path}")
+
+    # Insert dummy opportunity and enrichment (old schema)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO opportunities (id, title, proposed_solution, evidence_score, feasibility_score, penalty_score, total_score, confidence, status, created_at, updated_at) "
+                "VALUES ('opp-1', 'Title', 'Solution', 10, 10, 0, 20, 'medium', 'inbox', '2026-07-07 00:00:00', '2026-07-07 00:00:00')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO opportunity_enrichments (id, opportunity_id, status, model_provider, model_id, model_revision, model_sha256, runtime, runtime_version, prompt_version, input_hash, target_users, risks, tags, evidence_refs, started_at, created_at, updated_at) "
+                "VALUES ('enrich-1', 'opp-1', 'succeeded', 'qwen', 'model-file', 'rev', 'sha', 'llama.cpp', 'b5092', 'v1', 'hash1', '[]', '[]', '[]', '[]', '2026-07-07 00:00:00', '2026-07-07 00:00:00', '2026-07-07 00:00:00')"
+            )
+        )
+
+    # 2. Upgrade to head
+    command.upgrade(alembic_cfg, "head")
+
+    inspector = inspect(engine)
+    columns = [c["name"] for c in inspector.get_columns("opportunity_enrichments")]
+    # Check if the 2 columns exist
+    assert "runtime_commit" in columns
+    assert "runtime_binary_sha256" in columns
+
+    # 3. Check if new error_code constraint permits LLM_CONFIGURATION_INVALID
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO opportunity_enrichments (id, opportunity_id, status, model_provider, model_id, model_revision, model_sha256, runtime, runtime_version, prompt_version, input_hash, target_users, risks, tags, evidence_refs, started_at, error_code, created_at, updated_at) "
+                "VALUES ('enrich-2', 'opp-1', 'failed', 'qwen', 'model-file', 'rev', 'sha', 'llama.cpp', 'b5092', 'v1', 'hash2', '[]', '[]', '[]', '[]', '2026-07-07 00:00:00', 'LLM_CONFIGURATION_INVALID', '2026-07-07 00:00:00', '2026-07-07 00:00:00')"
+            )
+        )
+
+    # 4. Check if other nonsense error_code is rejected
+    from sqlalchemy.exc import IntegrityError
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO opportunity_enrichments (id, opportunity_id, status, model_provider, model_id, model_revision, model_sha256, runtime, runtime_version, prompt_version, input_hash, target_users, risks, tags, evidence_refs, started_at, error_code, created_at, updated_at) "
+                "VALUES ('enrich-3', 'opp-1', 'failed', 'qwen', 'model-file', 'rev', 'sha', 'llama.cpp', 'b5092', 'v1', 'hash3', '[]', '[]', '[]', '[]', '2026-07-07 00:00:00', 'LLM_NONSENSE_ERROR', '2026-07-07 00:00:00', '2026-07-07 00:00:00')"
+            )
+        )
+
+    # 5. Downgrade back to 9d9d5e869311
+    # Clean up enrich-2 first to avoid violating old check constraint during downgrade
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM opportunity_enrichments WHERE id = 'enrich-2'"))
+
+    command.downgrade(alembic_cfg, "9d9d5e869311")
+
+    inspector = inspect(engine)
+    columns_after = [c["name"] for c in inspector.get_columns("opportunity_enrichments")]
+    # Check if the 2 columns are deleted
+    assert "runtime_commit" not in columns_after
+    assert "runtime_binary_sha256" not in columns_after
+
+    # 6. Check if LLM_CONFIGURATION_INVALID is rejected by the old constraint after downgrade
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO opportunity_enrichments (id, opportunity_id, status, model_provider, model_id, model_revision, model_sha256, runtime, runtime_version, prompt_version, input_hash, target_users, risks, tags, evidence_refs, started_at, error_code, created_at, updated_at) "
+                "VALUES ('enrich-4', 'opp-1', 'failed', 'qwen', 'model-file', 'rev', 'sha', 'llama.cpp', 'b5092', 'v1', 'hash4', '[]', '[]', '[]', '[]', '2026-07-07 00:00:00', 'LLM_CONFIGURATION_INVALID', '2026-07-07 00:00:00', '2026-07-07 00:00:00')"
+            )
+        )

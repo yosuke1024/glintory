@@ -54,6 +54,12 @@ class FakeEnrichmentProvider(OpportunityEnrichmentProvider):
     def __init__(self, response: OpportunityEnrichmentResponse) -> None:
         self.response = response
         self.calls: list[OpportunityEnrichmentRequest] = []
+        from glintory.infrastructure.local_llm_client import LocalLlmRuntimeDescriptor
+        self.runtime_descriptor = LocalLlmRuntimeDescriptor(
+            version="b5092",
+            commit="d3bd7193ba66c15963fd1c59448f22019a8caf6e",
+            binary_sha256="f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e",
+        )
 
     def enrich_many(
         self,
@@ -182,6 +188,22 @@ def test_enrichment_skips_same_input_hash(db_session_factory, mock_opportunity_d
     res = service.run_enrichment(affected_opportunity_ids=[opp_id])
     assert res.succeeded_count == 1
     assert len(provider.calls) == 1
+
+    # Assert database audit fields in unit test
+    session = db_session_factory()
+    enrich = (
+        session.query(OpportunityEnrichment)
+        .filter(OpportunityEnrichment.opportunity_id == opp_id)
+        .first()
+    )
+    assert enrich is not None
+    assert enrich.runtime_version == "b5092"
+    assert enrich.runtime_commit == "d3bd7193ba66c15963fd1c59448f22019a8caf6e"
+    assert enrich.runtime_binary_sha256 == "f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e"
+    assert enrich.model_revision == settings.local_llm_model_revision
+    assert enrich.model_sha256 == settings.local_llm_model_sha256
+    assert enrich.prompt_version == PROMPT_VERSION
+    session.close()
 
     # Second run without force (should skip)
     res2 = service.run_enrichment(affected_opportunity_ids=[opp_id])

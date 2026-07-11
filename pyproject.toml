@@ -25,7 +25,7 @@ packages = ["src/glintory"]
 
 
 [project.scripts]
-glintory = "glintory.cli:main"
+glintory = "glintory.entrypoint:main"
 
 [dependency-groups]
 dev = [

@@ -1,3 +1,5 @@
+import re
+
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -58,20 +60,43 @@ class Settings(BaseSettings):
                 "schedule_max_interval_minutes must be >= schedule_min_interval_minutes"
             )
         if self.local_llm_enabled:
-            if not self.local_llm_model_path:
+            model_path = (self.local_llm_model_path or "").strip()
+            model_revision = (self.local_llm_model_revision or "").strip()
+            model_sha256 = (self.local_llm_model_sha256 or "").strip()
+            binary_path = (self.local_llm_binary_path or "").strip()
+            binary_sha256 = (self.local_llm_binary_sha256 or "").strip()
+            runtime_version = (self.local_llm_runtime_version or "").strip()
+            runtime_commit = (self.local_llm_runtime_commit or "").strip()
+
+            if not model_path:
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-            if not self.local_llm_model_revision:
+            if not model_revision:
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-            if not self.local_llm_model_sha256:
+            
+            sha256_pattern = re.compile(r"^[0-9a-fA-F]{64}$")
+            if not sha256_pattern.match(model_sha256):
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-            if not self.local_llm_binary_path:
+                
+            if not binary_path:
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-            if not self.local_llm_binary_sha256:
+                
+            if not sha256_pattern.match(binary_sha256):
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-            if not self.local_llm_runtime_version:
+                
+            if not runtime_version:
                 raise ValueError("LLM_CONFIGURATION_INVALID")
-            if not self.local_llm_runtime_commit:
+                
+            git_commit_pattern = re.compile(r"^[0-9a-fA-F]{40}$")
+            if not git_commit_pattern.match(runtime_commit):
                 raise ValueError("LLM_CONFIGURATION_INVALID")
+
+            self.local_llm_model_path = model_path
+            self.local_llm_model_revision = model_revision
+            self.local_llm_model_sha256 = model_sha256
+            self.local_llm_binary_path = binary_path
+            self.local_llm_binary_sha256 = binary_sha256
+            self.local_llm_runtime_version = runtime_version
+            self.local_llm_runtime_commit = runtime_commit
         return self
 
     @field_validator("collection_history_per_page")
@@ -123,6 +148,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
 

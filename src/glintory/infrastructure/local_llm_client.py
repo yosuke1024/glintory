@@ -272,6 +272,7 @@ class LocalLlmProvider:
                 logger.error("LLM_RUNTIME_START_FAILED")
                 raise ValueError("LLM_RUNTIME_START_FAILED")
 
+            commit_to_save = commit_str
             if settings.local_llm_runtime_commit:
                 expected_commit = settings.local_llm_runtime_commit
                 if not commit_str or not (
@@ -280,9 +281,10 @@ class LocalLlmProvider:
                 ):
                     logger.error("LLM_RUNTIME_START_FAILED")
                     raise ValueError("LLM_RUNTIME_START_FAILED")
+                commit_to_save = expected_commit
 
             self.runtime_descriptor = LocalLlmRuntimeDescriptor(
-                version=version_str, commit=commit_str, binary_sha256=self.binary_sha256
+                version=version_str, commit=commit_to_save, binary_sha256=self.binary_sha256
             )
         except Exception as e:
             if isinstance(e, ValueError) and str(e) == "LLM_RUNTIME_START_FAILED":
@@ -391,7 +393,7 @@ class LocalLlmProvider:
                 try:
                     result = response.json()
                 except Exception:
-                    logger.error("LLM_INFERENCE_FAILED")
+                    logger.error("LLM_INVALID_JSON")
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_INVALID_JSON",
@@ -424,7 +426,7 @@ class LocalLlmProvider:
                 try:
                     data = json.loads(content)
                 except json.JSONDecodeError:
-                    logger.error("LLM_INFERENCE_FAILED")
+                    logger.error("LLM_INVALID_JSON")
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_INVALID_JSON",
@@ -469,6 +471,7 @@ class LocalLlmProvider:
                 )
 
         except httpx.TimeoutException:
+            logger.error("LLM_TIMEOUT")
             return OpportunityEnrichmentResponse(
                 status="failed",
                 error_code="LLM_TIMEOUT",

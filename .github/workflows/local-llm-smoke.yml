@@ -192,32 +192,52 @@ jobs:
         run: |
           mkdir -p build
           
+          # Clean up stop file and old monitor results
+          rm -f /tmp/monitor_stop || true
+          rm -f build/peak_rss.txt || true
+          rm -f build/rss_sample_count.txt || true
+          
           # Peak RSS monitor background thread
           (
             peak=0
+            sample_count=0
             while true; do
-              pid=$(pgrep llama-server)
+              # Use pgrep -n -x with '|| true' to avoid pipeline failure, targeting single process
+              pid=$(pgrep -n -x llama-server || true)
               if [ -n "$pid" ]; then
-                rss=$(ps -o rss= -p "$pid" | tr -d ' ')
-                if [ -n "$rss" ] && [ "$rss" -gt "$peak" ]; then
-                  peak=$rss
+                rss=$(ps -o rss= -p "$pid" | tr -d ' ' || true)
+                if [ -n "$rss" ]; then
+                  if [ "$rss" -eq "$rss" ] 2>/dev/null; then
+                    sample_count=$((sample_count + 1))
+                    if [ "$rss" -gt "$peak" ]; then
+                      peak=$rss
+                    fi
+                  fi
                 fi
               fi
               sleep 0.1
               if [ -f "/tmp/monitor_stop" ]; then
                 echo "$peak" > build/peak_rss.txt
+                echo "$sample_count" > build/rss_sample_count.txt
                 break
               fi
             done
           ) &
           MONITOR_PID=$!
           
+          CLEANED_UP=0
           cleanup() {
-            touch /tmp/monitor_stop || true
-            wait "$MONITOR_PID" || true
+            if [ "$CLEANED_UP" -eq 0 ]; then
+              CLEANED_UP=1
+              trap - EXIT INT TERM
+              touch /tmp/monitor_stop || true
+              if [ -n "$MONITOR_PID" ]; then
+                wait "$MONITOR_PID" || true
+              fi
+            fi
           }
-          trap cleanup EXIT
-
+          trap cleanup EXIT INT TERM
+          
           set +e
           
           # Run Smoke CLI under require-all-success
@@ -233,6 +253,7 @@ jobs:
 
           echo "$cli_status" > build/cli_exit_code.txt
           
+          cleanup
           exit "$cli_status"
 
       - name: Assert JSON Results
@@ -241,6 +262,9 @@ jobs:
           test "$(jq -r '.succeeded_count' build/llm-smoke-result.json)" = "1"
           test "$(jq -r '.failed_count' build/llm-smoke-result.json)" = "0"
           test "$(jq -r '.operational_status' build/llm-smoke-result.json)" = "success"
+          # Assert rss sample count > 0 in a real smoke run
+          SAMPLE_COUNT=$(cat build/rss_sample_count.txt || echo "0")
+          test "$SAMPLE_COUNT" -gt 0
 
       - name: Verify DB State and Generate Summary
         run: |
@@ -272,6 +296,28 @@ jobs:
 
           if enrichment.status != "succeeded":
               sys.stderr.write(f"Verification failed: expected status 'succeeded', got '{enrichment.status}'\n")
+              sys.exit(1)
+
+          # Smoke environment verification (assert audit fields match env variables exactly)
+          expected_commit = os.environ.get("GLINTORY_LOCAL_LLM_RUNTIME_COMMIT")
+          expected_bin_sha = os.environ.get("GLINTORY_LOCAL_LLM_BINARY_SHA256")
+          expected_model_rev = os.environ.get("GLINTORY_LOCAL_LLM_MODEL_REVISION")
+          expected_model_sha = os.environ.get("GLINTORY_LOCAL_LLM_MODEL_SHA256")
+          
+          if enrichment.runtime_commit != expected_commit:
+              sys.stderr.write(f"Verification failed: expected runtime_commit '{expected_commit}', got '{enrichment.runtime_commit}'\n")
+              sys.exit(1)
+          if enrichment.runtime_binary_sha256 != expected_bin_sha:
+              sys.stderr.write(f"Verification failed: expected runtime_binary_sha256 '{expected_bin_sha}', got '{enrichment.runtime_binary_sha256}'\n")
+              sys.exit(1)
+          if enrichment.model_revision != expected_model_rev:
+              sys.stderr.write(f"Verification failed: expected model_revision '{expected_model_rev}', got '{enrichment.model_revision}'\n")
+              sys.exit(1)
+          if enrichment.model_sha256 != expected_model_sha:
+              sys.stderr.write(f"Verification failed: expected model_sha256 '{expected_model_sha}', got '{enrichment.model_sha256}'\n")
+              sys.exit(1)
+          if enrichment.prompt_version != PROMPT_VERSION:
+              sys.stderr.write(f"Verification failed: expected prompt_version '{PROMPT_VERSION}', got '{enrichment.prompt_version}'\n")
               sys.exit(1)
 
           if "smoke_sig" not in enrichment.evidence_refs:
@@ -334,9 +380,49 @@ jobs:
       - name: Write Actions Step Summary
         if: always()
         run: |
+          mkdir -p build
+          
+          # 1. Verify llm-smoke-result.json
+          json_ok=true
+          if [ ! -s build/llm-smoke-result.json ]; then
+            json_ok=false
+          elif ! jq -e . build/llm-smoke-result.json > /dev/null 2>&1; then
+            json_ok=false
+          else
+            # Check fields
+            sel_cnt=$(jq -r '.selected_count // empty' build/llm-smoke-result.json)
+            suc_cnt=$(jq -r '.succeeded_count // empty' build/llm-smoke-result.json)
+            fal_cnt=$(jq -r '.failed_count // empty' build/llm-smoke-result.json)
+            op_stat=$(jq -r '.operational_status // empty' build/llm-smoke-result.json)
+            
+            # Type and existence check
+            if [ -z "$sel_cnt" ] || [ -z "$suc_cnt" ] || [ -z "$fal_cnt" ] || [ -z "$op_stat" ]; then
+              json_ok=false
+            elif ! [ "$sel_cnt" -eq "$sel_cnt" ] 2>/dev/null || ! [ "$suc_cnt" -eq "$suc_cnt" ] 2>/dev/null || ! [ "$fal_cnt" -eq "$fal_cnt" ] 2>/dev/null; then
+              json_ok=false
+            fi
+          fi
+          
+          if [ "$json_ok" = "false" ]; then
+            echo "### 🚀 Local LLM Conformance Smoke Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "result_json_validation=failed" >> $GITHUB_STEP_SUMMARY
+            echo "workflow_status=Failed" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
           # Read parameters
           PEAK_RSS_KB=$(cat build/peak_rss.txt || echo "0")
-          PEAK_RSS_MB=$(echo "scale=2; $PEAK_RSS_KB / 1024" | bc || echo "0")
+          SAMPLE_COUNT=$(cat build/rss_sample_count.txt || echo "0")
+          
+          if [ "$PEAK_RSS_KB" -eq 0 ] || [ "$SAMPLE_COUNT" -eq 0 ]; then
+            MEASUREMENT_STATUS="not_observed"
+            PEAK_RSS_DISPLAY="Not Observed"
+          else
+            MEASUREMENT_STATUS="observed"
+            PEAK_RSS_MB=$(echo "scale=2; $PEAK_RSS_KB / 1024" | bc || echo "0")
+            PEAK_RSS_DISPLAY="${PEAK_RSS_MB} MB (${PEAK_RSS_KB} KB)"
+          fi
           
           # Read db summary
           EN_TITLE=""
@@ -354,35 +440,29 @@ jobs:
             INF_DURATION=$(jq -r '.inference_duration' build/db_summary.json)
             RUN_VERSION=$(jq -r '.runtime_version' build/db_summary.json)
           fi
-
+          
           # Read CLI results
-          SELECTED_COUNT=0
-          SUCCEEDED_COUNT=0
-          FAILED_COUNT=0
-          OPERATIONAL_STATUS="failed"
-          if [ -f "build/llm-smoke-result.json" ]; then
-            SELECTED_COUNT=$(jq -r '.selected_count // 0' build/llm-smoke-result.json)
-            SUCCEEDED_COUNT=$(jq -r '.succeeded_count // 0' build/llm-smoke-result.json)
-            FAILED_COUNT=$(jq -r '.failed_count // 0' build/llm-smoke-result.json)
-            OPERATIONAL_STATUS=$(jq -r '.operational_status // "failed"' build/llm-smoke-result.json)
-          fi
-
+          SELECTED_COUNT=$(jq -r '.selected_count' build/llm-smoke-result.json)
+          SUCCEEDED_COUNT=$(jq -r '.succeeded_count' build/llm-smoke-result.json)
+          FAILED_COUNT=$(jq -r '.failed_count' build/llm-smoke-result.json)
+          OPERATIONAL_STATUS=$(jq -r '.operational_status' build/llm-smoke-result.json)
+          
           # Read CLI exit code
           CLI_EXIT=$(cat build/cli_exit_code.txt || echo "1")
-
+          
           # Read Schema Validation Status
           SCHEMA_VAL="failed"
           if [ -f "build/schema_validation.txt" ]; then
             SCHEMA_VAL=$(cat build/schema_validation.txt)
           fi
-
+          
           # Workflow Status
           if [ "$CLI_EXIT" = "0" ] && [ "$SCHEMA_VAL" = "passed" ]; then
             WORKFLOW_STATUS="Success"
           else
             WORKFLOW_STATUS="Failed"
           fi
-
+          
           echo "### 🚀 Local LLM Conformance Smoke Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
@@ -395,15 +475,29 @@ jobs:
           echo "| Failed Count | ${FAILED_COUNT} |" >> $GITHUB_STEP_SUMMARY
           echo "| Schema Validation | ${SCHEMA_VAL} |" >> $GITHUB_STEP_SUMMARY
           echo "| Runtime Version | \`${RUN_VERSION}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Peak RSS | ${PEAK_RSS_MB} MB (${PEAK_RSS_KB} KB) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Measurement Status | \`${MEASUREMENT_STATUS}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| RSS Sample Count | ${SAMPLE_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Peak RSS | ${PEAK_RSS_DISPLAY} |" >> $GITHUB_STEP_SUMMARY
           echo "| Inference Duration | ${INF_DURATION} ms |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### 📝 BILINGUAL SUMMARY PREVIEW" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**English Title:** ${EN_TITLE}" >> $GITHUB_STEP_SUMMARY
-          echo "**English Summary:**" >> $GITHUB_STEP_SUMMARY
-          echo "${EN_SUMMARY}" >> $GITHUB_STEP_SUMMARY
+          echo "**English Title:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${EN_TITLE}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Japanese Title:** ${JA_TITLE}" >> $GITHUB_STEP_SUMMARY
+          echo "**English Summary:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${EN_SUMMARY}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Japanese Title:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${JA_TITLE}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Japanese Summary:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "${JA_SUMMARY}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

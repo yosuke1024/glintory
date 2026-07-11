@@ -204,6 +204,7 @@ class OpportunityEnrichmentService:
                     duration_ms = int(
                         (completed_at - started_at).total_seconds() * 1000
                     )
+                    logger.error("LLM_INPUT_BUDGET_EXCEEDED")
                     session = self.session_factory()
                     db_repo = OpportunityEnrichmentRepository(session)
                     try:
@@ -266,6 +267,7 @@ class OpportunityEnrichmentService:
 
         # Verify Response Count Conformance
         if len(responses) > len(batch_items):
+            logger.error("LLM_PROVIDER_CONTRACT_FAILED")
             # Provider Contract Error: fail all running records and raise exception
             completed_at = self.clock()
             for item in batch_items:
