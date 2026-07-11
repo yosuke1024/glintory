@@ -172,6 +172,7 @@ class Signal(Base):
     source_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("sources.id"), nullable=False
     )
+    source: Mapped["Source"] = relationship("Source")
     collection_run_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("collection_runs.id"), nullable=True
     )
@@ -331,6 +332,12 @@ class Opportunity(Base):
     generation_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
     cluster_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     last_clustered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    gate_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    gate_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    gate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gate_checked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     current_scoring_version: Mapped[str | None] = mapped_column(

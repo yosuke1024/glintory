@@ -9,27 +9,26 @@ class OpportunityClusteringRepository:
         self.session = session
 
     def load_unassociated_signals(self) -> list[Signal]:
-        """Load all signals that are not linked to any active opportunity."""
-        subq = self.session.query(OpportunitySignal.signal_id).filter(
-            OpportunitySignal.is_excluded.is_(False)
+        """Load all signals that are not linked to any active v2 opportunity."""
+        subq = (
+            self.session.query(OpportunitySignal.signal_id)
+            .join(Opportunity, OpportunitySignal.opportunity_id == Opportunity.id)
+            .filter(
+                OpportunitySignal.is_excluded.is_(False),
+                Opportunity.current_scoring_version == "v2",
+            )
         )
         return self.session.query(Signal).filter(Signal.id.notin_(subq)).all()
 
     def load_active_opportunities_with_signals(self) -> list[dict]:
-        """Load all active opportunities along with their active associated signals.
-
-        Returns a list of dicts:
-        {
-            "opportunity": Opportunity,
-            "signals": list[tuple[Signal, float, EvidenceRelationType]]  # (Signal, relevance_score, relation_type)
-        }
-        """
+        """Load all active v2 opportunities along with their active associated signals."""
         opps = (
             self.session.query(Opportunity)
             .filter(
                 Opportunity.status.notin_(
                     [OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED]
-                )
+                ),
+                Opportunity.current_scoring_version == "v2",
             )
             .all()
         )

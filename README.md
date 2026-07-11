@@ -231,6 +231,8 @@ uv run python scripts/smoke_hackernews_persistence.py
 ## RSS / Atom Collector
 
 The `RSSCollector` parses RSS 2.0, RSS 1.0, and Atom 1.0 feeds, storing entries in the SQLite database.
+The technology community "Lobsters" (`https://lobste.rs/rss`) is registered as the default public RSS source. It is completely independent from Hacker News and GitHub, and is highly suitable for discovering developer demands, limitations of existing tools, and personal project launches.
+
 
 ### Features
 - **Secure HTTP Client**: Uses the common HTTP client to fetch raw bytes securely, bypassing feedparser's built-in fetcher.

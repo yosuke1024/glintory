@@ -248,6 +248,8 @@ uv run python scripts/smoke_hackernews_persistence.py
 ## RSS / Atom Collector
 
 Glintory に実装された `RSSCollector` は、RSS 2.0、RSS 1.0、および Atom 1.0 フィードをパースし、シグナルとしてSQLiteデータベースへ永続化します。
+標準のパブリックRSSソースとして、独立した技術コミュニティ「Lobsters」（`https://lobste.rs/rss`）が登録されています。このフィードは、Hacker NewsやGitHubとは完全に独立しており、開発者が自ら作成したプロジェクト、ツールの代替手段、および個人開発における技術的・運用的な課題について深い議論が行われているため、個人開発の需要や課題（シグナル）を収集するのに適しています。
+
 
 ### 特徴
 - **セキュアな HTTP クライアント経由の取得**: `feedparser` 自身には外部通信を行わせず、Glintory共通の HTTP クライアントで安全に取得した bytes をパースします。

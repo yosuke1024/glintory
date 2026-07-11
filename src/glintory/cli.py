@@ -393,6 +393,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force reprocessing even if input hash matches",
     )
 
+    # Setup opportunities command
+    opportunities_parser = subparsers.add_parser("opportunities", help="Manage opportunities")
+    opportunities_subparsers = opportunities_parser.add_subparsers(dest="subcommand", required=True)
+    rebuild_parser = opportunities_subparsers.add_parser("rebuild", help="Rebuild opportunities from v1 to v2")
+    rebuild_parser.add_argument("--from-score-version", required=True, choices=["v1"], help="Source scoring version to rebuild from")
+    rebuild_parser.add_argument("--to-score-version", required=True, choices=["v2"], help="Target scoring version to rebuild to")
+    rebuild_parser.add_argument("--json", action="store_true", help="Output in JSON format")
+
     parser.add_argument(
         "--debug",
         action="store_true",
@@ -438,6 +446,8 @@ async def run_cli(args: argparse.Namespace) -> int:
             return await run_publish_command(args, runtime)
         if args.command == "diagnostics":
             return await run_diagnostics_command(args, runtime)
+        if args.command == "opportunities":
+            return await run_opportunities_command(args, runtime)
 
     return 0
 
@@ -1665,6 +1675,71 @@ async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:
         else:
             sys.stderr.write(f"{found_code or 'ENRICHMENT_RUN_FAILED'}\n")
         return exit_code
+
+
+async def run_opportunities_command(args: argparse.Namespace, runtime: Any) -> int:
+    if args.subcommand == "rebuild":
+        from glintory.domain.enums import OpportunityStatus
+        from glintory.domain.models import Opportunity, OpportunitySignal, Signal
+        from glintory.services.signal_classification import classify_signal_role
+        session = runtime.session_factory()
+        try:
+            from_version = args.from_score_version
+            to_version = args.to_score_version
+            
+            opps = (
+                session.query(Opportunity)
+                .filter(Opportunity.current_scoring_version == from_version)
+                .all()
+            )
+            opp_ids = [opp.id for opp in opps]
+            
+            opp_sigs = (
+                session.query(OpportunitySignal)
+                .filter(OpportunitySignal.opportunity_id.in_(opp_ids))
+                .all()
+            )
+            sig_ids = [osig.signal_id for osig in opp_sigs]
+            
+            if opp_sigs:
+                for osig in opp_sigs:
+                    session.delete(osig)
+                session.flush()
+                
+            for opp in opps:
+                opp.status = OpportunityStatus.REJECTED
+            session.flush()
+            
+            signals = session.query(Signal).filter(Signal.id.in_(sig_ids)).all() if sig_ids else []
+            for sig in signals:
+                src = sig.source
+                src_type = src.source_type if src else "unknown"
+                sig.signal_role = classify_signal_role(
+                    src_type, sig.signal_type, sig.title, sig.excerpt
+                )
+            session.commit()
+            
+            result = {
+                "rebuild_status": "success",
+                "unlinked_opportunities_count": len(opps),
+                "unlinked_signals_count": len(signals),
+            }
+            if args.json:
+                print(json.dumps(result))
+            else:
+                print(f"Rebuild completed from {from_version} to {to_version} successfully.")
+                print(f"Unlinked opportunities: {len(opps)}, Unlinked signals: {len(signals)}")
+            return 0
+        except Exception as e:
+            session.rollback()
+            if args.json:
+                print(json.dumps({"rebuild_status": "failed", "error": str(e)}))
+            else:
+                sys.stderr.write(f"Rebuild failed: {e}\n")
+            return 1
+        finally:
+            session.close()
+    return 0
 
 
 def run_publish_config_validation(args: argparse.Namespace) -> int:

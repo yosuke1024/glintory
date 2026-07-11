@@ -747,39 +747,104 @@ class OpportunityScoringEngine:
         # ----------------------------------------------------
         feasibility_components = []
 
+        # Build combined lowercase text for keyword parsing
+        combined_text = ""
+        for sig in scoring_input.signals:
+            combined_text += " " + (sig.title or "").lower()
+            combined_text += " " + (sig.excerpt or "").lower()
+
         # 3. Solo Developer Suitability (0-20)
-        solo_suitability = 15
+        has_client = any(kw in combined_text for kw in ["cli", "extension", "static", "desktop", "local", "offline"])
+        has_backend = any(kw in combined_text for kw in ["backend", "server", "database", "cloud", "realtime", "websocket", "sync"])
+        has_heavy_api = any(kw in combined_text for kw in ["openai", "gemini", "api", "integration", "stripe"])
+        has_team = any(kw in combined_text for kw in ["enterprise", "team", "organization", "collaboration", "rbac", "multi-tenant"])
+
+        if not has_client and not has_backend and not has_heavy_api and not has_team:
+            solo_suitability = 2
+            solo_reason = "Information is insufficient to determine solo suitability. Defaulting to low score."
+        else:
+            base_solo = 12
+            if has_client:
+                base_solo += 4
+            if has_backend:
+                base_solo -= 4
+            if has_heavy_api:
+                base_solo -= 2
+            if has_team:
+                base_solo -= 3
+            solo_suitability = max(0, min(20, base_solo))
+            solo_reason = f"Calculated based on implementation clues. Client-centric: {has_client}, Backend: {has_backend}, Heavy API: {has_heavy_api}, Team features: {has_team}."
+
         feasibility_components.append(
             ScoreComponent(
                 name="solo_developer_suitability",
                 score=solo_suitability,
                 maximum=20,
-                explanation="Ease of development for a solo creator (default 15).",
-                facts={},
+                explanation=solo_reason,
+                facts={
+                    "has_client": has_client,
+                    "has_backend": has_backend,
+                    "has_heavy_api": has_heavy_api,
+                    "has_team": has_team
+                },
             )
         )
 
         # 4. Distribution and Reach (0-15)
-        reach_score = 10
+        has_dist = any(kw in combined_text for kw in ["store", "npm", "pypi", "release", "self-serve", "marketplace", "pwa", "download"])
+        has_sales = any(kw in combined_text for kw in ["sales", "enterprise", "b2b", "organization", "sales cycle"])
+
+        if not has_dist and not has_sales:
+            reach_score = 1
+            reach_reason = "Distribution channel details are insufficient. Defaulting to low score."
+        else:
+            base_reach = 8
+            if has_dist:
+                base_reach += 5
+            if has_sales:
+                base_reach -= 5
+            reach_score = max(0, min(15, base_reach))
+            reach_reason = f"Calculated based on reach channels. Store/Registry: {has_dist}, Enterprise Sales: {has_sales}."
+
         feasibility_components.append(
             ScoreComponent(
                 name="distribution_and_reach",
                 score=reach_score,
                 maximum=15,
-                explanation="Ability to acquire users easily (default 10).",
-                facts={},
+                explanation=reach_reason,
+                facts={
+                    "has_dist": has_dist,
+                    "has_sales": has_sales
+                },
             )
         )
 
         # 5. Monetization and Asset Value (0-10)
-        mon_score = 5
+        has_mon = any(kw in combined_text for kw in ["sub", "saas", "license", "byok", "ad", "sponsor", "pay", "premium", "charge", "stripe", "buy"])
+        has_infra = any(kw in combined_text for kw in ["infra", "server cost", "hosting", "bandwidth", "gpu", "database"])
+
+        if not has_mon and not has_infra:
+            mon_score = 1
+            mon_reason = "Monetization model details are insufficient. Defaulting to low score."
+        else:
+            base_mon = 5
+            if has_mon:
+                base_mon += 4
+            if has_infra:
+                base_mon -= 3
+            mon_score = max(0, min(10, base_mon))
+            mon_reason = f"Calculated based on monetization indicators. Commercial clue: {has_mon}, High infrastructure cost: {has_infra}."
+
         feasibility_components.append(
             ScoreComponent(
                 name="monetization_and_asset_value",
                 score=mon_score,
                 maximum=10,
-                explanation="Monetization hypothesis or long term asset value (default 5).",
-                facts={},
+                explanation=mon_reason,
+                facts={
+                    "has_mon": has_mon,
+                    "has_infra": has_infra
+                },
             )
         )
 

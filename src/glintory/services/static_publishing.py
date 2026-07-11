@@ -66,7 +66,14 @@ def format_datetime(val: Any) -> str:
         return "N/A"
     if isinstance(val, str):
         return val
-    return val.isoformat()
+    try:
+        from datetime import timezone, timedelta
+        # Convert to JST (UTC+9)
+        jst = timezone(timedelta(hours=9))
+        val_jst = val.astimezone(jst)
+        return val_jst.strftime("%Y-%m-%d %H:%M JST")
+    except Exception:
+        return val.isoformat()
 
 
 def get_localized_data(
@@ -75,16 +82,15 @@ def get_localized_data(
 ) -> dict:
     if locale == "ja":
         return {
-            "title": op.title_ja or op.title_en or op.title,
-            "summary": op.summary_ja or op.summary_en or op.proposed_solution,
-            "problem": op.problem_ja or op.problem_en,
-            "target_user": op.target_user_ja or op.target_user_en,
-            "current_workaround": op.current_workaround_ja or op.current_workaround_en,
-            "existing_solution_gap": op.existing_solution_gap_ja
-            or op.existing_solution_gap_en,
-            "mvp_direction": op.mvp_direction_ja or op.mvp_direction_en,
-            "why_selected": op.why_selected_ja or op.why_selected_en,
-            "risks": op.risks_ja or op.risks_en,
+            "title": op.title_ja,
+            "summary": op.summary_ja,
+            "problem": op.problem_ja,
+            "target_user": op.target_user_ja,
+            "current_workaround": op.current_workaround_ja,
+            "existing_solution_gap": op.existing_solution_gap_ja,
+            "mvp_direction": op.mvp_direction_ja,
+            "why_selected": op.why_selected_ja,
+            "risks": op.risks_ja,
         }
     # "en" or fallback
     return {
@@ -159,7 +165,7 @@ def build_static_site(
             .first()
         )
 
-        from glintory.domain.enums import OpportunityStatus
+        from glintory.domain.enums import OpportunityStatus, Confidence
 
         opportunities = (
             session.query(Opportunity)
@@ -167,6 +173,7 @@ def build_static_site(
                 Opportunity.current_scoring_version == "v2",
                 Opportunity.status != OpportunityStatus.REJECTED,
                 Opportunity.status != OpportunityStatus.ARCHIVED,
+                Opportunity.confidence != Confidence.LOW,
             )
             .order_by(
                 Opportunity.total_score.desc(),
@@ -331,6 +338,16 @@ def build_static_site(
 
             evidences = []
             for sig, rel_score, sum_en, sum_ja, src_name, src_type in ev_signals:
+                from glintory.domain.enums import SignalRole
+                role_val = sig.signal_role
+                role_str = "不明"
+                if role_val == SignalRole.DEMAND:
+                    role_str = "需要"
+                elif role_val == SignalRole.SUPPLY:
+                    role_str = "供給"
+                elif role_val == SignalRole.CONTEXT:
+                    role_str = "背景情報"
+
                 evidences.append(
                     {
                         "id": sig.id,
@@ -345,6 +362,7 @@ def build_static_site(
                         "relevance_score": rel_score,
                         "summary_en": sum_en,
                         "summary_ja": sum_ja,
+                        "signal_role": role_str,
                     }
                 )
 
@@ -376,7 +394,39 @@ def build_static_site(
                 if enrichment.input_hash != current_llm_hash:
                     llm_is_stale = True
 
-            # Render English (Default)
+            # Render Japanese (Default Detailed Page)
+            loc_data_ja = get_localized_data(op, "ja")
+            translation_available_ja = (
+                op.translation_status == "completed"
+                and op.title_ja is not None
+                and len(op.title_ja.strip()) > 0
+                and op.summary_ja is not None
+                and len(op.summary_ja.strip()) > 0
+                and enrichment is not None
+                and not llm_is_stale
+            )
+            translation_fallback_ja = not translation_available_ja
+
+            rendered_detail_ja = detail_template.render(
+                base_path=base_path,
+                op=op,
+                evidences=evidences,
+                score_is_stale=score_is_stale,
+                llm_is_stale=llm_is_stale,
+                repo_url=repo_url,
+                enrichment=enrichment,
+                locale="ja",
+                loc_data=loc_data_ja,
+                translation_available=translation_available_ja,
+                translation_fallback=translation_fallback_ja,
+            )
+
+            op_dir = os.path.join(temp_build_dir, "opportunities", op.id)
+            os.makedirs(op_dir, exist_ok=True)
+            with open(os.path.join(op_dir, "index.html"), "w") as f:
+                f.write(rendered_detail_ja)
+
+            # Render English (Locale specific page)
             loc_data_en = get_localized_data(op, "en")
             translation_available_en = op.title_en is not None
             translation_fallback_en = not translation_available_en
@@ -395,37 +445,92 @@ def build_static_site(
                 translation_fallback=translation_fallback_en,
             )
 
-            op_dir = os.path.join(temp_build_dir, "opportunities", op.id)
-            os.makedirs(op_dir, exist_ok=True)
-            with open(os.path.join(op_dir, "index.html"), "w") as f:
+            op_dir_en = os.path.join(op_dir, "en")
+            os.makedirs(op_dir_en, exist_ok=True)
+            with open(os.path.join(op_dir_en, "index.html"), "w") as f:
                 f.write(rendered_detail_en)
-
-            # Render Japanese
-            loc_data_ja = get_localized_data(op, "ja")
-            translation_available_ja = op.title_ja is not None
-            translation_fallback_ja = not translation_available_ja
-
-            rendered_detail_ja = detail_template.render(
-                base_path=base_path,
-                op=op,
-                evidences=evidences,
-                score_is_stale=score_is_stale,
-                llm_is_stale=llm_is_stale,
-                repo_url=repo_url,
-                enrichment=enrichment,
-                locale="ja",
-                loc_data=loc_data_ja,
-                translation_available=translation_available_ja,
-                translation_fallback=translation_fallback_ja,
-            )
-
-            op_dir_ja = os.path.join(op_dir, "ja")
-            os.makedirs(op_dir_ja, exist_ok=True)
-            with open(os.path.join(op_dir_ja, "index.html"), "w") as f:
-                f.write(rendered_detail_ja)
 
         # Render diagnostics page
         from glintory.domain.models import CollectionRun
+        import sqlalchemy as sa
+        from glintory.domain.enums import CollectionRunStatus, Confidence
+
+        # Compile pipeline stats by Source Type
+        track_types = ["github", "hackernews", "rss"]
+        pipeline_stats = {}
+        for stype in track_types:
+            enabled_count = (
+                session.query(SourceSchedule)
+                .join(Source, SourceSchedule.source_id == Source.id)
+                .filter(Source.source_type == stype, SourceSchedule.enabled.is_(True))
+                .count()
+            )
+            last_run_exec = (
+                session.query(ScheduleExecution)
+                .join(Source, ScheduleExecution.source_id == Source.id)
+                .filter(Source.source_type == stype)
+                .order_by(ScheduleExecution.started_at.desc())
+                .first()
+            )
+            last_run_time = last_run_exec.started_at if last_run_exec else None
+
+            run_sums = (
+                session.query(
+                    sa.func.sum(CollectionRun.fetched_count),
+                    sa.func.sum(CollectionRun.inserted_count),
+                    sa.func.sum(CollectionRun.skipped_count),
+                    sa.func.sum(sa.case((CollectionRun.status == CollectionRunStatus.FAILED, 1), else_=0))
+                )
+                .join(Source, CollectionRun.source_id == Source.id)
+                .filter(Source.source_type == stype)
+                .first()
+            )
+            fetched_sum = int(run_sums[0] or 0) if run_sums else 0
+            persisted_sum = int(run_sums[1] or 0) if run_sums else 0
+            skipped_sum = int(run_sums[2] or 0) if run_sums else 0
+            failed_sum = int(run_sums[3] or 0) if run_sums else 0
+
+            signals_analyzed = (
+                session.query(Signal)
+                .join(Source, Signal.source_id == Source.id)
+                .filter(Source.source_type == stype)
+                .count()
+            )
+            evidence_used = (
+                session.query(OpportunitySignal)
+                .join(Signal, OpportunitySignal.signal_id == Signal.id)
+                .join(Source, Signal.source_id == Source.id)
+                .filter(Source.source_type == stype, OpportunitySignal.is_excluded.is_(False))
+                .count()
+            )
+
+            pipeline_stats[stype] = {
+                "enabled_sources": enabled_count,
+                "last_run": last_run_time,
+                "fetched": fetched_sum,
+                "persisted": persisted_sum,
+                "skipped": skipped_sum,
+                "failed": failed_sum,
+                "signals_analyzed": signals_analyzed,
+                "evidence_used": evidence_used,
+            }
+
+        opp_candidates = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2").count()
+        gate_passed = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2", Opportunity.gate_status == "passed").count()
+        gate_rejected = session.query(Opportunity).filter(Opportunity.current_scoring_version == "v2", Opportunity.gate_status == "rejected").count()
+        published_opps = session.query(Opportunity).filter(
+            Opportunity.current_scoring_version == "v2",
+            Opportunity.status != OpportunityStatus.REJECTED,
+            Opportunity.status != OpportunityStatus.ARCHIVED,
+            Opportunity.confidence != Confidence.LOW,
+        ).count()
+
+        global_stats = {
+            "opportunity_candidates": opp_candidates,
+            "gate_passed": gate_passed,
+            "gate_rejected": gate_rejected,
+            "published_opportunities": published_opps,
+        }
 
         runs = (
             session.query(CollectionRun, Source.name)
@@ -459,6 +564,8 @@ def build_static_site(
         rendered_diagnostics = diagnostics_template.render(
             base_path=base_path,
             diagnostics_data=diagnostics_data,
+            pipeline_stats=pipeline_stats,
+            global_stats=global_stats,
             repo_url=repo_url,
         )
         with open(os.path.join(temp_build_dir, "diagnostics.html"), "w") as f:

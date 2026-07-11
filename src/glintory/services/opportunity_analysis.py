@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from glintory.domain.clustering import OpportunityClusteringConfig
 from glintory.domain.enums import EvidenceRelationType, OpportunityStatus, SignalRole
-from glintory.domain.models import Opportunity, OpportunitySignal
+from glintory.domain.models import Opportunity, OpportunitySignal, Signal
 from glintory.infrastructure.opportunity_clustering_repository import (
     OpportunityClusteringRepository,
 )
@@ -78,7 +78,7 @@ class OpportunityAnalysisService:
         independent_count = len(threads)
         demand_count = sum(1 for sig in signals if sig.signal_role == SignalRole.DEMAND)
 
-        source_types = {sig.source_id for sig in signals if sig.source_id}
+        source_types = {sig.source.source_type for sig in signals if sig.source and sig.source.source_type}
         source_type_count = len(source_types)
 
         domains = set()
@@ -101,7 +101,8 @@ class OpportunityAnalysisService:
             single_thread_sigs = list(threads.values())[0]
             is_show_hn = any(
                 (
-                    sig.source_id == "hackernews"
+                    sig.source
+                    and sig.source.source_type == "hackernews"
                     and (sig.title or "").lower().startswith("show hn:")
                 )
                 for sig in single_thread_sigs
@@ -140,16 +141,16 @@ class OpportunityAnalysisService:
 
         text_to_check = f"{single_sig.title or ''}\n{single_sig.excerpt or ''}".lower()
         user_kws = [
-            "user",
             "customer",
-            "who",
-            "for",
-            "team",
+            "target user",
             "developer",
-            "users",
+            "target audience",
+            "for developers",
+            "for users",
             "ユーザー",
             "顧客",
             "開発者",
+            "ターゲットユーザー",
         ]
         problem_kws = [
             "problem",
@@ -170,9 +171,9 @@ class OpportunityAnalysisService:
         ]
         workaround_kws = [
             "workaround",
-            "instead",
+            "instead of",
             "alternative",
-            "current",
+            "current tool",
             "manually",
             "excel",
             "scripts",
@@ -183,7 +184,6 @@ class OpportunityAnalysisService:
         ]
         gap_kws = [
             "why",
-            "but",
             "limit",
             "lack",
             "cannot",
@@ -200,8 +200,6 @@ class OpportunityAnalysisService:
             "feature",
             "idea",
             "should",
-            "want",
-            "need",
             "wish",
             "提案",
             "欲しい",
@@ -218,14 +216,17 @@ class OpportunityAnalysisService:
         matched_elements = sum(
             [has_user, has_problem, has_workaround, has_gap, has_mvp]
         )
-        # To be robust, let's say >= 2 elements matched or length >= 150
-        if matched_elements >= 2 or len(text_to_check) >= 150:
-            return metrics, True, "Passed Condition B: Strong detailed single demand."
+        if matched_elements == 5:
+            return (
+                metrics,
+                True,
+                "Passed Condition B: Strong detailed single demand with all 5 structure elements.",
+            )
 
         return (
             metrics,
             False,
-            f"Rejected Condition B: Single demand is too brief (matched: {matched_elements}, len: {len(text_to_check)}).",
+            f"Rejected Condition B: Single demand is missing elements (matched: {matched_elements}/5). Required all 5 elements.",
         )
 
     def analyze_and_cluster(
@@ -338,15 +339,34 @@ class OpportunityAnalysisService:
                 if any_linked and not dry_run:
                     opp = self.session.get(Opportunity, matched_opp_id)
                     if opp:
-                        metrics, passed, reason = self._calculate_metrics_and_gate(
-                            cluster["signals"]
+                        # Fetch all active evidence signals for this opportunity from DB
+                        all_links = (
+                            self.session.query(OpportunitySignal, Signal)
+                            .join(Signal, OpportunitySignal.signal_id == Signal.id)
+                            .filter(OpportunitySignal.opportunity_id == opp.id)
+                            .filter(OpportunitySignal.is_excluded.is_(False))
+                            .all()
                         )
-                        opp.independent_evidence_count = metrics[
-                            "independent_evidence_count"
+                        ev_signals_input = [
+                            {
+                                "signal": sig,
+                                "relation_type": opp_sig.relation_type,
+                                "relevance_score": opp_sig.relevance_score,
+                            }
+                            for opp_sig, sig in all_links
                         ]
+
+                        metrics, passed, reason = self._calculate_metrics_and_gate(ev_signals_input)
+                        opp.independent_evidence_count = metrics["independent_evidence_count"]
                         opp.demand_evidence_count = metrics["demand_evidence_count"]
                         opp.source_type_count = metrics["source_type_count"]
                         opp.source_domain_count = metrics["source_domain_count"]
+
+                        opp.gate_version = "v2"
+                        opp.gate_status = "passed" if passed else "rejected"
+                        opp.gate_reason = reason
+                        opp.gate_checked_at = now
+
                         if opp.status in (
                             OpportunityStatus.INBOX,
                             OpportunityStatus.REJECTED,
@@ -381,6 +401,11 @@ class OpportunityAnalysisService:
                     demand_evidence_count=metrics["demand_evidence_count"],
                     source_type_count=metrics["source_type_count"],
                     source_domain_count=metrics["source_domain_count"],
+                    gate_version="v2",
+                    gate_status="passed" if passed else "rejected",
+                    gate_reason=reason,
+                    gate_checked_at=now,
+                    current_scoring_version="v2",
                 )
                 if not dry_run:
                     self.repository.save_opportunity(opp)

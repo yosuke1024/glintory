@@ -114,6 +114,7 @@ def mock_opportunity_data(db_session_factory):
         confidence=Confidence.MEDIUM,
         status=OpportunityStatus.INBOX,
         current_scoring_version="v2",
+        last_scored_at=datetime.now(UTC),
     )
     session.add(opp)
     session.flush()
@@ -123,6 +124,7 @@ def mock_opportunity_data(db_session_factory):
         signal_id=signal.id,
         relation_type=EvidenceRelationType.SUPPORTING,
         relevance_score=0.9,
+        is_excluded=False,
     )
     session.add(opp_sig)
 
@@ -535,6 +537,7 @@ def test_static_site_fallback_and_rendering(
     from glintory.domain.models import Opportunity
 
     opp = session.get(Opportunity, opp_id)
+    opp.translation_status = "completed"
     opp.title_en = "AI Eng Title"
     opp.summary_en = "AI Eng Summary"
     opp.problem_en = "AI Eng Problem"
@@ -619,25 +622,25 @@ def test_static_site_fallback_and_rendering(
     )
     session.close()
 
-    # Verify English Page (Default)
+    # Verify Japanese Page (Default)
     with open(opp_detail_file) as f:
+        content_ja = f.read()
+    assert "AI 日タイト" in content_ja
+    assert "AI 日サマ" in content_ja
+    assert "✨ 以下の証拠データに基づくAI生成の日本語参考訳です。" in content_ja
+    assert "English" in content_ja
+
+    # Verify English Page
+    opp_detail_file_en = os.path.join(
+        output_dir, "opportunities", opp_id, "en", "index.html"
+    )
+    assert os.path.exists(opp_detail_file_en)
+    with open(opp_detail_file_en) as f:
         content_en = f.read()
     assert "AI Eng Title" in content_en
     assert "AI Eng Summary" in content_en
     assert "AI-generated brief based on the evidence below." in content_en
-    assert "View in Japanese (日本語)" in content_en
-
-    # Verify Japanese Page
-    opp_detail_file_ja = os.path.join(
-        output_dir, "opportunities", opp_id, "ja", "index.html"
-    )
-    assert os.path.exists(opp_detail_file_ja)
-    with open(opp_detail_file_ja) as f:
-        content_ja = f.read()
-    assert "AI 日タイト" in content_ja
-    assert "AI 日サマ" in content_ja
-    assert "以下の証拠データに基づくAI生成の日本語参考訳です。" in content_ja
-    assert "View in English (English)" in content_ja
+    assert "日本語" in content_en
 
     # Test Fallback rendering (Japanese localization is missing)
     session = db_session_factory()
@@ -663,13 +666,10 @@ def test_static_site_fallback_and_rendering(
     )
     session.close()
 
-    with open(opp_detail_file_ja) as f:
+    with open(opp_detail_file) as f:
         content_ja_fallback = f.read()
-    assert "AI Eng Title" in content_ja_fallback  # fallback to English
-    assert (
-        "日本語訳はまだ生成されていません。英語版のAI要約を表示しています。"
-        in content_ja_fallback
-    )
+    assert "[日本語要約未生成]" in content_ja_fallback
+    assert "日本語要約はまだ生成されていません。" in content_ja_fallback
 
 
 def test_zero_evidence_skips_with_warning(db_session_factory, mock_opportunity_data):

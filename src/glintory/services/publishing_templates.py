@@ -277,10 +277,22 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
       {% for op in top_ops %}
         <a href="{{ base_path }}/opportunities/{{ op.id }}/" class="card">
           <div class="card-header">
-            <h4 class="card-title">{{ op.title }}</h4>
+            <h4 class="card-title">
+              {% if op.title_ja %}
+                {{ op.title_ja }}
+              {% else %}
+                [日本語要約未生成] {{ op.title }}
+              {% endif %}
+            </h4>
             <div class="score-value">{{ op.total_score }}</div>
           </div>
-          <p>{{ (op.proposed_solution or '')[:150] }}...</p>
+          <p>
+            {% if op.summary_ja %}
+              {{ op.summary_ja[:150] }}...
+            {% else %}
+              {{ (op.proposed_solution or '')[:150] }}...
+            {% endif %}
+          </p>
           <div class="meta-info">
             <span>Confidence: {{ op.confidence }}</span>
             <span>Status: {{ op.status }}</span>
@@ -362,7 +374,15 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       <tbody>
         {% for op_data in op_list_data %}
           <tr>
-            <td><a href="{{ base_path }}/opportunities/{{ op_data.op.id }}/" style="color: inherit; font-weight: 600; text-decoration: none;">{{ op_data.op.title }}</a></td>
+            <td>
+              <a href="{{ base_path }}/opportunities/{{ op_data.op.id }}/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                {% if op_data.op.title_ja %}
+                  {{ op_data.op.title_ja }}
+                {% else %}
+                  [日本語要約未生成] {{ op_data.op.title }}
+                {% endif %}
+              </a>
+            </td>
             <td><span class="score-value" style="font-size: 1.25rem;">{{ op_data.op.total_score }}</span></td>
             <td>{{ op_data.op.confidence }}</td>
             <td><span class="badge badge-accent">{{ op_data.op.status }}</span></td>
@@ -410,11 +430,26 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
     <!-- Language Switcher Route -->
     <div style="display: flex; justify-content: flex-end; margin-top: 1rem; gap: 1rem; font-size: 0.9rem;">
       {% if locale == 'en' %}
-        <a href="{{ base_path }}/opportunities/{{ op.id }}/ja/" style="color: var(--accent); text-decoration: none; font-weight: 600;">View in Japanese (日本語)</a>
+        <a href="{{ base_path }}/opportunities/{{ op.id }}/" style="color: var(--accent); text-decoration: none; font-weight: 600;">View in Japanese (日本語)</a>
       {% else %}
-        <a href="{{ base_path }}/opportunities/{{ op.id }}/" style="color: var(--accent); text-decoration: none; font-weight: 600;">View in English (English)</a>
+        <a href="{{ base_path }}/opportunities/{{ op.id }}/en/" style="color: var(--accent); text-decoration: none; font-weight: 600;">View in English (English)</a>
       {% endif %}
     </div>
+
+    <!-- Japanese Localization Missing Warning -->
+    {% if locale == 'ja' and translation_fallback %}
+      <div style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 0.5rem; padding: 1rem; margin-top: 1rem; margin-bottom: 1rem;">
+        <p style="margin: 0; font-size: 1rem; color: #f87171; font-weight: 600;">
+          ⚠️ 日本語要約はまだ生成されていません。
+        </p>
+        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
+          この案件の日本語翻訳データは現在利用できません。恐れ入りますが、以下のリンクより英語版をご確認ください。
+        </p>
+        <div style="margin-top: 1rem;">
+          <a href="{{ base_path }}/opportunities/{{ op.id }}/en/" class="btn-primary" style="display: inline-block; padding: 0.5rem 1rem; font-size: 0.85rem; text-decoration: none; border-radius: 0.25rem;">English Version (英語版) を見る</a>
+        </div>
+      </div>
+    {% endif %}
 
     <!-- Stale Warning -->
     {% if enrichment and llm_is_stale %}
@@ -429,17 +464,13 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
       </div>
     {% endif %}
 
-    {% if enrichment %}
+    {% if enrichment and not (locale == 'ja' and translation_fallback) %}
       <div style="background-color: rgba(99, 102, 241, 0.05); border: 1px solid var(--accent); border-radius: 0.5rem; padding: 1rem; margin-top: 1rem; margin-bottom: 1rem;">
         <p style="margin: 0; font-size: 0.9rem; color: #818cf8; font-weight: 600;">
           {% if locale == 'en' %}
             ✨ AI-generated brief based on the evidence below.
           {% else %}
-            {% if translation_fallback %}
-              ✨ 日本語訳はまだ生成されていません。英語版のAI要約を表示しています。
-            {% else %}
-              ✨ 以下の証拠データに基づくAI生成の日本語参考訳です。
-            {% endif %}
+            ✨ 以下の証拠データに基づくAI生成の日本語参考訳です。
           {% endif %}
         </p>
         <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">
@@ -454,11 +485,23 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
 
     <div class="card" style="margin-top: 1rem; padding: 2rem;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1 style="margin: 0; font-size: 2.25rem;">{{ loc_data.title }}</h1>
+        <h1 style="margin: 0; font-size: 2.25rem;">
+          {% if locale == 'ja' and translation_fallback %}
+            [日本語要約未生成] {{ op.title }}
+          {% else %}
+            {{ loc_data.title }}
+          {% endif %}
+        </h1>
         <div class="score-value" style="font-size: 3rem;">{{ op.total_score }}</div>
       </div>
       
-      <p style="font-size: 1.15rem; color: var(--text-secondary); margin-top: 1.5rem;">{{ loc_data.summary }}</p>
+      <p style="font-size: 1.15rem; color: var(--text-secondary); margin-top: 1.5rem;">
+        {% if locale == 'ja' and translation_fallback %}
+          日本語の要約情報はまだ生成されていません。英語版を確認してください。
+        {% else %}
+          {{ loc_data.summary }}
+        {% endif %}
+      </p>
       
       <div class="meta-info" style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
         <div><strong>Status:</strong> {{ op.status }}</div>
@@ -475,7 +518,7 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
-    {% if enrichment %}
+    {% if enrichment and not (locale == 'ja' and translation_fallback) %}
       <div class="card" style="margin-top: 1.5rem; padding: 2rem;">
         <h2 style="margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
           {% if locale == 'en' %}AI Enrichment Analysis{% else %}AIによる付加分析 (AI Enrichment Analysis){% endif %}
@@ -537,14 +580,17 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
     </div>
     {% for ev in evidences %}
       <div class="card" style="margin-bottom: 1rem; border-left: 4px solid var(--accent);">
-        <div style="display: flex; justify-content: space-between;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
           <h4 style="margin: 0;">
             <a href="{{ ev.url | safe_url }}" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">{{ ev.title }}</a>
             {% if enrichment and ev.id in enrichment.evidence_refs %}
               <span class="badge badge-success" style="font-size: 0.65rem; margin-left: 0.5rem;">AI Ref</span>
             {% endif %}
           </h4>
-          <span class="badge badge-accent">Relevance: {{ ev.relevance_score }}</span>
+          <div style="display: flex; gap: 0.5rem;">
+            <span class="badge badge-info">役割: {{ ev.signal_role }}</span>
+            <span class="badge badge-accent">Relevance: {{ ev.relevance_score }}</span>
+          </div>
         </div>
         
         <!-- Evidence summaries -->
@@ -615,11 +661,78 @@ DIAGNOSTICS_TEMPLATE = """<!DOCTYPE html>
   <main class="container">
     <h1>Collector &amp; Pipeline Diagnostics</h1>
     <p>ソース収集ログとシステム診断情報です。</p>
-    
-    <div class="table-container" style="overflow-x: auto; margin-top: 2rem;">
+
+    <!-- Global Pipeline Summary -->
+    <h2 style="margin-top: 2rem;">Global Pipeline Summary</h2>
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+      <div class="card" style="padding: 1.5rem;">
+        <h4>Opportunity Candidates</h4>
+        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: var(--accent);">{{ global_stats.opportunity_candidates }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">v2分析で抽出された案件候補数</p>
+      </div>
+      <div class="card" style="padding: 1.5rem;">
+        <h4>Hard Gate Passed</h4>
+        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: #34d399;">{{ global_stats.gate_passed }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">ゲート条件を満たして合格した件数</p>
+      </div>
+      <div class="card" style="padding: 1.5rem;">
+        <h4>Hard Gate Rejected</h4>
+        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: #f87171;">{{ global_stats.gate_rejected }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">ゲート条件を満たさず却下された件数</p>
+      </div>
+      <div class="card" style="padding: 1.5rem;">
+        <h4>Published Opportunities</h4>
+        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: #60a5fa;">{{ global_stats.published_opportunities }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">標準公開対象の案件数 (Confidence != LOW)</p>
+      </div>
+    </div>
+
+    <!-- Pipeline Stats by Source Type -->
+    <h2>Source Type Pipeline Audits</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
       <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
         <thead>
-          <tr style="border-bottom: 2px solid var(--border); font-weight: bold;">
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02);">
+            <th style="padding: 1rem;">Source Type</th>
+            <th style="padding: 1rem;">Enabled Sources</th>
+            <th style="padding: 1rem;">Last Run</th>
+            <th style="padding: 1rem;">Fetched</th>
+            <th style="padding: 1rem;">Persisted</th>
+            <th style="padding: 1rem;">Skipped</th>
+            <th style="padding: 1rem;">Failed</th>
+            <th style="padding: 1rem;">Signals Analyzed</th>
+            <th style="padding: 1rem;">Evidence Used</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stype in ["github", "hackernews", "rss"] %}
+            {% set stats = pipeline_stats[stype] %}
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 1rem; font-weight: 600; text-transform: uppercase; color: var(--accent);">{{ stype }}</td>
+              <td style="padding: 1rem;">{{ stats.enabled_sources }}</td>
+              <td style="padding: 1rem; font-size: 0.85rem;">{{ stats.last_run | format_datetime }}</td>
+              <td style="padding: 1rem;">{{ stats.fetched }}</td>
+              <td style="padding: 1rem;">{{ stats.persisted }}</td>
+              <td style="padding: 1rem;">{{ stats.skipped }}</td>
+              <td style="padding: 1rem;">
+                <span style="color: {% if stats.failed > 0 %}#f87171{% else %}inherit{% endif %};">
+                  {{ stats.failed }}
+                </span>
+              </td>
+              <td style="padding: 1rem;">{{ stats.signals_analyzed }}</td>
+              <td style="padding: 1rem;">{{ stats.evidence_used }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Recent Collector Runs -->
+    <h2>Recent Collector Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02);">
             <th style="padding: 1rem;">Source</th>
             <th style="padding: 1rem;">Status</th>
             <th style="padding: 1rem;">Fetched</th>
