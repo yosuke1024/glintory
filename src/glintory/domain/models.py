@@ -607,6 +607,8 @@ class OpportunityEnrichment(Base):
     model_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     runtime: Mapped[str] = mapped_column(String(100), nullable=False)
     runtime_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    runtime_commit: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    runtime_binary_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
@@ -622,8 +624,12 @@ class OpportunityEnrichment(Base):
     evidence_refs: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     llm_confidence: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -661,7 +667,7 @@ class OpportunityEnrichment(Base):
             name="chk_opportunity_enrichments_confidence",
         ),
         CheckConstraint(
-            "error_code IN ('LLM_MODEL_DOWNLOAD_FAILED', 'LLM_MODEL_CHECKSUM_FAILED', 'LLM_RUNTIME_START_FAILED', 'LLM_TIMEOUT', 'LLM_INVALID_JSON', 'LLM_SCHEMA_VALIDATION_FAILED', 'LLM_INFERENCE_FAILED', 'LLM_INPUT_BUDGET_EXCEEDED') OR error_code IS NULL",
+            "error_code IN ('LLM_MODEL_DOWNLOAD_FAILED', 'LLM_MODEL_CHECKSUM_FAILED', 'LLM_RUNTIME_START_FAILED', 'LLM_TIMEOUT', 'LLM_INVALID_JSON', 'LLM_SCHEMA_VALIDATION_FAILED', 'LLM_INFERENCE_FAILED', 'LLM_INPUT_BUDGET_EXCEEDED', 'LLM_PROVIDER_CONTRACT_FAILED', 'LLM_CONFIGURATION_INVALID') OR error_code IS NULL",
             name="chk_opportunity_enrichments_error_code",
         ),
     )

@@ -1,5 +1,6 @@
 import re
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 HTML_PATTERN = re.compile(r"<[^>]*>|&[#\w]+;")
 URL_PATTERN = re.compile(r"https?://[^\s/$.?#].[^\s]*", re.IGNORECASE)
@@ -31,7 +32,14 @@ class BriefBase(BaseModel):
     risks: list[str]
     tags: list[str]
 
-    @field_validator("title", "summary", "problem_statement", "why_now", "evidence_synthesis", "build_direction")
+    @field_validator(
+        "title",
+        "summary",
+        "problem_statement",
+        "why_now",
+        "evidence_synthesis",
+        "build_direction",
+    )
     @classmethod
     def check_strings(cls, v: str) -> str:
         return validate_string_safety(v)

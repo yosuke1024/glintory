@@ -26,14 +26,6 @@ jobs:
       GLINTORY_REPOSITORY_URL: ${{ vars.GLINTORY_REPOSITORY_URL }}
       GLINTORY_PIXAPPS_URL: ${{ vars.GLINTORY_PIXAPPS_URL }}
       GLINTORY_LOCAL_LLM_ENABLED: "false"
-      GLINTORY_LOCAL_LLM_MODEL_REPO: "Qwen/Qwen3-1.7B-GGUF"
-      GLINTORY_LOCAL_LLM_MODEL_FILE: "Qwen3-1.7B-Q8_0.gguf"
-      GLINTORY_LOCAL_LLM_MODEL_PATH: "./models/Qwen3-1.7B-Q8_0.gguf"
-      GLINTORY_LOCAL_LLM_MODEL_REVISION: "90862c4b9d2787eaed51d12237eafdfe7c5f6077"
-      GLINTORY_LOCAL_LLM_MODEL_SHA256: "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a"
-      GLINTORY_LOCAL_LLM_BINARY_PATH: "./bin/llama-server"
-      LLAMA_CPP_VERSION: "b3600"
-      LLAMA_CPP_BINARY_SHA256: "5edcfae5739f313a9d30bf9e59116b53f5240c3e6ffeb9f25be9bb7b8c303222"
     outputs:
       collection_exit_code: ${{ steps.collection.outputs.collection_exit_code }}
       collection_status: ${{ steps.collection.outputs.collection_status }}
@@ -99,58 +91,6 @@ jobs:
           # Apply Alembic migrations
           uv run alembic upgrade head
 
-      - name: Cache LLM assets
-        if: env.GLINTORY_LOCAL_LLM_ENABLED == 'true'
-        id: cache-llm
-        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
-        with:
-          path: |
-            ./bin
-            ./models
-          key: local-llm-${{ env.GLINTORY_LOCAL_LLM_MODEL_REPO }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}-${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}-${{ env.LLAMA_CPP_VERSION }}
-
-      - name: Prepare and verify LLM assets
-        if: env.GLINTORY_LOCAL_LLM_ENABLED == 'true'
-        run: |
-          mkdir -p bin models
-
-          # 1. Check and prepare llama-server
-          bin_ok=false
-          if [ -f "./bin/llama-server" ]; then
-            echo "${{ env.LLAMA_CPP_BINARY_SHA256 }}  ./bin/llama-server" | sha256sum -c - --status && bin_ok=true || bin_ok=false
-          fi
-
-          if [ "$bin_ok" = "false" ]; then
-            echo "Binary missing or hash mismatch. Downloading..."
-            ZIP_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_VERSION}/llama-${LLAMA_CPP_VERSION}-bin-ubuntu-x64.zip"
-            curl -L -o llama.zip "$ZIP_URL"
-            # Verify zip archive hash
-            echo "fa7e7a980d7ffdd152fbd56d6c14f943b4e6f1a5b10d103f2bba3eb0f46eed3a  llama.zip" | sha256sum -c -
-            unzip -o llama.zip -d llama_temp
-            find llama_temp -name "llama-server" -exec cp {} ./bin/llama-server \;
-            chmod +x ./bin/llama-server
-            rm -rf llama.zip llama_temp
-            # Verify extracted binary hash
-            echo "${{ env.LLAMA_CPP_BINARY_SHA256 }}  ./bin/llama-server" | sha256sum -c -
-          else
-            echo "Binary cached and verified successfully."
-          fi
-
-          # 2. Check and prepare Model GGUF
-          model_ok=false
-          if [ -f "./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" ]; then
-            echo "${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}  ./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" | sha256sum -c - --status && model_ok=true || model_ok=false
-          fi
-
-          if [ "$model_ok" = "false" ]; then
-            echo "Model missing or hash mismatch. Downloading..."
-            MODEL_URL="https://huggingface.co/${{ env.GLINTORY_LOCAL_LLM_MODEL_REPO }}/resolve/${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}"
-            curl -L -o "./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" "$MODEL_URL"
-            # Verify model hash
-            echo "${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}  ./models/${{ env.GLINTORY_LOCAL_LLM_MODEL_FILE }}" | sha256sum -c -
-          else
-            echo "Model cached and verified successfully."
-          fi
 
       - name: Sync source manifest
         run: |

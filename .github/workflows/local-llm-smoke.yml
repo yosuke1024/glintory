@@ -3,6 +3,9 @@ name: Local LLM Enrichment Smoke Test
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   smoke-test:
     runs-on: ubuntu-latest
@@ -27,16 +30,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Python
-        uses: actions/setup-python@f67e243f3d734e5a6534282a1b339b0e40f69306
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
           python-version: "3.12"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@17498c4fdfda2cc4114fec64f02fa883907c166d
+        uses: astral-sh/setup-uv@1edb52594c857e2b5b13128931090f0640537287 # v5.3.0
         with:
+          version: "0.5.21"
           enable-cache: true
 
       - name: Install dependencies
@@ -208,6 +212,14 @@ jobs:
           ) &
           MONITOR_PID=$!
           
+          cleanup() {
+            touch /tmp/monitor_stop || true
+            wait "$MONITOR_PID" || true
+          }
+          trap cleanup EXIT
+
+          set +e
+          
           # Run Smoke CLI under require-all-success
           uv run glintory enrich run \
             --opportunity smoke_opp \
@@ -217,15 +229,11 @@ jobs:
             > build/llm-smoke-result.json
           
           cli_status=$?
+          set -e
+
+          echo "$cli_status" > build/cli_exit_code.txt
           
-          # Stop monitor
-          touch /tmp/monitor_stop
-          wait $MONITOR_PID
-          
-          if [ $cli_status -ne 0 ]; then
-            echo "Smoke CLI execution failed with status: $cli_status"
-            exit $cli_status
-          fi
+          exit "$cli_status"
 
       - name: Assert JSON Results
         run: |
@@ -319,6 +327,9 @@ jobs:
               json.dump(summary_data, f)
           print("Database verification passed.")
           EOF
+          
+          # Write schema validation success indicator
+          echo "passed" > build/schema_validation.txt
 
       - name: Write Actions Step Summary
         if: always()
@@ -333,6 +344,7 @@ jobs:
           JA_TITLE=""
           JA_SUMMARY=""
           INF_DURATION="0"
+          RUN_VERSION="unknown"
           
           if [ -f "build/db_summary.json" ]; then
             EN_TITLE=$(jq -r '.en_title' build/db_summary.json)
@@ -340,24 +352,51 @@ jobs:
             JA_TITLE=$(jq -r '.ja_title' build/db_summary.json)
             JA_SUMMARY=$(jq -r '.ja_summary' build/db_summary.json)
             INF_DURATION=$(jq -r '.inference_duration' build/db_summary.json)
+            RUN_VERSION=$(jq -r '.runtime_version' build/db_summary.json)
+          fi
+
+          # Read CLI results
+          SELECTED_COUNT=0
+          SUCCEEDED_COUNT=0
+          FAILED_COUNT=0
+          OPERATIONAL_STATUS="failed"
+          if [ -f "build/llm-smoke-result.json" ]; then
+            SELECTED_COUNT=$(jq -r '.selected_count // 0' build/llm-smoke-result.json)
+            SUCCEEDED_COUNT=$(jq -r '.succeeded_count // 0' build/llm-smoke-result.json)
+            FAILED_COUNT=$(jq -r '.failed_count // 0' build/llm-smoke-result.json)
+            OPERATIONAL_STATUS=$(jq -r '.operational_status // "failed"' build/llm-smoke-result.json)
+          fi
+
+          # Read CLI exit code
+          CLI_EXIT=$(cat build/cli_exit_code.txt || echo "1")
+
+          # Read Schema Validation Status
+          SCHEMA_VAL="failed"
+          if [ -f "build/schema_validation.txt" ]; then
+            SCHEMA_VAL=$(cat build/schema_validation.txt)
+          fi
+
+          # Workflow Status
+          if [ "$CLI_EXIT" = "0" ] && [ "$SCHEMA_VAL" = "passed" ]; then
+            WORKFLOW_STATUS="Success"
+          else
+            WORKFLOW_STATUS="Failed"
           fi
 
           echo "### 🚀 Local LLM Conformance Smoke Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| llama.cpp Release | \`${{ env.LLAMA_CPP_VERSION }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| llama.cpp Commit | \`${{ env.LLAMA_CPP_COMMIT }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| llama.cpp Binary SHA | \`${{ env.LLAMA_CPP_BINARY_SHA256 }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Qwen Model Revision | \`${{ env.GLINTORY_LOCAL_LLM_MODEL_REVISION }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Qwen Model SHA | \`${{ env.GLINTORY_LOCAL_LLM_MODEL_SHA256 }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Cache Status | ${{ env.cache_status }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Inference Duration | ${INF_DURATION} ms |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workflow Status | **${WORKFLOW_STATUS}** |" >> $GITHUB_STEP_SUMMARY
+          echo "| CLI Exit Code | \`${CLI_EXIT}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Operational Status | \`${OPERATIONAL_STATUS}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Selected Count | ${SELECTED_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Succeeded Count | ${SUCCEEDED_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed Count | ${FAILED_COUNT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Schema Validation | ${SCHEMA_VAL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Runtime Version | \`${RUN_VERSION}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Peak RSS | ${PEAK_RSS_MB} MB (${PEAK_RSS_KB} KB) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Selected Count | 1 |" >> $GITHUB_STEP_SUMMARY
-          echo "| Succeeded Count | 1 |" >> $GITHUB_STEP_SUMMARY
-          echo "| Failed Count | 0 |" >> $GITHUB_STEP_SUMMARY
-          echo "| Schema Validation | passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Inference Duration | ${INF_DURATION} ms |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### 📝 BILINGUAL SUMMARY PREVIEW" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

@@ -1,23 +1,31 @@
 import json
+import logging
 import os
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
-from typing import Sequence
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from glintory.config import settings
-from glintory.domain.enums import Confidence, OpportunityStatus, SignalType, EvidenceRelationType
+from glintory.domain.enums import (
+    Confidence,
+    EvidenceRelationType,
+    OpportunityStatus,
+    SignalType,
+)
 from glintory.domain.models import (
     Base,
     Opportunity,
+    OpportunityEnrichment,
+    OpportunityEnrichmentLocalization,
     OpportunitySignal,
     ScoreSnapshot,
     Signal,
     Source,
-    OpportunityEnrichment,
-    OpportunityEnrichmentLocalization,
 )
 from glintory.domain.validation_models import EnglishBrief, JapaneseBrief
 from glintory.infrastructure.local_llm_client import (
@@ -25,11 +33,12 @@ from glintory.infrastructure.local_llm_client import (
     OpportunityEnrichmentRequest,
     OpportunityEnrichmentResponse,
 )
-from glintory.infrastructure.opportunity_enrichment_repository import OpportunityEnrichmentRepository
+from glintory.infrastructure.opportunity_enrichment_repository import (
+    OpportunityEnrichmentRepository,
+)
 from glintory.services.opportunity_enrichment_service import (
-    OpportunityEnrichmentService,
     PROMPT_VERSION,
-    SCHEMA_VERSION,
+    OpportunityEnrichmentService,
 )
 from glintory.services.static_publishing import build_static_site
 
@@ -59,8 +68,8 @@ class FakeEnrichmentProvider(OpportunityEnrichmentProvider):
 def db_session_factory():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    yield Session
+    session_class = sessionmaker(bind=engine)
+    yield session_class
     engine.dispose()
 
 
@@ -185,7 +194,9 @@ def test_enrichment_skips_same_input_hash(db_session_factory, mock_opportunity_d
     assert len(provider.calls) == 2
 
 
-def test_enrichment_stale_when_evidence_changes(db_session_factory, mock_opportunity_data):
+def test_enrichment_stale_when_evidence_changes(
+    db_session_factory, mock_opportunity_data
+):
     opp_id, signal_id, _ = mock_opportunity_data
     settings.local_llm_enabled = True
 
@@ -314,11 +325,14 @@ def test_enrichment_skips_when_disabled(db_session_factory, mock_opportunity_dat
     assert len(provider.calls) == 0
 
 
-def test_validation_rejects_html_and_invalid_refs(db_session_factory, mock_opportunity_data):
+def test_validation_rejects_html_and_invalid_refs(
+    db_session_factory, mock_opportunity_data
+):
     opp_id, signal_id, _ = mock_opportunity_data
     settings.local_llm_enabled = True
 
     from glintory.infrastructure.local_llm_client import LocalLlmProvider
+
     provider = LocalLlmProvider()
 
     req = OpportunityEnrichmentRequest(
@@ -348,10 +362,13 @@ def test_validation_rejects_html_and_invalid_refs(db_session_factory, mock_oppor
         mock_run.return_value = mock_res
 
         # Mock check verification paths
-        with patch("os.path.exists", return_value=True), patch(
-            "glintory.infrastructure.local_llm_client.verify_sha256", return_value=True
+        with (
+            patch("os.path.exists", return_value=True),
+            patch(
+                "glintory.infrastructure.local_llm_client.verify_sha256",
+                return_value=True,
+            ),
         ):
-
             # 2. Mock httpx.Client.post for HTML injection
             with patch("httpx.Client.post") as mock_post:
                 mock_resp = MagicMock()
@@ -445,7 +462,9 @@ def test_validation_rejects_html_and_invalid_refs(db_session_factory, mock_oppor
                 assert res[0].error_code == "LLM_SCHEMA_VALIDATION_FAILED"
 
 
-def test_static_site_fallback_and_rendering(db_session_factory, mock_opportunity_data, tmp_path):
+def test_static_site_fallback_and_rendering(
+    db_session_factory, mock_opportunity_data, tmp_path
+):
     opp_id, signal_id, _ = mock_opportunity_data
     output_dir = str(tmp_path / "static")
 
@@ -458,7 +477,7 @@ def test_static_site_fallback_and_rendering(db_session_factory, mock_opportunity
     assert res_fallback["total_files"] > 0
 
     opp_detail_file = os.path.join(output_dir, "opportunities", opp_id, "index.html")
-    with open(opp_detail_file, "r") as f:
+    with open(opp_detail_file) as f:
         content = f.read()
     assert "Test Opportunity Title" in content
     assert "AI-generated brief based on the evidence below." not in content
@@ -523,7 +542,7 @@ def test_static_site_fallback_and_rendering(db_session_factory, mock_opportunity
     session.commit()
 
     # Re-render with enrichment
-    res_enriched = build_static_site(
+    build_static_site(
         session=session,
         output_dir=output_dir,
         site_url="https://example.com/glintory",
@@ -531,7 +550,7 @@ def test_static_site_fallback_and_rendering(db_session_factory, mock_opportunity
     session.close()
 
     # Verify English Page (Default)
-    with open(opp_detail_file, "r") as f:
+    with open(opp_detail_file) as f:
         content_en = f.read()
     assert "AI Eng Title" in content_en
     assert "AI Eng Summary" in content_en
@@ -539,9 +558,11 @@ def test_static_site_fallback_and_rendering(db_session_factory, mock_opportunity
     assert "View in Japanese (日本語)" in content_en
 
     # Verify Japanese Page
-    opp_detail_file_ja = os.path.join(output_dir, "opportunities", opp_id, "ja", "index.html")
+    opp_detail_file_ja = os.path.join(
+        output_dir, "opportunities", opp_id, "ja", "index.html"
+    )
     assert os.path.exists(opp_detail_file_ja)
-    with open(opp_detail_file_ja, "r") as f:
+    with open(opp_detail_file_ja) as f:
         content_ja = f.read()
     assert "AI 日タイト" in content_ja
     assert "AI 日サマ" in content_ja
@@ -563,10 +584,13 @@ def test_static_site_fallback_and_rendering(db_session_factory, mock_opportunity
     )
     session.close()
 
-    with open(opp_detail_file_ja, "r") as f:
+    with open(opp_detail_file_ja) as f:
         content_ja_fallback = f.read()
     assert "AI Generated Title" in content_ja_fallback  # fallback to English
-    assert "日本語訳はまだ生成されていません。英語版のAI要約を表示しています。" in content_ja_fallback
+    assert (
+        "日本語訳はまだ生成されていません。英語版のAI要約を表示しています。"
+        in content_ja_fallback
+    )
 
 
 def test_zero_evidence_skips_with_warning(db_session_factory, mock_opportunity_data):
@@ -575,7 +599,9 @@ def test_zero_evidence_skips_with_warning(db_session_factory, mock_opportunity_d
 
     # Delete all evidence relation records to simulate zero evidence
     session = db_session_factory()
-    session.query(OpportunitySignal).filter(OpportunitySignal.opportunity_id == opp_id).delete()
+    session.query(OpportunitySignal).filter(
+        OpportunitySignal.opportunity_id == opp_id
+    ).delete()
     session.commit()
     session.close()
 
@@ -592,10 +618,12 @@ def test_zero_evidence_skips_with_warning(db_session_factory, mock_opportunity_d
 def test_input_budget_exceeded(db_session_factory, mock_opportunity_data):
     opp_id, signal_id, _ = mock_opportunity_data
     settings.local_llm_enabled = True
-    
+
     # Store old limit
     old_limit = settings.local_llm_max_input_chars
-    settings.local_llm_max_input_chars = 50  # extremely small limit to trigger early budget overflow
+    settings.local_llm_max_input_chars = (
+        50  # extremely small limit to trigger early budget overflow
+    )
 
     try:
         resp = OpportunityEnrichmentResponse(status="succeeded")
@@ -605,10 +633,14 @@ def test_input_budget_exceeded(db_session_factory, mock_opportunity_data):
         res = service.run_enrichment(affected_opportunity_ids=[opp_id])
         assert res.failed_count == 1
         assert "LLM_INPUT_BUDGET_EXCEEDED" in res.warning_codes
-        
+
         # Verify DB shows failed status with budget error code
         session = db_session_factory()
-        enrich = session.query(OpportunityEnrichment).filter(OpportunityEnrichment.opportunity_id == opp_id).first()
+        enrich = (
+            session.query(OpportunityEnrichment)
+            .filter(OpportunityEnrichment.opportunity_id == opp_id)
+            .first()
+        )
         assert enrich is not None
         assert enrich.status == "failed"
         assert enrich.error_code == "LLM_INPUT_BUDGET_EXCEEDED"
@@ -618,7 +650,7 @@ def test_input_budget_exceeded(db_session_factory, mock_opportunity_data):
 
 
 def test_provider_response_count_mismatch(db_session_factory, mock_opportunity_data):
-    opp_id, signal_id, _ = mock_opportunity_data
+    opp_id, signal_id, source_id = mock_opportunity_data
     settings.local_llm_enabled = True
 
     # Case 1: Excess responses
@@ -627,19 +659,306 @@ def test_provider_response_count_mismatch(db_session_factory, mock_opportunity_d
             return [OpportunityEnrichmentResponse(status="succeeded")] * (len(reqs) + 1)
 
     service = OpportunityEnrichmentService(db_session_factory, ExcessProvider())
-    with pytest.raises(ValueError, match="Provider Contract Error"):
+    with pytest.raises(ValueError, match="LLM_PROVIDER_CONTRACT_FAILED"):
         service.run_enrichment(affected_opportunity_ids=[opp_id])
 
     # Verify enrichment record is marked failed in DB
     session = db_session_factory()
-    enrich = session.query(OpportunityEnrichment).filter(OpportunityEnrichment.opportunity_id == opp_id).first()
+    enrich = (
+        session.query(OpportunityEnrichment)
+        .filter(OpportunityEnrichment.opportunity_id == opp_id)
+        .first()
+    )
     assert enrich is not None
     assert enrich.status == "failed"
-    assert enrich.error_code == "LLM_INFERENCE_FAILED"
+    assert enrich.error_code == "LLM_PROVIDER_CONTRACT_FAILED"
+
+    running_count = (
+        session.query(OpportunityEnrichment)
+        .filter(OpportunityEnrichment.status == "running")
+        .count()
+    )
+    assert running_count == 0
     session.close()
 
 
-def test_runtime_start_failure_leaves_no_running_records(db_session_factory, mock_opportunity_data):
+def test_provider_response_deficient_count_mismatch(
+    db_session_factory, mock_opportunity_data
+):
+    opp_id, signal_id, source_id = mock_opportunity_data
+    settings.local_llm_enabled = True
+
+    # Create a second opportunity
+    session = db_session_factory()
+    opp2 = Opportunity(
+        title="Test Opportunity Title 2",
+        proposed_solution="Test summary proposed solution 2.",
+        evidence_score=10,
+        feasibility_score=10,
+        penalty_score=0,
+        total_score=20,
+        confidence=Confidence.MEDIUM,
+        status=OpportunityStatus.INBOX,
+    )
+    session.add(opp2)
+    session.flush()
+    opp2_id = opp2.id
+
+    opp_sig2 = OpportunitySignal(
+        opportunity_id=opp2.id,
+        signal_id=signal_id,
+        relation_type=EvidenceRelationType.SUPPORTING,
+        relevance_score=0.9,
+    )
+    session.add(opp_sig2)
+
+    snapshot2 = ScoreSnapshot(
+        opportunity_id=opp2.id,
+        evidence_score=10,
+        feasibility_score=10,
+        penalty_score=0,
+        total_score=20,
+        confidence=Confidence.MEDIUM,
+        scoring_version=settings.scoring_version,
+        input_hash="snapshot_hash_456",
+    )
+    session.add(snapshot2)
+    session.commit()
+    session.close()
+
+    # Requests: 2, Responses: 1
+    class DeficientProvider(OpportunityEnrichmentProvider):
+        def enrich_many(self, _reqs):
+            return [
+                OpportunityEnrichmentResponse(
+                    status="succeeded",
+                    english=EnglishBrief(
+                        title="Deficient Title 1",
+                        summary="Summary 1",
+                        problem_statement="Problem 1",
+                        target_users=["User 1"],
+                        why_now="Why 1",
+                        evidence_synthesis="Synthesis 1",
+                        build_direction="Direction 1",
+                        risks=["Risk 1"],
+                        tags=["Tag 1"],
+                    ),
+                    japanese=JapaneseBrief(
+                        title="日本語タイトル 1",
+                        summary="概要 1",
+                        problem_statement="課題 1",
+                        target_users=["ユーザー 1"],
+                        why_now="背景 1",
+                        evidence_synthesis="証拠 1",
+                        build_direction="方向性 1",
+                        risks=["リスク 1"],
+                        tags=["タグ 1"],
+                    ),
+                    evidence_refs=["smoke_sig"],
+                    llm_confidence="high",
+                    duration_ms=100,
+                )
+            ]
+
+    service = OpportunityEnrichmentService(db_session_factory, DeficientProvider())
+    res = service.run_enrichment(affected_opportunity_ids=[opp_id, opp2_id])
+
+    assert res.succeeded_count == 1
+    assert res.failed_count == 1
+
+    session = db_session_factory()
+    e1 = (
+        session.query(OpportunityEnrichment)
+        .filter(OpportunityEnrichment.opportunity_id == opp_id)
+        .first()
+    )
+    e2 = (
+        session.query(OpportunityEnrichment)
+        .filter(OpportunityEnrichment.opportunity_id == opp2_id)
+        .first()
+    )
+    assert e1 is not None
+    assert e2 is not None
+
+    statuses = {e1.status, e2.status}
+    assert statuses == {"succeeded", "failed"}
+
+    succeeded_enrich = e1 if e1.status == "succeeded" else e2
+    failed_enrich = e1 if e1.status == "failed" else e2
+
+    assert succeeded_enrich.generated_title == "Deficient Title 1"
+    assert failed_enrich.error_code == "LLM_INFERENCE_FAILED"
+
+    running_count = (
+        session.query(OpportunityEnrichment)
+        .filter(OpportunityEnrichment.status == "running")
+        .count()
+    )
+    assert running_count == 0
+    session.close()
+
+
+def test_v1_to_v2_migration_recomputation(db_session_factory, mock_opportunity_data):
+    opp_id, signal_id, _ = mock_opportunity_data
+    settings.local_llm_enabled = True
+
+    session = db_session_factory()
+    service = OpportunityEnrichmentService(db_session_factory, cast(Any, None))
+
+    repo = OpportunityEnrichmentRepository(session)
+    opps = service._select_opportunities(
+        session, repo, affected_opportunity_ids=[opp_id]
+    )
+    assert len(opps) == 1
+    opp, score_hash, evidences = opps[0]
+    input_hash = service.calculate_input_hash(
+        opportunity_id=opp_id, score_input_hash=score_hash, evidences=evidences
+    )
+
+    from datetime import UTC, datetime
+
+    v1_enrich = OpportunityEnrichment(
+        opportunity_id=opp_id,
+        status="succeeded",
+        model_provider="qwen",
+        model_id=settings.local_llm_model_file,
+        model_revision=settings.local_llm_model_revision,
+        model_sha256=settings.local_llm_model_sha256,
+        runtime="llama.cpp",
+        runtime_version="b5092",
+        prompt_version="v1",
+        input_hash=input_hash,
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+    )
+    session.add(v1_enrich)
+    session.commit()
+    session.close()
+
+    class DummyProvider(OpportunityEnrichmentProvider):
+        def enrich_many(self, _reqs):
+            return [
+                OpportunityEnrichmentResponse(
+                    status="succeeded",
+                    english=EnglishBrief(
+                        title="V2 Title",
+                        summary="Summary",
+                        problem_statement="Problem",
+                        target_users=["User"],
+                        why_now="Why",
+                        evidence_synthesis="Synthesis",
+                        build_direction="Direction",
+                        risks=["Risk"],
+                        tags=["Tag"],
+                    ),
+                    japanese=JapaneseBrief(
+                        title="V2 日本語タイトル",
+                        summary="概要",
+                        problem_statement="課題",
+                        target_users=["ユーザー"],
+                        why_now="背景",
+                        evidence_synthesis="証拠",
+                        build_direction="方向性",
+                        risks=["リスク"],
+                        tags=["タグ"],
+                    ),
+                    evidence_refs=["smoke_sig"],
+                    llm_confidence="high",
+                    duration_ms=100,
+                )
+            ]
+
+    service2 = OpportunityEnrichmentService(db_session_factory, DummyProvider())
+    res = service2.run_enrichment(affected_opportunity_ids=[opp_id])
+    assert res.succeeded_count == 1
+    assert res.skipped_count == 0
+
+    session = db_session_factory()
+    v2_enrich = (
+        session.query(OpportunityEnrichment)
+        .filter(
+            OpportunityEnrichment.opportunity_id == opp_id,
+            OpportunityEnrichment.prompt_version == "v2",
+        )
+        .first()
+    )
+    assert v2_enrich is not None
+    assert v2_enrich.status == "succeeded"
+    assert v2_enrich.generated_title == "V2 Title"
+    session.close()
+
+
+def test_leak_prevention_on_failures(db_session_factory, mock_opportunity_data, caplog):
+    import sys
+    from io import StringIO
+
+    opp_id, _, _ = mock_opportunity_data
+    settings.local_llm_enabled = True
+
+    secret_token = "TOKEN_SECRET_12345"
+    secret_db = "sqlite:///private_leaked.db"
+    secret_body = "HTTP response body containing sensitive info"
+    secret_path = "/Users/example/private_folder/private.gguf"
+
+    class LeakingProvider(OpportunityEnrichmentProvider):
+        def verify_infrastructure(self):
+            raise ValueError(
+                f"Failed with {secret_token} and {secret_db} and {secret_body} and {secret_path}"
+            )
+
+        def enrich_many(self, _reqs):
+            return []
+
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    sys.stdout = StringIO()
+    sys.stderr = StringIO()
+
+    import argparse
+
+    from glintory.cli import run_enrich_command
+
+    class MockRuntime:
+        def __init__(self, session_factory):
+            self.session_factory = session_factory
+
+    args = argparse.Namespace(
+        opportunity=opp_id,
+        max_opportunities=1,
+        force=True,
+        json=True,
+        require_all_success=True,
+    )
+    runtime = MockRuntime(db_session_factory)
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        from unittest.mock import patch
+
+        with patch("glintory.infrastructure.local_llm_client.LocalLlmProvider", LeakingProvider):
+            exit_code = pytest.importorskip("asyncio").run(
+                run_enrich_command(args, runtime)
+            )
+
+    stdout_val = sys.stdout.getvalue()
+    stderr_val = sys.stderr.getvalue()
+    sys.stdout = old_stdout
+    sys.stderr = old_stderr
+
+    assert exit_code == 1
+
+    for secret in (secret_token, secret_db, secret_body, secret_path):
+        assert secret not in stdout_val, f"Secret leaked in stdout: {secret}"
+        assert secret not in stderr_val, f"Secret leaked in stderr: {secret}"
+        for record in caplog.records:
+            assert secret not in record.message, (
+                f"Secret leaked in logger: {record.message}"
+            )
+
+
+def test_runtime_start_failure_leaves_no_running_records(
+    db_session_factory, mock_opportunity_data
+):
     opp_id, signal_id, _ = mock_opportunity_data
     settings.local_llm_enabled = True
 
@@ -647,7 +966,8 @@ def test_runtime_start_failure_leaves_no_running_records(db_session_factory, moc
     class FailingProvider(OpportunityEnrichmentProvider):
         def verify_infrastructure(self):
             raise RuntimeError("LLM_RUNTIME_START_FAILED")
-        def enrich_many(self, reqs):
+
+        def enrich_many(self, _reqs):
             return []
 
     service = OpportunityEnrichmentService(db_session_factory, FailingProvider())
@@ -656,6 +976,10 @@ def test_runtime_start_failure_leaves_no_running_records(db_session_factory, moc
 
     # Verify no enrichment record in DB is left in running state
     session = db_session_factory()
-    enrich = session.query(OpportunityEnrichment).filter(OpportunityEnrichment.opportunity_id == opp_id).first()
+    enrich = (
+        session.query(OpportunityEnrichment)
+        .filter(OpportunityEnrichment.opportunity_id == opp_id)
+        .first()
+    )
     assert enrich is None or enrich.status != "running"
     session.close()

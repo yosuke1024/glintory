@@ -57,6 +57,21 @@ class Settings(BaseSettings):
             raise ValueError(
                 "schedule_max_interval_minutes must be >= schedule_min_interval_minutes"
             )
+        if self.local_llm_enabled:
+            if not self.local_llm_model_path:
+                raise ValueError("LLM_CONFIGURATION_INVALID")
+            if not self.local_llm_model_revision:
+                raise ValueError("LLM_CONFIGURATION_INVALID")
+            if not self.local_llm_model_sha256:
+                raise ValueError("LLM_CONFIGURATION_INVALID")
+            if not self.local_llm_binary_path:
+                raise ValueError("LLM_CONFIGURATION_INVALID")
+            if not self.local_llm_binary_sha256:
+                raise ValueError("LLM_CONFIGURATION_INVALID")
+            if not self.local_llm_runtime_version:
+                raise ValueError("LLM_CONFIGURATION_INVALID")
+            if not self.local_llm_runtime_commit:
+                raise ValueError("LLM_CONFIGURATION_INVALID")
         return self
 
     @field_validator("collection_history_per_page")
@@ -68,15 +83,23 @@ class Settings(BaseSettings):
 
     local_llm_enabled: bool = False
     local_llm_binary_path: str = Field(default="./bin/llama-server")
-    local_llm_binary_sha256: str = Field(default="f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e")
+    local_llm_binary_sha256: str = Field(
+        default="f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e"
+    )
     local_llm_runtime_version: str = Field(default="b5092")
-    local_llm_runtime_commit: str | None = Field(default="d3bd7193ba66c15963fd1c59448f22019a8caf6e")
-    local_llm_archive_sha256: str = Field(default="36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5")
+    local_llm_runtime_commit: str | None = Field(
+        default="d3bd7193ba66c15963fd1c59448f22019a8caf6e"
+    )
+    local_llm_archive_sha256: str = Field(
+        default="36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5"
+    )
     local_llm_model_path: str = Field(default="./models/Qwen3-1.7B-Q8_0.gguf")
     local_llm_model_repo: str = Field(default="Qwen/Qwen3-1.7B-GGUF")
     local_llm_model_file: str = Field(default="Qwen3-1.7B-Q8_0.gguf")
     local_llm_model_revision: str = Field(default="")
-    local_llm_model_sha256: str = Field(default="061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a")
+    local_llm_model_sha256: str = Field(
+        default="061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a"
+    )
     local_llm_max_opportunities: int = Field(default=5, ge=1, le=50)
     local_llm_timeout_seconds: int = Field(default=120, ge=1)
     local_llm_max_input_chars: int = Field(default=12000, ge=1)

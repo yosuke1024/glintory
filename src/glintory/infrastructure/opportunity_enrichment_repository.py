@@ -1,8 +1,13 @@
 import logging
 from datetime import datetime
 from typing import Any
+
 from sqlalchemy.orm import Session
-from glintory.domain.models import OpportunityEnrichment, OpportunityEnrichmentLocalization
+
+from glintory.domain.models import (
+    OpportunityEnrichment,
+    OpportunityEnrichmentLocalization,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +16,9 @@ class OpportunityEnrichmentRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def get_latest_successful_enrichment(self, opportunity_id: str) -> OpportunityEnrichment | None:
+    def get_latest_successful_enrichment(
+        self, opportunity_id: str
+    ) -> OpportunityEnrichment | None:
         """Fetch the latest succeeded enrichment for an opportunity."""
         return (
             self.session.query(OpportunityEnrichment)
@@ -24,14 +31,15 @@ class OpportunityEnrichmentRepository:
         )
 
     def get_enrichment_by_input_hash(
-        self, opportunity_id: str, input_hash: str
+        self, opportunity_id: str, input_hash: str, prompt_version: str
     ) -> OpportunityEnrichment | None:
-        """Fetch enrichment by opportunity_id and input_hash."""
+        """Fetch enrichment by opportunity_id, input_hash, and prompt_version."""
         return (
             self.session.query(OpportunityEnrichment)
             .filter(
                 OpportunityEnrichment.opportunity_id == opportunity_id,
                 OpportunityEnrichment.input_hash == input_hash,
+                OpportunityEnrichment.prompt_version == prompt_version,
             )
             .first()
         )
@@ -49,6 +57,8 @@ class OpportunityEnrichmentRepository:
         prompt_version: str,
         input_hash: str,
         started_at: datetime,
+        runtime_commit: str | None = None,
+        runtime_binary_sha256: str | None = None,
     ) -> OpportunityEnrichment:
         """Create a new opportunity enrichment record in running state."""
         enrichment = OpportunityEnrichment(
@@ -63,6 +73,8 @@ class OpportunityEnrichmentRepository:
             prompt_version=prompt_version,
             input_hash=input_hash,
             started_at=started_at,
+            runtime_commit=runtime_commit,
+            runtime_binary_sha256=runtime_binary_sha256,
         )
         self.session.add(enrichment)
         self.session.flush()

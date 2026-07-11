@@ -115,7 +115,11 @@ def test_schema_conformance(test_db) -> None:
     test_db.rollback()
 
     # Test opportunity_enrichment_localizations check constraint for locale
-    from glintory.domain.models import OpportunityEnrichment, OpportunityEnrichmentLocalization
+    from glintory.domain.models import (
+        OpportunityEnrichment,
+        OpportunityEnrichmentLocalization,
+    )
+
     enrich = OpportunityEnrichment(
         opportunity_id=OPP_ID,
         status="succeeded",

@@ -12,23 +12,26 @@ from jinja2 import Environment, select_autoescape
 from sqlalchemy.orm import Session
 
 from glintory.config import settings
+from glintory.domain.enrichment_contract import PROMPT_VERSION, SCHEMA_VERSION
 from glintory.domain.models import (
     Opportunity,
+    OpportunityEnrichment,
+    OpportunityEnrichmentLocalization,
     OpportunitySignal,
     ScheduleExecution,
     Signal,
     Source,
     SourceSchedule,
-    OpportunityEnrichment,
-    OpportunityEnrichmentLocalization,
+)
+from glintory.infrastructure.opportunity_enrichment_repository import (
+    OpportunityEnrichmentRepository,
 )
 from glintory.infrastructure.opportunity_query import check_stale
-from glintory.infrastructure.opportunity_enrichment_repository import OpportunityEnrichmentRepository
 from glintory.services.publishing_templates import (
     CSS_CONTENT,
+    DETAIL_TEMPLATE,
     INDEX_TEMPLATE,
     LIST_TEMPLATE,
-    DETAIL_TEMPLATE,
 )
 
 
@@ -67,7 +70,12 @@ def format_datetime(val: Any) -> str:
     return val.isoformat()
 
 
-def get_localized_data(op: Opportunity, enrichment: OpportunityEnrichment | None, locale: str, alt_loc_record: OpportunityEnrichmentLocalization | None) -> dict:
+def get_localized_data(
+    op: Opportunity,
+    enrichment: OpportunityEnrichment | None,
+    locale: str,
+    alt_loc_record: OpportunityEnrichmentLocalization | None,
+) -> dict:
     def val(field_name: str, default_val: Any = None) -> Any:
         if alt_loc_record:
             v = getattr(alt_loc_record, field_name, None)
@@ -116,8 +124,8 @@ def calculate_current_hash(op_id: str, score_hash: str | None, ev_signals: list)
         ",".join(ev_hash_strs),
         settings.local_llm_model_file,
         settings.local_llm_model_revision,
-        "v1",  # PROMPT_VERSION
-        "v1",  # SCHEMA_VERSION
+        PROMPT_VERSION,
+        SCHEMA_VERSION,
     ]
     raw_str = "|".join(parts)
     return hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
@@ -193,7 +201,9 @@ def build_static_site(
                     "canonical_url": sig.canonical_url,
                     "source_name": src_name,
                     "source_type": src_type,
-                    "published_at": sig.published_at if sig.published_at else sig.collected_at,
+                    "published_at": sig.published_at
+                    if sig.published_at
+                    else sig.collected_at,
                 }
             )
 
@@ -213,7 +223,9 @@ def build_static_site(
                     "id": o.id,
                     "title": o.title,
                     "total_score": o.total_score,
-                    "confidence": o.confidence.value if hasattr(o.confidence, "value") else str(o.confidence),
+                    "confidence": o.confidence.value
+                    if hasattr(o.confidence, "value")
+                    else str(o.confidence),
                 }
                 for o in top_ops
             ],
@@ -229,9 +241,15 @@ def build_static_site(
                     "title": o.title,
                     "summary": o.proposed_solution,
                     "total_score": o.total_score,
-                    "confidence": o.confidence.value if hasattr(o.confidence, "value") else str(o.confidence),
-                    "status": o.status.value if hasattr(o.status, "value") else str(o.status),
-                    "last_scored_at": o.last_scored_at.isoformat() if o.last_scored_at else None,
+                    "confidence": o.confidence.value
+                    if hasattr(o.confidence, "value")
+                    else str(o.confidence),
+                    "status": o.status.value
+                    if hasattr(o.status, "value")
+                    else str(o.status),
+                    "last_scored_at": o.last_scored_at.isoformat()
+                    if o.last_scored_at
+                    else None,
                 }
             )
         with open(os.path.join(temp_build_dir, "data", "opportunities.json"), "w") as f:
@@ -291,7 +309,9 @@ def build_static_site(
             op_list_data=op_list_data,
             repo_url=repo_url,
         )
-        with open(os.path.join(temp_build_dir, "opportunities", "index.html"), "w") as f:
+        with open(
+            os.path.join(temp_build_dir, "opportunities", "index.html"), "w"
+        ) as f:
             f.write(rendered_list)
 
         enrich_repo = OpportunityEnrichmentRepository(session)
@@ -321,7 +341,9 @@ def build_static_site(
                         "excerpt": sig.excerpt,
                         "source_name": src_name,
                         "source_type": src_type,
-                        "published_at": sig.published_at if sig.published_at else sig.collected_at,
+                        "published_at": sig.published_at
+                        if sig.published_at
+                        else sig.collected_at,
                         "relevance_score": rel_score,
                     }
                 )
@@ -339,7 +361,9 @@ def build_static_site(
             if enrichment:
                 # Find the latest score snapshot to get its input hash
                 from sqlalchemy import desc
+
                 from glintory.domain.models import ScoreSnapshot
+
                 snapshots = (
                     session.query(ScoreSnapshot)
                     .filter(ScoreSnapshot.opportunity_id == op.id)
@@ -355,20 +379,30 @@ def build_static_site(
             en_loc = None
             ja_loc = None
             if enrichment:
-                en_loc = session.query(OpportunityEnrichmentLocalization).filter(
-                    OpportunityEnrichmentLocalization.enrichment_id == enrichment.id,
-                    OpportunityEnrichmentLocalization.locale == "en",
-                ).first()
-                ja_loc = session.query(OpportunityEnrichmentLocalization).filter(
-                    OpportunityEnrichmentLocalization.enrichment_id == enrichment.id,
-                    OpportunityEnrichmentLocalization.locale == "ja",
-                ).first()
+                en_loc = (
+                    session.query(OpportunityEnrichmentLocalization)
+                    .filter(
+                        OpportunityEnrichmentLocalization.enrichment_id
+                        == enrichment.id,
+                        OpportunityEnrichmentLocalization.locale == "en",
+                    )
+                    .first()
+                )
+                ja_loc = (
+                    session.query(OpportunityEnrichmentLocalization)
+                    .filter(
+                        OpportunityEnrichmentLocalization.enrichment_id
+                        == enrichment.id,
+                        OpportunityEnrichmentLocalization.locale == "ja",
+                    )
+                    .first()
+                )
 
             # Render English (Default)
             loc_data_en = get_localized_data(op, enrichment, "en", en_loc)
-            translation_available_en = (en_loc is not None)
-            translation_fallback_en = (enrichment is not None and en_loc is None)
-            
+            translation_available_en = en_loc is not None
+            translation_fallback_en = enrichment is not None and en_loc is None
+
             rendered_detail_en = detail_template.render(
                 base_path=base_path,
                 op=op,
@@ -390,9 +424,9 @@ def build_static_site(
 
             # Render Japanese
             loc_data_ja = get_localized_data(op, enrichment, "ja", ja_loc)
-            translation_available_ja = (ja_loc is not None)
-            translation_fallback_ja = (enrichment is not None and ja_loc is None)
-            
+            translation_available_ja = ja_loc is not None
+            translation_fallback_ja = enrichment is not None and ja_loc is None
+
             rendered_detail_ja = detail_template.render(
                 base_path=base_path,
                 op=op,
