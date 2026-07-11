@@ -198,6 +198,11 @@ jobs:
         env:
           GLINTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Deterministic opportunity analysis and scoring
+        run: |
+          uv run glintory analyze --json
+          uv run glintory score --json
+
       - name: Local LLM Enrichment
         if: env.GLINTORY_LOCAL_LLM_ENABLED == 'true'
         id: enrichment
