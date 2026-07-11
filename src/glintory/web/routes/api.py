@@ -234,7 +234,9 @@ async def list_sources_api(
             "auth_required": s.auth_required,
             "config_summary": s.config_summary,
             "latest_run_id": s.latest_run_id,
-            "latest_run_status": s.latest_run_status.value if s.latest_run_status else None,
+            "latest_run_status": s.latest_run_status.value
+            if s.latest_run_status
+            else None,
             "latest_run_started_at": format_iso_utc(s.latest_run_started_at),
             "latest_run_finished_at": format_iso_utc(s.latest_run_finished_at),
             "last_success_at": format_iso_utc(s.last_success_at),
@@ -286,14 +288,6 @@ async def list_collection_runs_api(
     per_page: int = 25,
     service: SourceOperationsService = Depends(get_source_ops_service),
 ):
-    if per_page not in (10, 25, 50, 100):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="per_page must be one of 10, 25, 50, or 100.",
-        )
-    if page < 1:
-        page = 1
-
     try:
         runs, total = service.list_collection_runs(
             source_id=source,
@@ -302,13 +296,13 @@ async def list_collection_runs_api(
             page=page,
             per_page=per_page,
         )
-    except Exception:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request parameters",
+            detail=str(e),
         )
 
-    total_pages = math.ceil(total / per_page) if total > 0 else 1
+    total_pages = math.ceil(total / per_page) if total > 0 else 0
 
     return {
         "items": [

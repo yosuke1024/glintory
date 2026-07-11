@@ -148,6 +148,14 @@ class CollectionRun(Base):
             "warning_count >= 0", name="chk_runs_warning_count_nonnegative"
         ),
         CheckConstraint("error_count >= 0", name="chk_runs_error_count_nonnegative"),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'partial', 'failed', 'abandoned')",
+            name="chk_collection_runs_status_allowed",
+        ),
+        CheckConstraint(
+            "trigger_type IN ('cli', 'web', 'scheduled')",
+            name="chk_collection_runs_trigger_type_allowed",
+        ),
     )
 
 

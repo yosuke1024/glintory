@@ -1,6 +1,5 @@
 import os
 import pathlib
-from unittest.mock import AsyncMock
 
 import pytest
 from alembic import command
@@ -9,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from glintory.collectors.base import CollectionResult
+from glintory.collectors.base import CollectionResult, Collector
 from glintory.collectors.registry import CollectorRegistry
 from glintory.config import settings
 from glintory.domain.models import Source
@@ -22,16 +21,16 @@ from glintory.services.signal_ingestion import SignalIngestionService
 TEST_SOURCE_ID = "8fa4922b-2856-4c4f-8cfb-6f81a7db8e8a"
 
 
-class FakeCollector:
+class FakeCollector(Collector):
     source_type = "hackernews"
 
-    def validate_config(self, config):
-        return config
+    def validate_config(self, _config):
+        return _config
 
-    def get_config_summary(self, config):
+    def get_config_summary(self, _config):
         return "HN Config (max=10)"
 
-    async def collect(self, context):
+    async def collect(self, _context):
         return CollectionResult(items=[], warnings=[], errors=[])
 
 
@@ -160,7 +159,8 @@ def test_enable_disable_source(test_web_db):
     )
     assert response.status_code == 303
     assert (
-        f"/sources/{TEST_SOURCE_ID}?notice=source_enabled" in response.headers["location"]
+        f"/sources/{TEST_SOURCE_ID}?notice=source_enabled"
+        in response.headers["location"]
     )
 
 
@@ -196,3 +196,46 @@ def test_api_v1_sources(test_web_db):
     assert len(data) == 1
     assert data[0]["name"] == "HN"
     assert "config" not in data[0]
+
+
+def test_collection_runs_query_validation(test_web_db):
+    client = TestClient(app)
+
+    # Valid parameters should return 200
+    assert client.get("/collection-runs?status=failed").status_code == 200
+    assert client.get("/collection-runs?trigger=web").status_code == 200
+    assert client.get("/collection-runs?per_page=50").status_code == 200
+
+    # Invalid parameters should return 400
+    assert client.get("/collection-runs?status=nonsense").status_code == 400
+    assert client.get("/collection-runs?trigger=nonsense").status_code == 400
+    assert client.get("/collection-runs?per_page=17").status_code == 400
+    assert client.get("/collection-runs?page=0").status_code == 400
+
+    # API validation
+    assert client.get("/api/v1/collection-runs?status=nonsense").status_code == 400
+    assert client.get("/api/v1/collection-runs?trigger=nonsense").status_code == 400
+    assert client.get("/api/v1/collection-runs?per_page=17").status_code == 400
+    assert client.get("/api/v1/collection-runs?page=0").status_code == 400
+
+
+def test_api_privacy_leak_protection(test_web_db):
+    client = TestClient(app)
+
+    # Test /api/v1/sources
+    res_sources = client.get("/api/v1/sources")
+    assert res_sources.status_code == 200
+    sources_data = res_sources.json()
+    for s in sources_data:
+        assert "config" not in s
+        assert "token" not in s
+        assert "password" not in s
+
+    # Test /api/v1/collection-runs
+    res_runs = client.get("/api/v1/collection-runs")
+    assert res_runs.status_code == 200
+    runs_data = res_runs.json()["items"]
+    # Check that privacy sensitive fields are not in list response
+    for r in runs_data:
+        assert "run_metadata" not in r
+        assert "error_summary" not in r

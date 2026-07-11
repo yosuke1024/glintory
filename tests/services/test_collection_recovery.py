@@ -12,8 +12,6 @@ from glintory.domain.models import Base, CollectionRun, Source
 from glintory.domain.operations import (
     CollectionTriggerType,
     SourceAlreadyRunningError,
-    SourceDisabledError,
-    SourceNotFoundError,
 )
 from glintory.services.collection import CollectionService
 
@@ -48,9 +46,7 @@ def registry():
 @pytest.fixture
 def mock_collector():
     collector = AsyncMock()
-    collector.collect.return_value = CollectionResult(
-        items=[], warnings=[], errors=[]
-    )
+    collector.collect.return_value = CollectionResult(items=[], warnings=[], errors=[])
     collector.get_config_summary.return_value = {"feeds": "test"}
     collector.source_type = "test_type"
     return collector
@@ -93,7 +89,7 @@ async def test_collection_stale_run_recovery(
     db_session.expire_all()
     recovered_run = db_session.get(CollectionRun, stale_run.id)
     assert recovered_run.status == CollectionRunStatus.ABANDONED
-    
+
     completed_at = recovered_run.completed_at
     if completed_at.tzinfo is None:
         completed_at = completed_at.replace(tzinfo=UTC)

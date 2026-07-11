@@ -21,8 +21,8 @@
         </div>
 
         <div class="filter-group" style="display: flex; flex-direction: column; gap: 5px;">
-            <label for="status_filter" style="font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">Status</label>
-            <select name="status_filter" id="status_filter" style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); font-size: 0.9rem; min-width: 120px;">
+            <label for="status" style="font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">Status</label>
+            <select name="status" id="status" style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); font-size: 0.9rem; min-width: 120px;">
                 <option value="">All Statuses</option>
                 <option value="running" {% if selected_status == 'running' %}selected{% endif %}>Running</option>
                 <option value="succeeded" {% if selected_status == 'succeeded' %}selected{% endif %}>Succeeded</option>
@@ -39,6 +39,16 @@
                 <option value="cli" {% if selected_trigger == 'cli' %}selected{% endif %}>CLI</option>
                 <option value="web" {% if selected_trigger == 'web' %}selected{% endif %}>Web</option>
                 <option value="scheduled" {% if selected_trigger == 'scheduled' %}selected{% endif %}>Scheduled</option>
+            </select>
+        </div>
+
+        <div class="filter-group" style="display: flex; flex-direction: column; gap: 5px;">
+            <label for="per_page" style="font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">Per Page</label>
+            <select name="per_page" id="per_page" style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); font-size: 0.9rem; min-width: 80px;">
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
             </select>
         </div>
 
@@ -105,11 +115,11 @@
     <span class="text-muted" style="font-size: 0.9rem;">Total: <strong>{{ total_count }}</strong> runs</span>
     <div class="pagination-buttons" style="display: flex; align-items: center;">
         {% if page > 1 %}
-        <a href="/collection-runs?page={{ page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_status %}&status_filter={{ selected_status }}{% endif %}{% if selected_trigger %}&trigger={{ selected_trigger }}{% endif %}" class="btn btn-secondary btn-sm" style="text-decoration: none;">&larr; Prev</a>
+        <a href="/collection-runs?page={{ page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_trigger %}&trigger={{ selected_trigger }}{% endif %}&per_page={{ per_page }}" class="btn btn-secondary btn-sm" style="text-decoration: none;">&larr; Prev</a>
         {% endif %}
         <span class="page-indicator" style="margin: 0 15px; font-size: 0.9rem; color: var(--text-muted);">Page {{ page }} of {{ total_pages }}</span>
         {% if page < total_pages %}
-        <a href="/collection-runs?page={{ page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_status %}&status_filter={{ selected_status }}{% endif %}{% if selected_trigger %}&trigger={{ selected_trigger }}{% endif %}" class="btn btn-secondary btn-sm" style="text-decoration: none;">Next &rarr;</a>
+        <a href="/collection-runs?page={{ page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_trigger %}&trigger={{ selected_trigger }}{% endif %}&per_page={{ per_page }}" class="btn btn-secondary btn-sm" style="text-decoration: none;">Next &rarr;</a>
         {% endif %}
     </div>
 </div>

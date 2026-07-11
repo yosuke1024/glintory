@@ -206,7 +206,11 @@ def test_collection_run_repository_finish_failed(db_session):
     run = repo.create_running(src.id)
 
     completed_at = datetime.now(UTC)
-    repo.finish_failed(run.id, completed_at, "Fatal exception occurred")
+    repo.finish_failed(
+        run_id=run.id,
+        completed_at=completed_at,
+        error_summary="Fatal exception occurred",
+    )
     db_session.commit()
     db_session.expire_all()
     updated = db_session.get(CollectionRun, run.id)
@@ -215,3 +219,49 @@ def test_collection_run_repository_finish_failed(db_session):
     assert updated.completed_at is not None
     assert updated.completed_at.replace(tzinfo=UTC) == completed_at
     assert updated.error_summary == "Fatal exception occurred"
+    assert updated.error_count == 1
+
+
+def test_list_collection_runs_n_plus_one(db_session):
+    from glintory.infrastructure.source_operations import SourceOperationsRepository
+
+    # Create multiple sources
+    srcs = [Source(name=f"Src {i}", source_type=f"type_{i}") for i in range(10)]
+    db_session.add_all(srcs)
+    db_session.commit()
+
+    # Create 100 runs
+    runs = []
+    for i in range(100):
+        src = srcs[i % 10]
+        run = CollectionRun(
+            source_id=src.id,
+            status=CollectionRunStatus.SUCCEEDED,
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+        )
+        runs.append(run)
+    db_session.add_all(runs)
+    db_session.commit()
+
+    queries = []
+    engine = db_session.bind
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
+        queries.append(statement)
+
+    repo = SourceOperationsRepository(db_session)
+
+    queries.clear()
+
+    items, total = repo.list_collection_runs(limit=50)
+
+    event.remove(engine, "before_cursor_execute", before_cursor_execute)
+
+    assert total == 100
+    assert len(items) == 50
+    # Queries should be exactly 2: 1 for count, 1 for runs + source details
+    assert len(queries) == 2

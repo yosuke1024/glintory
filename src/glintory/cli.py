@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0911
 import argparse
 import asyncio
 import importlib.metadata
@@ -14,8 +15,8 @@ from glintory.cli_config import ConfigLoadError, load_json_object
 from glintory.collectors.registry import CollectorNotFoundError
 from glintory.config import Settings
 from glintory.domain.enums import CollectionRunStatus
-from glintory.infrastructure.repositories import SourceRepository
 from glintory.domain.operations import CollectionTriggerType, SourceAlreadyRunningError
+from glintory.infrastructure.repositories import SourceRepository
 from glintory.infrastructure.schema_status import (
     DatabaseSchemaError,
     check_schema_status,
@@ -587,7 +588,7 @@ async def _run_collect_all(args: argparse.Namespace, runtime: Any) -> int:
                 trigger_type=CollectionTriggerType.CLI,
                 max_items=args.max_items,
             )
-        except SourceAlreadyRunningError as e:
+        except SourceAlreadyRunningError:
             sys.stderr.write(
                 f"Source '{source.name}' is busy (already running). Skipping.\n"
             )

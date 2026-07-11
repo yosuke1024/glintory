@@ -1,10 +1,10 @@
 import pathlib
 from datetime import UTC, datetime, timedelta
-from sqlalchemy import func
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from glintory.infrastructure.dashboard_repository import DashboardRepository
@@ -44,14 +44,14 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
     query_service = OpportunityQueryService(query_repo)
     top_opps = query_service.get_top_opportunities(limit=3)
 
-    from glintory.domain.models import Opportunity, Source, CollectionRun
     from glintory.domain.enums import CollectionRunStatus
+    from glintory.domain.models import CollectionRun, Opportunity, Source
 
     has_any_opp = db.query(Opportunity).first() is not None
 
     # Calculate Source Operations Summary
-    enabled_sources_count = db.query(Source).filter(Source.enabled == True).count()
-    
+    enabled_sources_count = db.query(Source).filter(Source.enabled).count()
+
     running_sources_count = (
         db.query(CollectionRun)
         .filter(CollectionRun.status == CollectionRunStatus.RUNNING)
@@ -64,22 +64,30 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
     failed_runs_24h_count = (
         db.query(CollectionRun)
         .filter(
-            CollectionRun.status.in_([CollectionRunStatus.FAILED, CollectionRunStatus.ABANDONED]),
-            CollectionRun.started_at >= last_24h
+            CollectionRun.status.in_(
+                [CollectionRunStatus.FAILED, CollectionRunStatus.ABANDONED]
+            ),
+            CollectionRun.started_at >= last_24h,
         )
         .count()
     )
 
     last_success_run = (
         db.query(func.max(CollectionRun.completed_at))
-        .filter(CollectionRun.status.in_([CollectionRunStatus.SUCCEEDED, CollectionRunStatus.PARTIAL]))
+        .filter(
+            CollectionRun.status.in_(
+                [CollectionRunStatus.SUCCEEDED, CollectionRunStatus.PARTIAL]
+            )
+        )
         .scalar()
     )
     last_success_run_str = "—"
     if last_success_run:
         if last_success_run.tzinfo is None:
             last_success_run = last_success_run.replace(tzinfo=UTC)
-        last_success_run_str = last_success_run.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        last_success_run_str = last_success_run.astimezone(UTC).strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        )
 
     return templates.TemplateResponse(
         request=request,

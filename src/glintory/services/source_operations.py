@@ -1,7 +1,6 @@
 import datetime as dt
 import uuid
 from collections.abc import Callable, Sequence
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -194,9 +193,21 @@ class SourceOperationsService:
         per_page: int = 25,
     ) -> tuple[Sequence[CollectionRunListItem], int]:
         if page < 1:
-            page = 1
+            raise ValueError("Page number must be 1 or greater.")
         if per_page not in (10, 25, 50, 100):
-            per_page = 25
+            raise ValueError("per_page must be one of 10, 25, 50, or 100.")
+
+        if status:
+            from glintory.domain.enums import CollectionRunStatus
+
+            if status not in [e.value for e in CollectionRunStatus]:
+                raise ValueError(f"Invalid status value: {status}")
+
+        if trigger_type:
+            from glintory.domain.operations import CollectionTriggerType
+
+            if trigger_type not in [e.value for e in CollectionTriggerType]:
+                raise ValueError(f"Invalid trigger value: {trigger_type}")
 
         offset = (page - 1) * per_page
 

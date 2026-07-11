@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -7,8 +8,14 @@ from sqlalchemy.orm import Session
 
 from glintory.domain.enums import CollectionRunStatus
 from glintory.domain.models import CollectionRun, Signal, Source
+from glintory.domain.operations import (
+    CollectionRunAlreadyFinalizedError,
+    CollectionRunNotFoundError,
+    CollectionTriggerType,
+)
 from glintory.domain.signals import NormalizedSignal, SignalIdentityCollisionError
-from glintory.domain.operations import CollectionTriggerType
+from glintory.infrastructure.error_sanitizer import sanitize_error
+from glintory.services.json_safety import sanitize_run_metadata
 
 
 class SourceRepository:
@@ -133,12 +140,16 @@ class CollectionRunRepository:
         self.session = session
 
     def create_running(
-        self, source_id: str, trigger_type: CollectionTriggerType = CollectionTriggerType.CLI
+        self,
+        source_id: str,
+        trigger_type: CollectionTriggerType = CollectionTriggerType.CLI,
+        started_at: datetime | None = None,
     ) -> CollectionRun:
         run = CollectionRun(
             source_id=source_id,
             trigger_type=trigger_type,
             status=CollectionRunStatus.RUNNING,
+            started_at=started_at or datetime.now(UTC),
             fetched_count=0,
             inserted_count=0,
             updated_count=0,
@@ -159,17 +170,29 @@ class CollectionRunRepository:
         updated_count: int,
         duplicate_count: int,
         warning_count: int,
+        run_metadata: Mapping[str, object] | None = None,
     ) -> None:
         run = self.session.get(CollectionRun, run_id)
-        if run:
-            run.status = CollectionRunStatus.SUCCEEDED
-            run.completed_at = completed_at
-            run.fetched_count = fetched_count
-            run.inserted_count = inserted_count
-            run.updated_count = updated_count
-            run.duplicate_count = duplicate_count
-            run.warning_count = warning_count
-            run.error_count = 0
+        if not run:
+            raise CollectionRunNotFoundError(f"Collection run {run_id} not found.")
+        if run.status != CollectionRunStatus.RUNNING:
+            raise CollectionRunAlreadyFinalizedError(
+                f"Collection run {run_id} is already in terminal status: {run.status}"
+            )
+
+        meta_dict, was_truncated = sanitize_run_metadata(run_metadata)
+        if was_truncated:
+            warning_count += 1
+
+        run.status = CollectionRunStatus.SUCCEEDED
+        run.completed_at = completed_at
+        run.fetched_count = fetched_count
+        run.inserted_count = inserted_count
+        run.updated_count = updated_count
+        run.duplicate_count = duplicate_count
+        run.warning_count = warning_count
+        run.error_count = 0
+        run.run_metadata = meta_dict
 
     def finish_partial(
         self,
@@ -182,27 +205,70 @@ class CollectionRunRepository:
         warning_count: int,
         error_count: int,
         error_summary: str,
+        run_metadata: Mapping[str, object] | None = None,
     ) -> None:
         run = self.session.get(CollectionRun, run_id)
-        if run:
-            run.status = CollectionRunStatus.PARTIAL
-            run.completed_at = completed_at
-            run.fetched_count = fetched_count
-            run.inserted_count = inserted_count
-            run.updated_count = updated_count
-            run.duplicate_count = duplicate_count
-            run.warning_count = warning_count
-            run.error_count = error_count
-            run.error_summary = error_summary
+        if not run:
+            raise CollectionRunNotFoundError(f"Collection run {run_id} not found.")
+        if run.status != CollectionRunStatus.RUNNING:
+            raise CollectionRunAlreadyFinalizedError(
+                f"Collection run {run_id} is already in terminal status: {run.status}"
+            )
+
+        meta_dict, was_truncated = sanitize_run_metadata(run_metadata)
+        if was_truncated:
+            warning_count += 1
+
+        run.status = CollectionRunStatus.PARTIAL
+        run.completed_at = completed_at
+        run.fetched_count = fetched_count
+        run.inserted_count = inserted_count
+        run.updated_count = updated_count
+        run.duplicate_count = duplicate_count
+        run.warning_count = warning_count
+        run.error_count = error_count
+        run.error_summary = sanitize_error(error_summary)
+        run.run_metadata = meta_dict
 
     def finish_failed(
-        self, run_id: str, completed_at: datetime, error_summary: str
+        self,
+        *,
+        run_id: str,
+        completed_at: datetime,
+        fetched_count: int = 0,
+        inserted_count: int = 0,
+        updated_count: int = 0,
+        duplicate_count: int = 0,
+        warning_count: int = 0,
+        error_count: int = 1,
+        error_summary: str,
+        run_metadata: Mapping[str, object] | None = None,
     ) -> None:
+        if error_count < 1:
+            raise ValueError("error_count must be at least 1")
+
         run = self.session.get(CollectionRun, run_id)
-        if run:
-            run.status = CollectionRunStatus.FAILED
-            run.completed_at = completed_at
-            run.error_summary = error_summary
+        if not run:
+            raise CollectionRunNotFoundError(f"Collection run {run_id} not found.")
+        if run.status != CollectionRunStatus.RUNNING:
+            raise CollectionRunAlreadyFinalizedError(
+                f"Collection run {run_id} is already in terminal status: {run.status}"
+            )
+
+        meta_dict, was_truncated = sanitize_run_metadata(run_metadata)
+        if was_truncated:
+            warning_count += 1
+
+        run.status = CollectionRunStatus.FAILED
+        run.completed_at = completed_at
+        run.fetched_count = fetched_count
+        run.inserted_count = inserted_count
+        run.updated_count = updated_count
+        run.duplicate_count = duplicate_count
+        run.warning_count = warning_count
+        run.error_count = error_count
+        run.error_summary = sanitize_error(error_summary)
+        run.run_metadata = meta_dict
 
 
 class SignalRepository:

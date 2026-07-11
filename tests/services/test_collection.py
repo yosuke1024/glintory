@@ -497,3 +497,212 @@ async def test_collection_status_updated_and_collector_error(
     assert result.status == CollectionRunStatus.PARTIAL
     assert result.updated_count == 1
     assert result.error_count == 1
+
+
+@pytest.mark.asyncio
+async def test_collection_lifecycle_fake_clock(
+    db_session, registry, db_session_factory
+):
+    from datetime import UTC, datetime, timedelta
+
+    base_time = datetime(2026, 7, 11, 10, 0, 0, tzinfo=UTC)
+    current_time = base_time
+
+    def fake_clock():
+        nonlocal current_time
+        return current_time
+
+    class TimeAdvancingCollector(Collector):
+        source_type = "time_advance"
+
+        def validate_config(self, _config):
+            return _config
+
+        def get_config_summary(self, _config):
+            return ""
+
+        async def collect(self, _context):
+            nonlocal current_time
+            current_time += timedelta(minutes=5)  # 10:05
+            return CollectionResult(
+                items=[
+                    RawItem(
+                        external_id="1",
+                        url="http://example.com/1",
+                        title="Item 1",
+                        item_type="repository",
+                    )
+                ],
+                warnings=(),
+                errors=(),
+                metadata={"test": "data"},
+            )
+
+    reg = CollectorRegistry()
+    reg.register(TimeAdvancingCollector())
+
+    src = Source(name="TimeSource", source_type="time_advance", enabled=True)
+    db_session.add(src)
+    db_session.commit()
+
+    from glintory.services.signal_ingestion import SignalIngestionService
+
+    original_ingest_service = SignalIngestionService(db_session_factory)
+
+    class TimeAdvancingIngestionService(SignalIngestionService):
+        def ingest(self, *args, **kwargs):
+            res = original_ingest_service.ingest(*args, **kwargs)
+            nonlocal current_time
+            current_time += timedelta(minutes=1)  # 10:06
+            return res
+
+    service = CollectionService(
+        db_session_factory,
+        reg,
+        ingestion_service=TimeAdvancingIngestionService(db_session_factory),
+        clock=fake_clock,
+    )
+
+    result = await service.run_source(src.id)
+
+    assert result.status == CollectionRunStatus.SUCCEEDED
+
+    db_session.expire_all()
+    db_run = db_session.get(CollectionRun, result.run_id)
+    db_src = db_session.get(Source, src.id)
+
+    assert db_run.started_at.replace(tzinfo=UTC) == datetime(
+        2026, 7, 11, 10, 0, 0, tzinfo=UTC
+    )
+    assert db_run.completed_at.replace(tzinfo=UTC) == datetime(
+        2026, 7, 11, 10, 0, 0, tzinfo=UTC
+    ) + timedelta(minutes=6)  # 10:06
+    assert db_src.last_success_at.replace(tzinfo=UTC) == datetime(
+        2026, 7, 11, 10, 0, 0, tzinfo=UTC
+    ) + timedelta(minutes=6)  # 10:06
+
+    # Verify Signal.collected_at was set to 10:05 (items_collected_at)
+    sig = db_session.query(Signal).filter_by(collection_run_id=result.run_id).first()
+    assert sig is not None
+    assert sig.collected_at.replace(tzinfo=UTC) == datetime(
+        2026, 7, 11, 10, 0, 0, tzinfo=UTC
+    ) + timedelta(minutes=5)  # 10:05
+
+
+@pytest.mark.asyncio
+async def test_collection_ingestion_failure_recovery(
+    db_session, registry, db_session_factory
+):
+    src = Source(name="IngestFail", source_type="success", enabled=True)
+    db_session.add(src)
+    db_session.commit()
+
+    class ExplodingIngestionService:
+        def ingest(self, *_args, **_kwargs):
+            raise Exception("DB crash during ingestion")
+
+    service = CollectionService(
+        db_session_factory,
+        registry,
+        ingestion_service=ExplodingIngestionService(),  # type: ignore
+    )
+
+    result = await service.run_source(src.id)
+
+    assert result.status == CollectionRunStatus.FAILED
+    assert result.error_summary == "Signal ingestion failed."
+
+    db_session.expire_all()
+    db_run = db_session.get(CollectionRun, result.run_id)
+    assert db_run.status == CollectionRunStatus.FAILED
+    assert db_run.error_summary == "Signal ingestion failed."
+    assert db_run.error_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_collection_finalization_failure_propagation(
+    db_session, registry, db_session_factory
+):
+    src = Source(name="FinalizeFail", source_type="success", enabled=True)
+    db_session.add(src)
+    db_session.commit()
+
+    session_count = 0
+    real_session_factory = db_session_factory
+
+    def bad_session_factory():
+        nonlocal session_count
+        session_count += 1
+        s = real_session_factory()
+        if session_count > 1:
+
+            def bad_commit():
+                raise Exception("Database disk image is malformed")
+
+            s.commit = bad_commit
+        return s
+
+    service = CollectionService(bad_session_factory, registry)
+
+    with pytest.raises(Exception, match="Database disk image is malformed"):
+        await service.run_source(src.id)
+
+    db_session.expire_all()
+    runs = db_session.query(CollectionRun).filter_by(source_id=src.id).all()
+    assert len(runs) == 1
+    assert runs[0].status == CollectionRunStatus.RUNNING
+
+
+def test_terminal_status_guard(db_session):
+    from datetime import UTC, datetime
+
+    from glintory.domain.operations import CollectionRunAlreadyFinalizedError
+    from glintory.infrastructure.repositories import CollectionRunRepository
+
+    repo = CollectionRunRepository(db_session)
+    s = Source(name="SrcGuard", source_type="github")
+    db_session.add(s)
+    db_session.commit()
+
+    run = repo.create_running(s.id)
+
+    # Succeed the run
+    repo.finish_succeeded(run.id, datetime.now(UTC), 0, 0, 0, 0, 0)
+    db_session.commit()
+
+    # Try to finalize again
+    with pytest.raises(CollectionRunAlreadyFinalizedError):
+        repo.finish_succeeded(run.id, datetime.now(UTC), 0, 0, 0, 0, 0)
+
+    with pytest.raises(CollectionRunAlreadyFinalizedError):
+        repo.finish_failed(
+            run_id=run.id, completed_at=datetime.now(UTC), error_summary="fail"
+        )
+
+
+def test_run_metadata_sanitization_and_size_limit():
+    from glintory.services.json_safety import sanitize_run_metadata
+
+    # Sensitive items should be masked
+    meta = {
+        "access_token": "secret123",
+        "sql_query": "SELECT * FROM users",
+        "some_xml": "<rss>...</rss>",
+        "db_url": "postgresql://user:pass@host:5432/db",
+        "normal_key": "normal_val",
+    }
+
+    sanitized, truncated = sanitize_run_metadata(meta)
+    assert not truncated
+    assert sanitized["access_token"] == "[REDACTED]"
+    assert sanitized["sql_query"] == "[REDACTED]"
+    assert sanitized["some_xml"] == "[REDACTED]"
+    assert sanitized["db_url"] == "[REDACTED]"
+    assert sanitized["normal_key"] == "normal_val"
+
+    # Large metadata should be truncated
+    large_meta = {str(i): "x" * 1000 for i in range(100)}
+    truncated_meta, truncated = sanitize_run_metadata(large_meta)
+    assert truncated
+    assert "warning" in truncated_meta
+    assert "original_keys" in truncated_meta

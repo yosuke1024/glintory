@@ -800,9 +800,7 @@ async def search_opportunity_evidence(
                 .group_by(OpportunitySignal.signal_id)
                 .all()
             )
-            other_link_counts = {
-                sig_id: count for sig_id, count in other_active_links
-            }
+            other_link_counts = {str(r[0]): int(r[1]) for r in other_active_links}
 
             for item in page_result.items:
                 link = link_map.get(item.id)

@@ -4,7 +4,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from glintory.web.routes import api, health, opportunities, readiness, signals, today, sources
+from glintory.web.routes import (
+    api,
+    health,
+    opportunities,
+    readiness,
+    signals,
+    sources,
+    today,
+)
 
 
 @asynccontextmanager
@@ -20,13 +28,14 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Glintory", version="0.1.0", lifespan=lifespan)
 
     # Initialize runtime components
+    from sqlalchemy.orm import sessionmaker
+
     from glintory.collectors.defaults import build_default_collector_registry
     from glintory.config import settings
     from glintory.infrastructure.database import _create_engine_instance
     from glintory.infrastructure.http import HttpxHttpClient
     from glintory.services.collection import CollectionService
     from glintory.services.signal_ingestion import SignalIngestionService
-    from sqlalchemy.orm import sessionmaker
 
     engine = _create_engine_instance(settings.database_url)
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -54,10 +63,10 @@ def create_app() -> FastAPI:
     app.include_router(opportunities.html_router)
     app.include_router(opportunities.api_router)
     app.include_router(opportunities.watchlist_router)
-    
+
     app.include_router(sources.router)
     app.include_router(sources.runs_router)
-    
+
     app.include_router(api.router)
     app.include_router(api.sources_router)
     app.include_router(api.runs_router)

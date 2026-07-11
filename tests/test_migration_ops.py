@@ -64,9 +64,7 @@ def test_migration_ops_columns_and_indices(temp_db_path):
     # 3. Check trigger_type backfilled to 'cli'
     with engine.connect() as conn:
         result = conn.execute(
-            text(
-                "SELECT trigger_type, status FROM collection_runs WHERE id = 'run-1'"
-            )
+            text("SELECT trigger_type, status FROM collection_runs WHERE id = 'run-1'")
         )
         res = result.first()
         assert res is not None
@@ -74,14 +72,15 @@ def test_migration_ops_columns_and_indices(temp_db_path):
         assert res[1] == "running"
 
     # 4. Insert another running run for same source (should fail due to uq_collection_runs_source_running)
-    with pytest.raises(Exception):
-        with engine.begin() as conn:
-            conn.execute(
-                text(
-                    "INSERT INTO collection_runs (id, source_id, status, started_at, trigger_type, fetched_count, inserted_count, updated_count, duplicate_count, warning_count, error_count, run_metadata, created_at) "
-                    "VALUES ('run-2', 'src-1', 'running', '2026-07-07 01:00:00', 'web', 0, 0, 0, 0, 0, 0, '{}', '2026-07-07 01:00:00')"
-                )
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO collection_runs (id, source_id, status, started_at, trigger_type, fetched_count, inserted_count, updated_count, duplicate_count, warning_count, error_count, run_metadata, created_at) "
+                "VALUES ('run-2', 'src-1', 'running', '2026-07-07 01:00:00', 'web', 0, 0, 0, 0, 0, 0, '{}', '2026-07-07 01:00:00')"
             )
+        )
 
     # 5. Terminal runs are allowed to have multiple instances
     with engine.begin() as conn:
@@ -113,9 +112,7 @@ def test_migration_ops_columns_and_indices(temp_db_path):
     # The abandoned run should be converted to failed
     with engine.connect() as conn:
         result = conn.execute(
-            text(
-                "SELECT status, error_summary FROM collection_runs WHERE id = 'run-5'"
-            )
+            text("SELECT status, error_summary FROM collection_runs WHERE id = 'run-5'")
         )
         r5 = result.first()
         assert r5 is not None
@@ -126,3 +123,95 @@ def test_migration_ops_columns_and_indices(temp_db_path):
     inspector = inspect(engine)
     columns_after = [c["name"] for c in inspector.get_columns("collection_runs")]
     assert "trigger_type" not in columns_after
+
+
+def test_migration_check_constraints_and_repair(temp_db_path):
+    project_root = pathlib.Path(__file__).parent.parent
+    alembic_cfg = Config(str(project_root / "alembic.ini"))
+
+    # 1. Upgrade to the revision prior to check constraints (d445f5753c74)
+    command.upgrade(alembic_cfg, "d445f5753c74")
+
+    engine = create_engine(f"sqlite:///{temp_db_path}")
+
+    # Insert invalid data that violates future constraints
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO sources (id, name, source_type, enabled, auth_required, config, consecutive_failures, created_at, updated_at) "
+                "VALUES ('src-repair', 'Repair Source', 'github', 1, 0, '{}', 0, '2026-07-07 00:00:00', '2026-07-07 00:00:00')"
+            )
+        )
+        # run-invalid-status has status='nonsense', completed_at=NULL, error_count=0
+        conn.execute(
+            text(
+                "INSERT INTO collection_runs (id, source_id, status, started_at, trigger_type, fetched_count, inserted_count, updated_count, duplicate_count, warning_count, error_count, error_summary, run_metadata, created_at, completed_at) "
+                "VALUES ('run-invalid-status', 'src-repair', 'nonsense', '2026-07-07 00:00:00', 'cli', 0, 0, 0, 0, 0, 0, NULL, '{}', '2026-07-07 00:00:00', NULL)"
+            )
+        )
+        # run-invalid-trigger has trigger_type='nonsense'
+        conn.execute(
+            text(
+                "INSERT INTO collection_runs (id, source_id, status, started_at, trigger_type, fetched_count, inserted_count, updated_count, duplicate_count, warning_count, error_count, run_metadata, created_at) "
+                "VALUES ('run-invalid-trigger', 'src-repair', 'running', '2026-07-07 00:00:00', 'nonsense', 0, 0, 0, 0, 0, 0, '{}', '2026-07-07 00:00:00')"
+            )
+        )
+
+    # 2. Upgrade to head (which includes the repair and constraints)
+    command.upgrade(alembic_cfg, "head")
+
+    # 3. Check if repair worked as expected
+    with engine.connect() as conn:
+        r_status = conn.execute(
+            text(
+                "SELECT status, completed_at, error_count, error_summary FROM collection_runs WHERE id = 'run-invalid-status'"
+            )
+        ).first()
+        assert r_status is not None
+        assert r_status[0] == "failed"
+        assert (
+            r_status[1] is not None
+        )  # completed_at must be populated with migration execution time
+        assert r_status[2] >= 1  # error_count must be at least 1
+        assert (
+            r_status[3]
+            == "Invalid collection run status was repaired during schema migration."
+        )
+
+        r_trigger = conn.execute(
+            text(
+                "SELECT trigger_type FROM collection_runs WHERE id = 'run-invalid-trigger'"
+            )
+        ).first()
+        assert r_trigger is not None
+        assert r_trigger[0] == "cli"  # trigger_type must be repaired to 'cli'
+
+    # 4. Check if constraints prevent inserting invalid values now
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO collection_runs (id, source_id, status, started_at, trigger_type, fetched_count, inserted_count, updated_count, duplicate_count, warning_count, error_count, run_metadata, created_at) "
+                "VALUES ('run-invalid-status-new', 'src-repair', 'nonsense', '2026-07-07 00:00:00', 'cli', 0, 0, 0, 0, 0, 0, '{}', '2026-07-07 00:00:00')"
+            )
+        )
+
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO collection_runs (id, source_id, status, started_at, trigger_type, fetched_count, inserted_count, updated_count, duplicate_count, warning_count, error_count, run_metadata, created_at) "
+                "VALUES ('run-invalid-trigger-new', 'src-repair', 'running', '2026-07-07 00:00:00', 'nonsense', 0, 0, 0, 0, 0, 0, '{}', '2026-07-07 00:00:00')"
+            )
+        )
+
+    # 5. Check if we can downgrade and constraints are removed
+    command.downgrade(alembic_cfg, "d445f5753c74")
+    # After downgrade, we can insert nonsense again
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO collection_runs (id, source_id, status, started_at, trigger_type, fetched_count, inserted_count, updated_count, duplicate_count, warning_count, error_count, run_metadata, created_at) "
+                "VALUES ('run-invalid-status-new', 'src-repair', 'nonsense', '2026-07-07 00:00:00', 'cli', 0, 0, 0, 0, 0, 0, '{}', '2026-07-07 00:00:00')"
+            )
+        )

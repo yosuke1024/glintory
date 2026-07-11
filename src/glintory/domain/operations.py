@@ -20,7 +20,7 @@ class SourceOperationItem:
     enabled: bool
     auth_required: bool
 
-    config_summary: Mapping[str, object]
+    config_summary: str | Mapping[str, object]
 
     latest_run_id: str | None
     latest_run_status: CollectionRunStatus | None
@@ -95,24 +95,35 @@ class ManualCollectionResult:
 
 class SourceNotFoundError(ValueError):
     """Raised when a source is not found."""
+
     pass
 
 
 class SourceDisabledError(ValueError):
     """Raised when an operation is requested on a disabled source."""
+
     pass
 
 
 class SourceAlreadyRunningError(ValueError):
     """Raised when attempting to run a source that is already running."""
+
     pass
 
 
 class CollectionRunNotFoundError(ValueError):
     """Raised when a collection run is not found."""
+
+    pass
+
+
+class CollectionRunAlreadyFinalizedError(ValueError):
+    """Raised when attempting to finalize a collection run that is already in a terminal status."""
+
     pass
 
 
 class CollectionOperationError(ValueError):
     """Base exception for source collection operation errors."""
+
     pass

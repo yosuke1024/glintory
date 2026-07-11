@@ -3,7 +3,6 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-import sqlalchemy as sa
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -12,9 +11,6 @@ from glintory.domain.models import CollectionRun, Source
 from glintory.domain.operations import (
     CollectionRunDetail,
     CollectionRunListItem,
-    CollectionTriggerType,
-    SourceAlreadyRunningError,
-    SourceDisabledError,
     SourceNotFoundError,
     SourceOperationItem,
 )
@@ -60,9 +56,9 @@ def sanitize_metadata_safe(metadata: Any) -> Any:
             else:
                 sanitized[k] = sanitize_metadata_safe(v)
         return sanitized
-    elif isinstance(metadata, (list, tuple)):
+    if isinstance(metadata, (list, tuple)):
         return [sanitize_metadata_safe(item) for item in metadata]
-    elif isinstance(metadata, str):
+    if isinstance(metadata, str):
         s = metadata
         s = BEARER_PATTERN.sub("Bearer [MASKED]", s)
         s = AUTH_HEADER_PATTERN.sub("Authorization: [MASKED]", s)
@@ -83,7 +79,9 @@ class SourceOperationsRepository:
     def list_sources(self) -> Sequence[SourceOperationItem]:
         # 1. Fetch all sources
         sources = (
-            self.session.query(Source).order_by(Source.name.asc(), Source.id.asc()).all()
+            self.session.query(Source)
+            .order_by(Source.name.asc(), Source.id.asc())
+            .all()
         )
         if not sources:
             return []
@@ -92,24 +90,23 @@ class SourceOperationsRepository:
 
         # 2. Fetch the latest run for each source in 1 query
         latest_runs = {}
-        max_started_sub = (
+        rn_sub = (
             self.session.query(
-                CollectionRun.source_id,
-                func.max(CollectionRun.started_at).label("max_started"),
+                CollectionRun.id.label("run_id"),
+                func.row_number()
+                .over(
+                    partition_by=CollectionRun.source_id,
+                    order_by=(CollectionRun.started_at.desc(), CollectionRun.id.desc()),
+                )
+                .label("rn"),
             )
             .filter(CollectionRun.source_id.in_(source_ids))
-            .group_by(CollectionRun.source_id)
             .subquery()
         )
         runs = (
             self.session.query(CollectionRun)
-            .join(
-                max_started_sub,
-                sa.and_(
-                    CollectionRun.source_id == max_started_sub.c.source_id,
-                    CollectionRun.started_at == max_started_sub.c.max_started,
-                ),
-            )
+            .join(rn_sub, CollectionRun.id == rn_sub.c.run_id)
+            .filter(rn_sub.c.rn == 1)
             .all()
         )
         for r in runs:
@@ -134,23 +131,13 @@ class SourceOperationsRepository:
             latest_run_finished_at = None
             if latest_run:
                 latest_run_started_at = latest_run.started_at
-                if (
-                    latest_run_started_at
-                    and latest_run_started_at.tzinfo is None
-                ):
-                    latest_run_started_at = latest_run_started_at.replace(
-                        tzinfo=UTC
-                    )
+                if latest_run_started_at and latest_run_started_at.tzinfo is None:
+                    latest_run_started_at = latest_run_started_at.replace(tzinfo=UTC)
 
                 # completed_at mapped to finished_at
                 latest_run_finished_at = latest_run.completed_at
-                if (
-                    latest_run_finished_at
-                    and latest_run_finished_at.tzinfo is None
-                ):
-                    latest_run_finished_at = latest_run_finished_at.replace(
-                        tzinfo=UTC
-                    )
+                if latest_run_finished_at and latest_run_finished_at.tzinfo is None:
+                    latest_run_finished_at = latest_run_finished_at.replace(tzinfo=UTC)
 
             last_success_at = source.last_success_at
             if last_success_at and last_success_at.tzinfo is None:
@@ -206,9 +193,9 @@ class SourceOperationsRepository:
         limit: int = 25,
         offset: int = 0,
     ) -> tuple[Sequence[CollectionRunListItem], int]:
-        query = self.session.query(CollectionRun, Source.name).outerjoin(
-            Source, CollectionRun.source_id == Source.id
-        )
+        query = self.session.query(
+            CollectionRun, Source.name, Source.source_type
+        ).outerjoin(Source, CollectionRun.source_id == Source.id)
 
         if source_id:
             query = query.filter(CollectionRun.source_id == source_id)
@@ -227,7 +214,7 @@ class SourceOperationsRepository:
         )
 
         items = []
-        for run, source_name in runs:
+        for run, source_name, source_type in runs:
             started_at = run.started_at
             if started_at.tzinfo is None:
                 started_at = started_at.replace(tzinfo=UTC)
@@ -236,22 +223,15 @@ class SourceOperationsRepository:
             if finished_at and finished_at.tzinfo is None:
                 finished_at = finished_at.replace(tzinfo=UTC)
 
-            # Retrieve source type (defaults if source was deleted)
-            source_type = "unknown"
-            if run.source_id:
-                # Source info can be retrieved or join could have brought it,
-                # but to be completely safe, we query source if needed,
-                # however we joined Source so we can load it. Let's just fetch it
-                s = self.get_source_detail(run.source_id)
-                if s:
-                    source_type = s.source_type
+            s_name = source_name or "Deleted Source"
+            s_type = source_type or "unknown"
 
             items.append(
                 CollectionRunListItem(
                     id=run.id,
                     source_id=run.source_id or "",
-                    source_name=source_name or "Deleted Source",
-                    source_type=source_type,
+                    source_name=s_name,
+                    source_type=s_type,
                     trigger_type=run.trigger_type,
                     status=run.status,
                     started_at=started_at,
@@ -271,9 +251,7 @@ class SourceOperationsRepository:
         self, source_id: str, limit: int = 10
     ) -> Sequence[CollectionRunListItem]:
         # Implementation of listing runs for a single source, e.g., for detail screen
-        items, _ = self.list_collection_runs(
-            source_id=source_id, limit=limit, offset=0
-        )
+        items, _ = self.list_collection_runs(source_id=source_id, limit=limit, offset=0)
         return items
 
     def get_collection_run_detail(self, run_id: str) -> CollectionRunDetail | None:
@@ -299,7 +277,9 @@ class SourceOperationsRepository:
 
         # Sanitize metadata & error summary
         safe_metadata = sanitize_metadata_safe(run.run_metadata)
-        safe_error = sanitize_error(run.error_summary or "") if run.error_summary else None
+        safe_error = (
+            sanitize_error(run.error_summary or "") if run.error_summary else None
+        )
 
         return CollectionRunDetail(
             id=run.id,

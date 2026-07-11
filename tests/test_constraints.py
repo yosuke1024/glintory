@@ -402,3 +402,54 @@ def test_source_delete_collection_run_set_null(db_session):
 
     db_session.refresh(run)
     assert run.source_id is None
+
+
+def test_collection_runs_check_constraints(db_session):
+    import sqlalchemy as sa
+
+    from glintory.domain.operations import CollectionTriggerType
+
+    s = Source(name="Github", source_type="github")
+    db_session.add(s)
+    db_session.commit()
+
+    run_ok = CollectionRun(
+        source_id=s.id,
+        status=CollectionRunStatus.ABANDONED,
+        trigger_type=CollectionTriggerType.SCHEDULED,
+    )
+    db_session.add(run_ok)
+    db_session.commit()
+
+    # Test invalid status
+    run_bad_status = CollectionRun(
+        source_id=s.id,
+        status="nonsense",  # type: ignore
+        trigger_type=CollectionTriggerType.CLI,
+    )
+    db_session.add(run_bad_status)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Test invalid trigger_type
+    run_bad_trigger = CollectionRun(
+        source_id=s.id,
+        status=CollectionRunStatus.RUNNING,
+        trigger_type="nonsense",  # type: ignore
+    )
+    db_session.add(run_bad_trigger)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Verify that constraint names exist in sqlite_master
+    res = db_session.execute(
+        sa.text(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'collection_runs'"
+        )
+    ).scalar_one_or_none()
+    assert res is not None
+    assert "chk_collection_runs_status_allowed" in res
+    assert "chk_collection_runs_trigger_type_allowed" in res

@@ -48,7 +48,6 @@ class Settings(BaseSettings):
             raise ValueError("history per page must be 10, 25, 50, or 100")
         return v
 
-
     http_connect_timeout_seconds: float = 5.0
     http_read_timeout_seconds: float = 20.0
     http_write_timeout_seconds: float = 10.0
