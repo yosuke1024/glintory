@@ -67,9 +67,9 @@ jobs:
             echo "cache_status=Miss" >> $GITHUB_ENV
           fi
 
-          # 1. Check and prepare llama-server
+          # 1. Check and prepare llama-server and library files
           bin_ok=false
-          if [ -f "./bin/llama-server" ]; then
+          if [ -f "./bin/llama-server" ] && [ -f "./bin/libllama.so" ]; then
             echo "${{ env.LLAMA_CPP_BINARY_SHA256 }}  ./bin/llama-server" | sha256sum -c - --status && bin_ok=true || bin_ok=false
           fi
 
@@ -81,6 +81,7 @@ jobs:
             echo "${{ env.LLAMA_CPP_ARCHIVE_SHA256 }}  llama.zip" | sha256sum -c -
             unzip -o llama.zip -d llama_temp
             find llama_temp -name "llama-server" -exec cp {} ./bin/llama-server \;
+            find llama_temp -name "*.so" -exec cp {} ./bin/ \;
             chmod +x ./bin/llama-server
             rm -rf llama.zip llama_temp
             # Verify extracted binary hash

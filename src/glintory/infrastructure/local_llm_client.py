@@ -111,8 +111,7 @@ class LlamaServerContext:
         ]
         
         # Write server output to a log file for debugging on failure
-        log_dir = os.path.dirname(os.path.abspath(self.binary_path))
-        build_dir = os.path.join(os.path.dirname(os.path.dirname(log_dir)), "build")
+        build_dir = os.path.abspath("build")
         os.makedirs(build_dir, exist_ok=True)
         log_path = os.path.join(build_dir, "llama_server.log")
         log_file = open(log_path, "w", encoding="utf-8")
