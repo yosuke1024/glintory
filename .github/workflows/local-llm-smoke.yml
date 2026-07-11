@@ -105,6 +105,12 @@ jobs:
             echo "Model cached and verified successfully."
           fi
 
+      - name: Debug llama-server binary
+        run: |
+          chmod +x ./bin/llama-server
+          ./bin/llama-server --version || true
+          ldd ./bin/llama-server || true
+
       - name: Initialize database and setup test data
         run: |
           mkdir -p .state build
