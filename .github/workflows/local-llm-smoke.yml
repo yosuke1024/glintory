@@ -252,7 +252,8 @@ jobs:
             --max-opportunities 1 \
             --require-all-success \
             --json \
-            > build/llm-smoke-result.json
+            > build/llm-smoke-result.json \
+            2> build/llm-smoke-error.log
           
           cli_status=$?
           set -e
@@ -267,6 +268,12 @@ jobs:
           echo "=== Content of llm-smoke-result.json ==="
           cat build/llm-smoke-result.json || true
           echo "========================================"
+          echo "=== Content of llm-smoke-error.log ==="
+          cat build/llm-smoke-error.log || true
+          echo "======================================"
+          echo "=== Content of llama_server.log ==="
+          cat build/llama_server.log || true
+          echo "==================================="
           test "$(jq -r '.selected_count' build/llm-smoke-result.json)" = "1"
           test "$(jq -r '.succeeded_count' build/llm-smoke-result.json)" = "1"
           test "$(jq -r '.failed_count' build/llm-smoke-result.json)" = "0"
