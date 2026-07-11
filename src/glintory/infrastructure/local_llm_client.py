@@ -242,7 +242,7 @@ class LocalLlmProvider:
             res = subprocess.run(
                 [self.binary_path, "--version"],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
                 text=True,
                 timeout=5,
                 check=False,
