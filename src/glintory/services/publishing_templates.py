@@ -745,6 +745,118 @@ DIAGNOSTICS_TEMPLATE = """<!DOCTYPE html>
       </table>
     </div>
 
+    <!-- Analysis Executions -->
+    <h2 style="margin-top: 2rem;">Recent Analysis Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Submitted Signals</th>
+            <th style="padding: 1rem;">Created Candidates</th>
+            <th style="padding: 1rem;">Updated Candidates</th>
+            <th style="padding: 1rem;">Gate Passed</th>
+            <th style="padding: 1rem;">Gate Rejected</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in analysis_runs %}
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">{{ run.started_at | format_datetime }}</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: {% if run.status == 'succeeded' %}#065f46{% else %}#991b1b{% endif %};
+                  color: #fff;
+                ">{{ run.status }}</span>
+              </td>
+              <td style="padding: 1rem;">{{ run.submitted_signal_count }}</td>
+              <td style="padding: 1rem;">{{ run.created_candidate_count }}</td>
+              <td style="padding: 1rem;">{{ run.updated_candidate_count }}</td>
+              <td style="padding: 1rem;">{{ run.gate_passed_count }}</td>
+              <td style="padding: 1rem;">{{ run.gate_rejected_count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Scoring Executions -->
+    <h2>Recent Scoring Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Analyzed</th>
+            <th style="padding: 1rem;">Scored</th>
+            <th style="padding: 1rem;">Unchanged</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in scoring_runs %}
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">{{ run.started_at | format_datetime }}</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: {% if run.status == 'succeeded' %}#065f46{% else %}#991b1b{% endif %};
+                  color: #fff;
+                ">{{ run.status }}</span>
+              </td>
+              <td style="padding: 1rem;">{{ run.analyzed_count }}</td>
+              <td style="padding: 1rem;">{{ run.scored_count }}</td>
+              <td style="padding: 1rem;">{{ run.unchanged_count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Publishing Executions -->
+    <h2>Recent Publishing Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Published Opportunities</th>
+            <th style="padding: 1rem;">JuryPress Ready</th>
+            <th style="padding: 1rem;">Dataset Content Hash</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in publishing_runs %}
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">{{ run.started_at | format_datetime }}</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: {% if run.status == 'succeeded' %}#065f46{% else %}#991b1b{% endif %};
+                  color: #fff;
+                ">{{ run.status }}</span>
+              </td>
+              <td style="padding: 1rem;">{{ run.published_count }}</td>
+              <td style="padding: 1rem;">{{ run.jurypress_ready_count }}</td>
+              <td style="padding: 1rem; font-family: monospace;">{{ run.dataset_content_hash[:8] if run.dataset_content_hash else '-' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
     <!-- Recent Collector Runs -->
     <h2>Recent Collector Executions</h2>
     <div class="table-container" style="overflow-x: auto; margin-top: 1rem;">

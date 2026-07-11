@@ -796,9 +796,8 @@ class OpportunityScoringEngine:
                 if kw.isalnum() and kw.isascii():
                     if re.search(rf"\b{re.escape(kw)}\b", text):
                         return True
-                else:
-                    if kw in text:
-                        return True
+                elif kw in text:
+                    return True
             return False
 
         # 3. Solo Developer Suitability (0-20)

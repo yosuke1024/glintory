@@ -369,6 +369,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_val_parser.add_argument("--site-url", help="Public site URL to validate")
 
+    publish_contract_val_parser = publish_subparsers.add_parser(
+        "validate-contract", help="Validate Public Data Contract JSON feeds and schemas"
+    )
+    publish_contract_val_parser.add_argument(
+        "--dir", required=True, help="Static site output directory containing data/v1"
+    )
+
+    publish_inspect_parser = publish_subparsers.add_parser(
+        "inspect-jurypress-feed", help="Inspect JuryPress integration readiness status"
+    )
+    publish_inspect_parser.add_argument(
+        "--dir", required=True, help="Static site output directory containing data/v1"
+    )
+
     # Setup enrich command
     enrich_parser = subparsers.add_parser("enrich", help="LLM opportunity enrichment")
     enrich_subparsers = enrich_parser.add_subparsers(dest="subcommand", required=True)
@@ -1522,6 +1536,33 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
                 sys.stderr.write("CONFIGURATION_PREFLIGHT_FAILED\n")
             return 1
 
+    elif args.subcommand == "validate-contract":
+        from glintory.services.contract_validation import validate_public_contract
+        data_dir = os.path.join(args.dir, "data", "v1")
+        errors = validate_public_contract(data_dir)
+        if errors:
+            for err in errors:
+                sys.stderr.write(f"Validation error: {err}\n")
+            return 1
+        print("Public Data Contract v1 validation passed.")
+        return 0
+
+    elif args.subcommand == "inspect-jurypress-feed":
+        from glintory.services.contract_validation import inspect_jurypress_feed
+        data_dir = os.path.join(args.dir, "data", "v1")
+        res = inspect_jurypress_feed(data_dir)
+
+        print("=== JuryPress Ready Opportunities ===")
+        for item in res["ready"]:
+            print(f"- [{item['public_id']}] {item['title']} (Score: {item['score']}, Confidence: {item['confidence']})")
+
+        print("\n=== Excluded Opportunities ===")
+        for item in res["excluded"]:
+            reasons_str = ", ".join(item["reasons"])
+            print(f"- [{item['public_id']}] {item['title']} (Score: {item['score']}, Confidence: {item['confidence']})")
+            print(f"  Reasons: {reasons_str}")
+        return 0
+
     return 0
 
 
@@ -1679,107 +1720,18 @@ async def run_enrich_command(args: argparse.Namespace, runtime: Any) -> int:
 
 async def run_opportunities_command(args: argparse.Namespace, runtime: Any) -> int:
     if args.subcommand == "rebuild":
-        from glintory.domain.enums import OpportunityStatus, Confidence
-        from glintory.domain.models import Opportunity, OpportunitySignal, Signal
-        from glintory.services.signal_classification import classify_signal_role
-        from glintory.domain.clustering import OpportunityClusteringConfig
-        from glintory.infrastructure.opportunity_clustering_repository import OpportunityClusteringRepository
-        from glintory.services.opportunity_analysis import OpportunityAnalysisService
-        from glintory.services.opportunity_clustering import OpportunityClusteringEngine
-        from glintory.infrastructure.opportunity_scoring_repository import OpportunityScoringRepository
-        from glintory.services.opportunity_scoring import OpportunityScoringEngine
-        from glintory.services.opportunity_scoring_service import OpportunityScoringService
-        
+        from glintory.services.opportunity_rebuild_service import (
+            OpportunityRebuildService,
+        )
+
         session = runtime.session_factory()
         try:
             from_version = args.from_score_version
             to_version = args.to_score_version
-            
-            # 1. Collect from_version (v1) opportunities and their associated signals
-            from_opps = (
-                session.query(Opportunity)
-                .filter(Opportunity.current_scoring_version == from_version)
-                .all()
-            )
-            from_opp_ids = [opp.id for opp in from_opps]
-            
-            from_opp_sigs = (
-                session.query(OpportunitySignal)
-                .filter(OpportunitySignal.opportunity_id.in_(from_opp_ids))
-                .all()
-            ) if from_opp_ids else []
-            from_sig_ids = list({osig.signal_id for osig in from_opp_sigs})
-            
-            # Keep from_version (v1) opportunities and their links intact for audit logs!
-            # Do NOT delete or modify them.
-            
-            # 2. Delete existing to_version (v2) opportunities and their links to rebuild cleanly
-            to_opps = (
-                session.query(Opportunity)
-                .filter(Opportunity.current_scoring_version == to_version)
-                .all()
-            )
-            to_opp_ids = [opp.id for opp in to_opps]
-            
-            if to_opp_ids:
-                session.query(OpportunitySignal).filter(OpportunitySignal.opportunity_id.in_(to_opp_ids)).delete(synchronize_session=False)
-                session.query(Opportunity).filter(Opportunity.id.in_(to_opp_ids)).delete(synchronize_session=False)
-                session.flush()
 
-            # 3. Re-classify signal roles for the signals that were in from_version
-            signals = session.query(Signal).filter(Signal.id.in_(from_sig_ids)).all() if from_sig_ids else []
-            for sig in signals:
-                src = sig.source
-                src_type = src.source_type if src else "unknown"
-                sig.signal_role = classify_signal_role(
-                    src_type, sig.signal_type, sig.title, sig.excerpt
-                )
-            session.flush()
-            
-            # 4. Perform clustering and analysis for to_version
-            config = OpportunityClusteringConfig()
-            repo = OpportunityClusteringRepository(session)
-            engine = OpportunityClusteringEngine(config)
-            analysis_service = OpportunityAnalysisService(session, repo, engine, config)
-            
-            # analyze_and_cluster will automatically find all unassociated signals in v2 context
-            analysis_res = analysis_service.analyze_and_cluster(dry_run=False)
-            session.flush()
-            
-            # 5. Run opportunity scoring for to_version
-            scoring_engine = OpportunityScoringEngine(scoring_version=to_version)
-            scoring_service = OpportunityScoringService(
-                session_factory=lambda: session,
-                repository_factory=OpportunityScoringRepository,
-                engine=scoring_engine,
-                scoring_version=to_version,
-            )
-            
-            scoring_res = scoring_service.score_opportunities(dry_run=False)
-            session.commit()
-            
-            # Collect resulting counts
-            gate_passed = session.query(Opportunity).filter(
-                Opportunity.current_scoring_version == to_version,
-                Opportunity.gate_status == "passed"
-            ).count()
-            
-            gate_rejected = session.query(Opportunity).filter(
-                Opportunity.current_scoring_version == to_version,
-                Opportunity.gate_status == "rejected"
-            ).count()
-            
-            result = {
-                "rebuild_status": "success",
-                "source_opportunities": len(from_opps),
-                "source_signals": len(signals),
-                "created_v2_opportunities": analysis_res.created_opportunities_count,
-                "updated_v2_opportunities": analysis_res.linked_signals_count,  # count of updated links/signals
-                "gate_passed": gate_passed,
-                "gate_rejected": gate_rejected,
-                "scored_opportunities": scoring_res.scored_opportunity_count,
-            }
-            
+            service = OpportunityRebuildService(session)
+            result = service.rebuild_v2(from_version=from_version, to_version=to_version)
+
             if args.json:
                 print(json.dumps(result))
             else:

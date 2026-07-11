@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from glintory.domain.clustering import OpportunityClusteringConfig
 from glintory.domain.enums import EvidenceRelationType, OpportunityStatus, SignalRole
-from glintory.domain.models import Opportunity, OpportunitySignal, Signal
+from glintory.domain.models import AnalysisRun, Opportunity, OpportunitySignal, Signal
 from glintory.infrastructure.opportunity_clustering_repository import (
     OpportunityClusteringRepository,
 )
@@ -235,6 +235,22 @@ class OpportunityAnalysisService:
                 dry_run=dry_run,
             )
 
+        now = datetime.now(UTC)
+
+        # Create AnalysisRun record
+        analysis_run = AnalysisRun(
+            started_at=now,
+            status="running",
+            submitted_signal_count=len(unassociated_signals),
+            created_candidate_count=0,
+            updated_candidate_count=0,
+            gate_passed_count=0,
+            gate_rejected_count=0
+        )
+        if not dry_run:
+            self.session.add(analysis_run)
+            self.session.flush()
+
         # 2. Load active opportunities and their associated signals
         active_opp_items = self.repository.load_active_opportunities_with_signals()
 
@@ -279,7 +295,8 @@ class OpportunityAnalysisService:
         # 5. Process clusters inside transaction
         created_opps_count = 0
         linked_sigs_count = 0
-        now = datetime.now(UTC)
+        gate_passed_count = 0
+        gate_rejected_count = 0
 
         # Load excluded pairs to prevent automatically re-linking to previously excluded opportunities
         excluded_rows = (
@@ -356,10 +373,16 @@ class OpportunityAnalysisService:
                         opp.gate_reason = reason
                         opp.gate_checked_at = now
 
+                        if passed:
+                            gate_passed_count += 1
+                        else:
+                            gate_rejected_count += 1
+
                         if opp.status in (
                             OpportunityStatus.INBOX,
                             OpportunityStatus.RESEARCH,
                             OpportunityStatus.REJECTED,
+                            OpportunityStatus.ARCHIVED,
                         ):
                             opp.status = (
                                 OpportunityStatus.INBOX
@@ -377,6 +400,10 @@ class OpportunityAnalysisService:
                 metrics, passed, reason = self._calculate_metrics_and_gate(
                     cluster["signals"]
                 )
+                if passed:
+                    gate_passed_count += 1
+                else:
+                    gate_rejected_count += 1
 
                 opp = Opportunity(
                     title=title,
@@ -419,6 +446,12 @@ class OpportunityAnalysisService:
                     linked_sigs_count += 1
 
         if not dry_run:
+            analysis_run.created_candidate_count = created_opps_count
+            analysis_run.updated_candidate_count = linked_sigs_count
+            analysis_run.gate_passed_count = gate_passed_count
+            analysis_run.gate_rejected_count = gate_rejected_count
+            analysis_run.completed_at = datetime.now(UTC)
+            analysis_run.status = "succeeded"
             self.session.commit()
         else:
             self.session.rollback()

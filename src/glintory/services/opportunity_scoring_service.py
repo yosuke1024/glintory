@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from glintory.domain.enums import OpportunityStatus
+from glintory.domain.models import ScoringRun
 from glintory.domain.scoring import (
     OpportunityScore,
     OpportunityScoringResult,
@@ -47,6 +48,26 @@ class OpportunityScoringService:
         # 2. Determine scoring date and time
         now_dt = self.clock()
         run_date = as_of_date or now_dt.date()
+
+        # Create ScoringRun record
+        scoring_run_id = None
+        if not dry_run:
+            run_session = self.session_factory()
+            try:
+                scoring_run = ScoringRun(
+                    started_at=now_dt,
+                    status="running",
+                    analyzed_count=0,
+                    scored_count=0,
+                    unchanged_count=0
+                )
+                run_session.add(scoring_run)
+                run_session.commit()
+                scoring_run_id = scoring_run.id
+            except Exception as e:
+                logger.error(f"Failed to create ScoringRun: {e}")
+            finally:
+                run_session.close()
 
         # 3. Read Transaction to fetch opportunities and signals
         session = self.session_factory()
@@ -130,6 +151,15 @@ class OpportunityScoringService:
                 duration_ms=duration_ms,
             )
 
+            if not dry_run:
+                self._finish_scoring_run(
+                    scoring_run_id,
+                    analyzed_count=len(scoring_inputs),
+                    scored_count=len(to_persist),
+                    unchanged_count=unchanged_count,
+                    status="succeeded"
+                )
+
             return OpportunityScoringResult(
                 scoring_version=self.scoring_version,
                 as_of_date=run_date,
@@ -170,6 +200,14 @@ class OpportunityScoringService:
             logger.error(
                 f"Transaction failed during opportunity score persistence: {e}"
             )
+            if not dry_run:
+                self._finish_scoring_run(
+                    scoring_run_id,
+                    analyzed_count=len(scoring_inputs),
+                    scored_count=len(to_persist),
+                    unchanged_count=unchanged_count,
+                    status="failed"
+                )
             raise
         finally:
             write_session.close()
@@ -188,6 +226,15 @@ class OpportunityScoringService:
             duration_ms=duration_ms,
         )
 
+        if not dry_run:
+            self._finish_scoring_run(
+                scoring_run_id,
+                analyzed_count=len(scoring_inputs),
+                scored_count=len(to_persist),
+                unchanged_count=unchanged_count,
+                status="succeeded"
+            )
+
         return OpportunityScoringResult(
             scoring_version=self.scoring_version,
             as_of_date=run_date,
@@ -201,6 +248,31 @@ class OpportunityScoringService:
             scored_opportunity_ids=tuple(scored_opportunity_ids),
             warnings=(),
         )
+
+    def _finish_scoring_run(
+        self,
+        scoring_run_id: str | None,
+        analyzed_count: int,
+        scored_count: int,
+        unchanged_count: int,
+        status: str = "succeeded"
+    ) -> None:
+        if not scoring_run_id:
+            return
+        session = self.session_factory()
+        try:
+            run = session.get(ScoringRun, scoring_run_id)
+            if run:
+                run.analyzed_count = analyzed_count
+                run.scored_count = scored_count
+                run.unchanged_count = unchanged_count
+                run.completed_at = datetime.now(UTC)
+                run.status = status
+                session.commit()
+        except Exception as e:
+            logger.error(f"Failed to update ScoringRun: {e}")
+        finally:
+            session.close()
 
     def _build_explanation(self, score: OpportunityScore) -> dict[str, Any]:
         """Convert ScoreComponent list to JSON serializable dictionary."""

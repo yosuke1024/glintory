@@ -287,6 +287,17 @@ jobs:
             --site-url "$GLINTORY_PUBLIC_SITE_URL" \
             --json
 
+      - name: Validate Public Data Contract
+        run: |
+          uv run glintory publish validate-contract --dir dist
+
+      - name: Write JuryPress Feed Integration Summary
+        run: |
+          {
+            echo "### Public Data Contract & JuryPress Integration"
+            uv run glintory publish inspect-jurypress-feed --dir dist
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Create state snapshot and upload
         id: upload_state
         run: |

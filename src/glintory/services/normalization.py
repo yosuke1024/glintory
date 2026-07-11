@@ -139,7 +139,9 @@ class SignalNormalizer:
                     if default_hint == SignalType.MANUAL:
                         raise ValueError("manual_signal_type_not_allowed")
 
-                    from glintory.services.signal_classification import _classify_rss_entry
+                    from glintory.services.signal_classification import (
+                        _classify_rss_entry,
+                    )
                     signal_type = _classify_rss_entry(item.title, item.excerpt, default_hint)
 
                     default_categories = item.metadata.get("default_categories") or ()

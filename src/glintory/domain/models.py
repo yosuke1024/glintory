@@ -358,6 +358,20 @@ class Opportunity(Base):
     evidence_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    public_id: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=False,
+        default=lambda: f"opp_{uuid.uuid4().hex}"
+    )
+    public_revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    public_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    first_published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -381,6 +395,7 @@ class Opportunity(Base):
         Index("idx_opportunities_created_at", "created_at"),
         Index("idx_opportunities_last_scored_at", "last_scored_at"),
         Index("idx_opportunities_evidence_updated_at", "evidence_updated_at"),
+        Index("idx_opportunities_public_id", "public_id"),
     )
 
 
@@ -770,3 +785,53 @@ class OpportunityEnrichmentLocalization(Base):
         CheckConstraint("locale IN ('en', 'ja')", name="chk_locale_allowed"),
         Index("idx_enrichment_localizations_enrich_id", "enrichment_id"),
     )
+
+
+class OpportunityPublicAlias(Base):
+    __tablename__ = "opportunity_public_aliases"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    old_public_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    canonical_public_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class AnalysisRun(Base):
+    __tablename__ = "analysis_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    submitted_signal_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_candidate_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_candidate_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    gate_passed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    gate_rejected_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class ScoringRun(Base):
+    __tablename__ = "scoring_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    analyzed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    scored_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    unchanged_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class PublishingRun(Base):
+    __tablename__ = "publishing_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    published_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    jurypress_ready_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    dataset_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+

@@ -1,38 +1,39 @@
-import pytest
+import json
 import os
 import pathlib
-import tempfile
-import json
-from datetime import datetime, UTC, date
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from alembic.config import Config
-from alembic import command
+from datetime import UTC, date, datetime
 
+import pytest
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from glintory.cli import run_opportunities_command
 from glintory.config import settings
-from glintory.infrastructure.database import reset_db_connections
 from glintory.domain.enums import (
+    CollectionRunStatus,
+    Confidence,
+    EvidenceRelationType,
     OpportunityStatus,
     SignalRole,
     SignalType,
-    EvidenceRelationType,
-    Confidence,
-    CollectionRunStatus,
 )
 from glintory.domain.models import (
+    CollectionRun,
     Opportunity,
+    OpportunitySignal,
     Signal,
     Source,
-    SourceSchedule,
-    OpportunitySignal,
-    CollectionRun,
-    ScheduleExecution,
+)
+from glintory.infrastructure.database import reset_db_connections
+from glintory.infrastructure.opportunity_clustering_repository import (
+    OpportunityClusteringRepository,
 )
 from glintory.services.opportunity_analysis import OpportunityAnalysisService
 from glintory.services.opportunity_scoring import OpportunityScoringEngine
 from glintory.services.static_publishing import build_static_site
-from glintory.cli import run_opportunities_command
-from glintory.infrastructure.opportunity_clustering_repository import OpportunityClusteringRepository
+
 
 @pytest.fixture
 def test_db(tmp_path):
@@ -411,7 +412,6 @@ def test_opportunity_update_recalculates_all_evidence(test_db):
     assert updated_opp.source_type_count == 2
 
 def test_feasibility_v2_scores_differentiate(test_db):
-    session = test_db
     # Prepare different implementation clues
     # 1. Client-only CSV CLI tool (simple)
     csv_cli_text = "A simple CSV converter CLI tool. No database is required, completely offline and client-only. Easy command line interface."
@@ -580,7 +580,7 @@ def test_fallback_warning_when_ja_translation_missing(test_db, tmp_path):
     build_static_site(session=session, output_dir=output_dir, site_url="https://localhost")
 
     # Detailed Japanese page (standard url) should display fallback warning
-    ja_detail_file = os.path.join(output_dir, "opportunities", "opp-missing-ja", "index.html")
+    ja_detail_file = os.path.join(output_dir, "opportunities", opp.public_id, "index.html")
     with open(ja_detail_file) as f:
         ja_content = f.read()
     
@@ -635,7 +635,7 @@ def test_evidence_renders_signal_role(test_db, tmp_path):
     build_static_site(session=session, output_dir=output_dir, site_url="https://localhost")
 
     # Check JST date formatting and signal role rendering in detailed page
-    detail_file = os.path.join(output_dir, "opportunities", "opp-role-test", "index.html")
+    detail_file = os.path.join(output_dir, "opportunities", opp.public_id, "index.html")
     with open(detail_file) as f:
         detail_content = f.read()
     
@@ -924,11 +924,11 @@ def test_sitemap_correctness_and_en_only(test_db, tmp_path):
     with open(sitemap_file) as f:
         sitemap_content = f.read()
 
-    # Should contain /opportunities/opp-site/ and /opportunities/opp-site/en/
-    assert "https://localhost/opportunities/opp-site/" in sitemap_content
-    assert "https://localhost/opportunities/opp-site/en/" in sitemap_content
-    # Should not contain /opportunities/opp-site/ja/
-    assert "https://localhost/opportunities/opp-site/ja/" not in sitemap_content
+    # Should contain /opportunities/opp.public_id/ and /opportunities/opp.public_id/en/
+    assert f"https://localhost/opportunities/{opp.public_id}/" in sitemap_content
+    assert f"https://localhost/opportunities/{opp.public_id}/en/" in sitemap_content
+    # Should not contain /opportunities/opp.public_id/ja/
+    assert f"https://localhost/opportunities/{opp.public_id}/ja/" not in sitemap_content
 
     # Verify that files for all sitemap URLs actually exist
     import xml.etree.ElementTree as ET

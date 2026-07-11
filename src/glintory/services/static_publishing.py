@@ -67,7 +67,7 @@ def format_datetime(val: Any) -> str:
     if isinstance(val, str):
         return val
     try:
-        from datetime import timezone, timedelta
+        from datetime import timedelta, timezone
         # Convert to JST (UTC+9)
         jst = timezone(timedelta(hours=9))
         val_jst = val.astimezone(jst)
@@ -134,8 +134,22 @@ def build_static_site(
     pixapps_url: str | None = None,
     generated_at: datetime | None = None,
 ) -> dict:
+    from glintory.domain.models import OpportunityPublicAlias, PublishingRun
+    from glintory.services.public_contract_generator import generate_public_contract
+
     valid_site_url = validate_site_url(site_url)
     gen_time = generated_at or datetime.now(UTC)
+
+    # 1. Start PublishingRun auditing
+    pub_run = PublishingRun(
+        started_at=gen_time,
+        status="running",
+        published_count=0,
+        jurypress_ready_count=0,
+        dataset_content_hash=""
+    )
+    session.add(pub_run)
+    session.commit()
 
     if base_path:
         if not base_path.startswith("/"):
@@ -165,7 +179,7 @@ def build_static_site(
             .first()
         )
 
-        from glintory.domain.enums import OpportunityStatus, Confidence
+        from glintory.domain.enums import Confidence, OpportunityStatus
 
         opportunities = (
             session.query(Opportunity)
@@ -211,6 +225,7 @@ def build_static_site(
                 }
             )
 
+        # Generate legacy JSON for backwards compatibility
         latest_json_data = {
             "generated_at": gen_time.isoformat(),
             "scheduler": {
@@ -265,6 +280,15 @@ def build_static_site(
             )
         with open(os.path.join(temp_build_dir, "data", "opportunities.json"), "w") as f:
             json.dump(ops_json_list, f, indent=2)
+
+        # Generate versioned JSON feeds and JSON schemas
+        contract_res = generate_public_contract(
+            session=session,
+            temp_build_dir=temp_build_dir,
+            base_path=base_path,
+            site_url=valid_site_url,
+            gen_time=gen_time
+        )
 
         with open(os.path.join(temp_build_dir, "assets", "app.css"), "w") as f:
             f.write(CSS_CONTENT.strip())
@@ -429,7 +453,7 @@ def build_static_site(
                 translation_fallback=translation_fallback_ja,
             )
 
-            op_dir = os.path.join(temp_build_dir, "opportunities", op.id)
+            op_dir = os.path.join(temp_build_dir, "opportunities", op.public_id)
             os.makedirs(op_dir, exist_ok=True)
             with open(os.path.join(op_dir, "index.html"), "w") as f:
                 f.write(rendered_detail_ja)
@@ -458,10 +482,56 @@ def build_static_site(
             with open(os.path.join(op_dir_en, "index.html"), "w") as f:
                 f.write(rendered_detail_en)
 
+        # Generate Redirect HTMLs for backwards compatibility
+        # 1. From OpportunityPublicAlias table
+        aliases = session.query(OpportunityPublicAlias).all()
+        for alias in aliases:
+            redir_dir = os.path.join(temp_build_dir, "opportunities", alias.old_public_id)
+            os.makedirs(redir_dir, exist_ok=True)
+            redir_html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting...</title>
+  <meta http-equiv="refresh" content="0; url={base_path}/opportunities/{alias.canonical_public_id}/">
+  <link rel="canonical" href="{valid_site_url.rstrip('/')}{base_path}/opportunities/{alias.canonical_public_id}/">
+</head>
+<body>
+  <p>Redirecting to <a href="{base_path}/opportunities/{alias.canonical_public_id}/">{alias.canonical_public_id}</a>...</p>
+</body>
+</html>"""
+            with open(os.path.join(redir_dir, "index.html"), "w") as f:
+                f.write(redir_html)
+
+        # 2. From old UUIDs (op.id) to op.public_id
+        for op in opportunities:
+            if op.id != op.public_id:
+                redir_dir = os.path.join(temp_build_dir, "opportunities", op.id)
+                os.makedirs(redir_dir, exist_ok=True)
+                redir_html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting...</title>
+  <meta http-equiv="refresh" content="0; url={base_path}/opportunities/{op.public_id}/">
+  <link rel="canonical" href="{valid_site_url.rstrip('/')}{base_path}/opportunities/{op.public_id}/">
+</head>
+<body>
+  <p>Redirecting to <a href="{base_path}/opportunities/{op.public_id}/">{op.public_id}</a>...</p>
+</body>
+</html>"""
+                with open(os.path.join(redir_dir, "index.html"), "w") as f:
+                    f.write(redir_html)
+
         # Render diagnostics page
-        from glintory.domain.models import CollectionRun
         import sqlalchemy as sa
-        from glintory.domain.enums import CollectionRunStatus, Confidence, EvidenceRelationType
+
+        from glintory.domain.enums import (
+            CollectionRunStatus,
+            Confidence,
+            EvidenceRelationType,
+        )
+        from glintory.domain.models import CollectionRun
 
         # Load all v2 opportunities with their signals and sources for representative source type analysis
         v2_opps = (
@@ -503,9 +573,7 @@ def build_static_site(
                 return False
             if opp.status in (OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED):
                 return False
-            if opp.confidence not in (Confidence.MEDIUM, Confidence.HIGH):
-                return False
-            return True
+            return opp.confidence in (Confidence.MEDIUM, Confidence.HIGH)
 
         # Compile pipeline stats by Source Type
         track_types = ["github", "hackernews", "rss"]
@@ -653,6 +721,27 @@ def build_static_site(
                     "sanitized_error_message": run.sanitized_error_message,
                 }
             )
+        # Load AnalysisRun, ScoringRun, PublishingRun
+        from glintory.domain.models import AnalysisRun, PublishingRun, ScoringRun
+        analysis_runs = (
+            session.query(AnalysisRun)
+            .order_by(AnalysisRun.started_at.desc())
+            .limit(10)
+            .all()
+        )
+        scoring_runs = (
+            session.query(ScoringRun)
+            .order_by(ScoringRun.started_at.desc())
+            .limit(10)
+            .all()
+        )
+        publishing_runs = (
+            session.query(PublishingRun)
+            .order_by(PublishingRun.started_at.desc())
+            .limit(10)
+            .all()
+        )
+
         diagnostics_template = env.from_string(DIAGNOSTICS_TEMPLATE)
         rendered_diagnostics = diagnostics_template.render(
             base_path=base_path,
@@ -660,6 +749,9 @@ def build_static_site(
             pipeline_stats=pipeline_stats,
             global_stats=global_stats,
             repo_url=repo_url,
+            analysis_runs=analysis_runs,
+            scoring_runs=scoring_runs,
+            publishing_runs=publishing_runs,
         )
         with open(os.path.join(temp_build_dir, "diagnostics.html"), "w") as f:
             f.write(rendered_diagnostics)
@@ -698,13 +790,13 @@ def build_static_site(
 
         for op in opportunities:
             sitemap_items.append(f"""  <url>
-    <loc>{make_loc(f"/opportunities/{op.id}/")}</loc>
+    <loc>{make_loc(f"/opportunities/{op.public_id}/")}</loc>
     <lastmod>{get_now_str()}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>""")
             sitemap_items.append(f"""  <url>
-    <loc>{make_loc(f"/opportunities/{op.id}/en/")}</loc>
+    <loc>{make_loc(f"/opportunities/{op.public_id}/en/")}</loc>
     <lastmod>{get_now_str()}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -731,7 +823,22 @@ def build_static_site(
         else:
             os.rename(temp_build_dir, output_dir)
 
+        # Update PublishingRun auditing upon success
+        pub_run.published_count = contract_res["published_opportunities"]
+        pub_run.jurypress_ready_count = contract_res["jurypress_ready"]
+        pub_run.dataset_content_hash = contract_res["manifest_content_hash"]
+        pub_run.completed_at = datetime.now(UTC)
+        pub_run.status = "succeeded"
+        session.commit()
+
     except Exception:
+        # Update PublishingRun auditing upon failure
+        try:
+            pub_run.completed_at = datetime.now(UTC)
+            pub_run.status = "failed"
+            session.commit()
+        except Exception:
+            pass
         if os.path.exists(temp_build_dir):
             shutil.rmtree(temp_build_dir)
         raise

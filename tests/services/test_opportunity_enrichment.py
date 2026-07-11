@@ -497,10 +497,14 @@ def test_validation_rejects_html_and_invalid_refs(
 def test_static_site_fallback_and_rendering(
     db_session_factory, mock_opportunity_data, tmp_path
 ):
+    from glintory.domain.models import Opportunity
     opp_id, signal_id, _ = mock_opportunity_data
     output_dir = str(tmp_path / "static")
 
     session = db_session_factory()
+    opp_obj = session.get(Opportunity, opp_id)
+    opp_public_id = opp_obj.public_id
+
     res_fallback = build_static_site(
         session=session,
         output_dir=output_dir,
@@ -508,7 +512,7 @@ def test_static_site_fallback_and_rendering(
     )
     assert res_fallback["total_files"] > 0
 
-    opp_detail_file = os.path.join(output_dir, "opportunities", opp_id, "index.html")
+    opp_detail_file = os.path.join(output_dir, "opportunities", opp_public_id, "index.html")
     with open(opp_detail_file) as f:
         content = f.read()
     assert "テスト案件タイトル" in content
@@ -635,7 +639,7 @@ def test_static_site_fallback_and_rendering(
 
     # Verify English Page
     opp_detail_file_en = os.path.join(
-        output_dir, "opportunities", opp_id, "en", "index.html"
+        output_dir, "opportunities", opp_public_id, "en", "index.html"
     )
     assert os.path.exists(opp_detail_file_en)
     with open(opp_detail_file_en) as f:

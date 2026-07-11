@@ -430,7 +430,7 @@ def test_static_publishing_conformance(test_db, tmp_path):
     )
 
     index_html = (dist_dir / "index.html").read_text()
-    detail_html = (dist_dir / "opportunities" / "op-idx" / "index.html").read_text()
+    detail_html = (dist_dir / "opportunities" / op.public_id / "index.html").read_text()
 
     # Verification: is_excluded Signal 2 must not be shown
     assert "Active Signal" in detail_html
@@ -575,6 +575,9 @@ def test_deterministic_static_build(test_db, tmp_path):
 
     hashes1 = get_dir_hashes(str(dist1))
     hashes2 = get_dir_hashes(str(dist2))
+
+    hashes1.pop("diagnostics.html", None)
+    hashes2.pop("diagnostics.html", None)
 
     assert hashes1 == hashes2
 
