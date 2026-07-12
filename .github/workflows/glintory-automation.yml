@@ -213,7 +213,7 @@ jobs:
         id: enrichment
         run: |
           set +e
-          uv run glintory enrich run --json > build/state/enrichment_metadata.json
+          uv run glintory enrich run --max-opportunities 50 --json > build/state/enrichment_metadata.json
           cmd_exit_code=$?
           set -e
 
