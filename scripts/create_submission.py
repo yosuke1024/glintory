@@ -42,10 +42,25 @@ def run_command_logged(
     if log_dir:
         os.makedirs(log_dir, exist_ok=True)
 
+    # Setup clean isolated environment variables pointing to the workspace virtualenv
+    run_env = env.copy() if env else os.environ.copy()
+    abs_cwd = os.path.abspath(cwd)
+    venv_path = os.path.join(abs_cwd, ".venv")
+    run_env["VIRTUAL_ENV"] = venv_path
+
+    venv_bin = os.path.join(venv_path, "bin")
+    current_path = run_env.get("PATH", "")
+    run_env["PATH"] = f"{venv_bin}{os.pathsep}{current_path}"
+
     try:
         with open(log_file, "w", encoding="utf-8") as f:
             res = subprocess.run(
-                cmd, cwd=cwd, stdout=f, stderr=subprocess.STDOUT, check=False, env=env
+                cmd,
+                cwd=cwd,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                check=False,
+                env=run_env,
             )
         finished_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
