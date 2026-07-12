@@ -480,7 +480,7 @@ def main() -> None:
             os.makedirs("logs", exist_ok=True)
             for file in os.listdir(logs_dir):
                 shutil.copy(os.path.join(logs_dir, file), os.path.join("logs", file))
-        shutil.rmtree(temp_workspace)
+        # shutil.rmtree(temp_workspace)
         sys.exit(1)
 
     # 4. Self-Verification (Execute tests inside temp_workspace to generate logs in staging)
