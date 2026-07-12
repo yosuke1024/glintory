@@ -338,6 +338,7 @@ def main() -> None:
         os.makedirs(os.path.dirname(build_log_file), exist_ok=True)
         with open(build_log_file, "a", encoding="utf-8") as f:
             f.write("\n\n--- Publish Build Execution ---\n\n")
+            f.flush()
             res_build = subprocess.run(
                 [
                     "uv",
@@ -356,6 +357,42 @@ def main() -> None:
                 check=False,
                 env=test_env,
             )
+            f.write(f"\nExit Code: {res_build.returncode}\n")
+
+            f.write("\n--- Build Directory Listing ---\n")
+            dist_dir = os.path.join(temp_workspace, "dist")
+            if os.path.exists(dist_dir):
+                for root, _, files in os.walk(dist_dir):
+                    for file in files:
+                        f.write(
+                            f"File: {os.path.relpath(os.path.join(root, file), dist_dir)}\n"
+                        )
+            else:
+                f.write("dist directory does not exist\n")
+
+            f.write("\n--- Fixture DB Opportunities ---\n")
+            try:
+                import sqlite3
+
+                conn = sqlite3.connect(fixture_db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = cursor.fetchall()
+                f.write(f"Tables: {tables}\n")
+                if ("opportunities",) in tables:
+                    cursor.execute(
+                        "SELECT id, public_id, public_lifecycle, status, gate_status, confidence, current_scoring_version FROM opportunities;"
+                    )
+                    rows = cursor.fetchall()
+                    for r in rows:
+                        f.write(f"Row: {r}\n")
+                else:
+                    f.write("opportunities table not found in sqlite_master\n")
+                conn.close()
+            except Exception as db_err:
+                f.write(f"DB Debug Error: {db_err}\n")
+            f.flush()
+
         status_build = "passed" if res_build.returncode == 0 else "failed"
         quality_gates["publish_build"] = {
             "command": "glintory publish build --output-dir dist",
