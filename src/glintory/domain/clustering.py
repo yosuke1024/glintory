@@ -27,7 +27,12 @@ def calculate_evidence_origin(source_type: str, canonical_url: str) -> str:
     q_params = urllib.parse.parse_qsl(parsed.query)
     cleaned_params = []
     for k, v in q_params:
-        if k.lower().startswith("utm_") or k.lower() in ("ref", "source", "medium", "campaign"):
+        if k.lower().startswith("utm_") or k.lower() in (
+            "ref",
+            "source",
+            "medium",
+            "campaign",
+        ):
             continue
         cleaned_params.append((k, v))
 

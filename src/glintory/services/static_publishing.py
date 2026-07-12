@@ -564,7 +564,10 @@ def build_static_site(
         def is_opp_published(opp):
             if opp.current_scoring_version != "v2":
                 return False
-            return opp.status == OpportunityStatus.INBOX and opp.confidence in (Confidence.MEDIUM, Confidence.HIGH)
+            return opp.status == OpportunityStatus.INBOX and opp.confidence in (
+                Confidence.MEDIUM,
+                Confidence.HIGH,
+            )
 
         # Compile pipeline stats by Source Type
         track_types = ["github", "hackernews", "rss"]
@@ -693,8 +696,12 @@ def build_static_site(
         gate_rejected = sum(1 for opp in v2_opps if opp.gate_status == "rejected")
         published_opps = sum(1 for opp in v2_opps if is_opp_published(opp))
 
-        research_count = sum(1 for opp in v2_opps if opp.status == OpportunityStatus.RESEARCH)
-        rejected_count = sum(1 for opp in v2_opps if opp.status == OpportunityStatus.REJECTED)
+        research_count = sum(
+            1 for opp in v2_opps if opp.status == OpportunityStatus.RESEARCH
+        )
+        rejected_count = sum(
+            1 for opp in v2_opps if opp.status == OpportunityStatus.REJECTED
+        )
 
         demand_only_count = 0
         multi_evidence_count = 0
@@ -702,26 +709,26 @@ def build_static_site(
         supply_only_rejected_count = 0
         single_show_hn_rejected_count = 0
         explicit_feasibility_rejected_count = 0
-        
+
         gate_reason_counts = {}
-        
+
         total_signals_in_clusters = 0
         singleton_cluster_count = 0
         cross_source_cluster_count = 0
         duplicate_evidence_removed_count = 0
-        
+
         missing_facets_summary = {
             "target_user": 0,
             "problem": 0,
             "workaround": 0,
             "gap": 0,
-            "mvp": 0
+            "mvp": 0,
         }
 
         for opp in v2_opps:
             gr = opp.gate_reason or "Unknown"
             gate_reason_counts[gr] = gate_reason_counts.get(gr, 0) + 1
-            
+
             opp_signals = (
                 session.query(Signal, Source.source_type)
                 .join(OpportunitySignal, Signal.id == OpportunitySignal.signal_id)
@@ -730,38 +737,44 @@ def build_static_site(
                 .filter(OpportunitySignal.is_excluded.is_(False))
                 .all()
             )
-            
+
             sig_count = len(opp_signals)
             total_signals_in_clusters += sig_count
             if sig_count == 1:
                 singleton_cluster_count += 1
-                
+
             source_types_in_opp = {item[1] for item in opp_signals}
             if len(source_types_in_opp) >= 2:
                 cross_source_cluster_count += 1
-                
+
             ind_count = opp.independent_evidence_count
             duplicate_evidence_removed_count += max(0, sig_count - ind_count)
-            
+
             d_count = opp.demand_evidence_count
             s_count = ind_count - d_count
-            
+
             if d_count >= 1 and s_count == 0:
                 demand_only_count += 1
             if ind_count >= 2:
                 multi_evidence_count += 1
             if ind_count == 1 and opp.status == OpportunityStatus.INBOX:
                 strong_single_demand_count += 1
-                
+
             if d_count == 0:
                 supply_only_rejected_count += 1
-                
+
             if "Single Show HN" in gr:
                 single_show_hn_rejected_count += 1
-            elif "Not suitable for solo" in gr or "heavy backend" in gr or "inference cost" in gr or "enterprise sales" in gr:
+            elif (
+                "Not suitable for solo" in gr
+                or "heavy backend" in gr
+                or "inference cost" in gr
+                or "enterprise sales" in gr
+            ):
                 explicit_feasibility_rejected_count += 1
-                
+
             from glintory.services.signal_facets import extract_signal_facets
+
             comb_t = " ".join((sig.title or "") for sig, _ in opp_signals)
             comb_e = " ".join((sig.excerpt or "") for sig, _ in opp_signals)
             facets = extract_signal_facets(comb_t, comb_e, "generic", SignalType.TREND)
@@ -770,7 +783,9 @@ def build_static_site(
                 if sc.get(k) == "missing":
                     missing_facets_summary[k] += 1
 
-        avg_signals_per_cluster = (total_signals_in_clusters / len(v2_opps)) if v2_opps else 0.0
+        avg_signals_per_cluster = (
+            (total_signals_in_clusters / len(v2_opps)) if v2_opps else 0.0
+        )
 
         global_stats = {
             "opportunity_candidates": opp_candidates,
@@ -790,7 +805,7 @@ def build_static_site(
             "singleton_cluster_count": singleton_cluster_count,
             "cross_source_cluster_count": cross_source_cluster_count,
             "duplicate_evidence_removed_count": duplicate_evidence_removed_count,
-            "missing_facets_summary": missing_facets_summary
+            "missing_facets_summary": missing_facets_summary,
         }
 
         runs = (

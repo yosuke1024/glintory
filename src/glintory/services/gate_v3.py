@@ -9,23 +9,73 @@ from glintory.services.signal_facets import extract_signal_facets
 def check_contextual_negative(text: str) -> dict[str, bool]:
     """Context-aware negative keyword matching to avoid false positives."""
     text_lower = text.lower()
-    
+
     heavy_backend = False
     enterprise_sales = False
     recurring_ai_cost = False
     solo_unsuitable = False
 
-    backend_words = ["heavy backend", "complex backend", "microservices", "kubernetes", "k8s", "large scale database", "heavy server", "マイクロサービス"]
-    sales_words = ["enterprise sales", "sales cycle", "sales team", "b2b sales", "エンタープライズ営業", "営業チーム"]
-    ai_cost_words = ["heavy api cost", "expensive api", "expensive ai", "high hosting cost", "high running cost", "ai費用", "高額なホスティング"]
-    solo_unsuitable_words = ["enterprise-grade", "multi-tenant", "collaboration", "rbac", "salesforce integration", "large scale", "組織向け", "共同編集", "権限管理"]
+    backend_words = [
+        "heavy backend",
+        "complex backend",
+        "microservices",
+        "kubernetes",
+        "k8s",
+        "large scale database",
+        "heavy server",
+        "マイクロサービス",
+    ]
+    sales_words = [
+        "enterprise sales",
+        "sales cycle",
+        "sales team",
+        "b2b sales",
+        "エンタープライズ営業",
+        "営業チーム",
+    ]
+    ai_cost_words = [
+        "heavy api cost",
+        "expensive api",
+        "expensive ai",
+        "high hosting cost",
+        "high running cost",
+        "ai費用",
+        "高額なホスティング",
+    ]
+    solo_unsuitable_words = [
+        "enterprise-grade",
+        "multi-tenant",
+        "collaboration",
+        "rbac",
+        "salesforce integration",
+        "large scale",
+        "組織向け",
+        "共同編集",
+        "権限管理",
+    ]
 
     negative_contexts = [
-        "too complex", "too complicated", "complicated", "alternative", "simpl",
-        "pain", "hate", "migration", "instead of", "replace", "avoid", "difficult",
-        "too hard", "not want", "don't want", "away from", "overkill", "expensive", "slow"
+        "too complex",
+        "too complicated",
+        "complicated",
+        "alternative",
+        "simpl",
+        "pain",
+        "hate",
+        "migration",
+        "instead of",
+        "replace",
+        "avoid",
+        "difficult",
+        "too hard",
+        "not want",
+        "don't want",
+        "away from",
+        "overkill",
+        "expensive",
+        "slow",
     ]
-    
+
     def is_in_negative_context(word: str) -> bool:
         idx = text_lower.find(word)
         if idx == -1:
@@ -37,22 +87,30 @@ def check_contextual_negative(text: str) -> dict[str, bool]:
 
     # Heavy Backend Check
     has_backend_word = any(w in text_lower for w in backend_words)
-    if has_backend_word and not any(is_in_negative_context(w) for w in backend_words if w in text_lower):
+    if has_backend_word and not any(
+        is_in_negative_context(w) for w in backend_words if w in text_lower
+    ):
         heavy_backend = True
 
     # Enterprise Sales Check
     has_sales_word = any(w in text_lower for w in sales_words)
-    if has_sales_word and not any(is_in_negative_context(w) for w in sales_words if w in text_lower):
+    if has_sales_word and not any(
+        is_in_negative_context(w) for w in sales_words if w in text_lower
+    ):
         enterprise_sales = True
 
     # AI Cost Check
     has_ai_cost_word = any(w in text_lower for w in ai_cost_words)
-    if has_ai_cost_word and not any(is_in_negative_context(w) for w in ai_cost_words if w in text_lower):
+    if has_ai_cost_word and not any(
+        is_in_negative_context(w) for w in ai_cost_words if w in text_lower
+    ):
         recurring_ai_cost = True
 
     # Solo Unsuitable Check
     has_solo_word = any(w in text_lower for w in solo_unsuitable_words)
-    if has_solo_word and not any(is_in_negative_context(w) for w in solo_unsuitable_words if w in text_lower):
+    if has_solo_word and not any(
+        is_in_negative_context(w) for w in solo_unsuitable_words if w in text_lower
+    ):
         solo_unsuitable = True
 
     return {
@@ -62,9 +120,12 @@ def check_contextual_negative(text: str) -> dict[str, bool]:
         "solo_unsuitable": solo_unsuitable,
     }
 
-def calculate_metrics_and_gate_v3(cluster_signals: list[dict[str, Any]]) -> tuple[dict[str, Any], str, bool, str]:
+
+def calculate_metrics_and_gate_v3(
+    cluster_signals: list[dict[str, Any]],
+) -> tuple[dict[str, Any], str, bool, str]:
     """Analyze a cluster's signals to determine Gate classification (Published / Research / Rejected).
-    
+
     Returns:
         metrics: dict[str, int]
         gate_status: str ("passed" or "rejected")
@@ -88,7 +149,11 @@ def calculate_metrics_and_gate_v3(cluster_signals: list[dict[str, Any]]) -> tupl
     # 1. Group by Evidence Origin to count unique independent evidences
     origins = {}
     for sig in signals:
-        src_type = sig.source.source_type if (hasattr(sig, "source") and sig.source) else "generic"
+        src_type = (
+            sig.source.source_type
+            if (hasattr(sig, "source") and sig.source)
+            else "generic"
+        )
         origin = calculate_evidence_origin(src_type, sig.canonical_url)
         origins.setdefault(origin, []).append(sig)
 
@@ -143,8 +208,10 @@ def calculate_metrics_and_gate_v3(cluster_signals: list[dict[str, Any]]) -> tupl
 
     # 2. Hard Constraints Check (Exclude immediately to REJECTED)
     neg_results = check_contextual_negative(combined_text)
-    
-    is_spam = any(kw in combined_text_lower for kw in ["spam", "buy bitcoin", "casino online"])
+
+    is_spam = any(
+        kw in combined_text_lower for kw in ["spam", "buy bitcoin", "casino online"]
+    )
 
     is_rejected = False
     reject_reason = ""
@@ -179,25 +246,45 @@ def calculate_metrics_and_gate_v3(cluster_signals: list[dict[str, Any]]) -> tupl
     if independent_count >= 2 and demand_count >= 1:
         # Evidence must support the same problem concept (since they are in the same cluster, TF-IDF handles this,
         # but we also verify demand count >= 1 and no exclusion)
-        return metrics, "passed", True, "Passed Condition A: Multiple independent evidences with demand."
+        return (
+            metrics,
+            "passed",
+            True,
+            "Passed Condition A: Multiple independent evidences with demand.",
+        )
 
     # Condition B: Strong Detailed Single Demand
     if independent_count == 1:
         single_origin_sigs = list(origins.values())[0]
         # We need at least one actual DEMAND signal in the origin
-        demand_sig = next((sig for sig in single_origin_sigs if sig.signal_role == SignalRole.DEMAND), None)
-        
+        demand_sig = next(
+            (sig for sig in single_origin_sigs if sig.signal_role == SignalRole.DEMAND),
+            None,
+        )
+
         if demand_sig:
             sig_type = demand_sig.signal_type
-            is_valid_type = sig_type in (SignalType.PAIN, SignalType.REQUEST, SignalType.COMPLAINT, SignalType.MIGRATION)
-            
+            is_valid_type = sig_type in (
+                SignalType.PAIN,
+                SignalType.REQUEST,
+                SignalType.COMPLAINT,
+                SignalType.MIGRATION,
+            )
+
             # Content detail level checks using facets
-            facets = extract_signal_facets(demand_sig.title, demand_sig.excerpt, demand_sig.source.source_type if demand_sig.source else "generic", sig_type)
-            
+            facets = extract_signal_facets(
+                demand_sig.title,
+                demand_sig.excerpt,
+                demand_sig.source.source_type if demand_sig.source else "generic",
+                sig_type,
+            )
+
             # Text length details
             desc_text = (demand_sig.title or "") + " " + (demand_sig.excerpt or "")
-            is_detailed = len(desc_text.strip()) >= 60  # Require some length to not be a simple one-liner
-            
+            is_detailed = (
+                len(desc_text.strip()) >= 60
+            )  # Require some length to not be a simple one-liner
+
             has_reinforcement = (
                 bool(facets["workaround_markers"])
                 or bool(facets["alternative_markers"])
@@ -208,12 +295,29 @@ def calculate_metrics_and_gate_v3(cluster_signals: list[dict[str, Any]]) -> tupl
                 or bool(facets["urgency_markers"])
                 or bool(facets["willingness_to_pay_markers"])
             )
-            
-            # Single brief requests shouldn't qualify
-            is_short_feature_request = (sig_type == SignalType.REQUEST) and (not is_detailed or not has_reinforcement)
 
-            if is_valid_type and is_detailed and has_reinforcement and not is_short_feature_request:
-                return metrics, "passed", True, "Passed Condition B: Strong single demand evidence."
+            # Single brief requests shouldn't qualify
+            is_short_feature_request = (sig_type == SignalType.REQUEST) and (
+                not is_detailed or not has_reinforcement
+            )
+
+            if (
+                is_valid_type
+                and is_detailed
+                and has_reinforcement
+                and not is_short_feature_request
+            ):
+                return (
+                    metrics,
+                    "passed",
+                    True,
+                    "Passed Condition B: Strong single demand evidence.",
+                )
 
     # 4. Fallback to Research Candidate (Not Published but has Demand and not Rejected)
-    return metrics, "rejected", False, "Research Candidate: Needs further validation (structural completeness or more independent evidence)."
+    return (
+        metrics,
+        "rejected",
+        False,
+        "Research Candidate: Needs further validation (structural completeness or more independent evidence).",
+    )

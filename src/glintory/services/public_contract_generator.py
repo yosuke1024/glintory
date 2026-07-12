@@ -153,7 +153,11 @@ def resolve_publication_lifecycle(session: Any, gen_time: datetime) -> None:
             op.current_scoring_version == "v2"
             and op.public_lifecycle != "merged"
             and (
-                (op.status == OpportunityStatus.INBOX and op.gate_status == "passed" and op.confidence in (Confidence.MEDIUM, Confidence.HIGH))
+                (
+                    op.status == OpportunityStatus.INBOX
+                    and op.gate_status == "passed"
+                    and op.confidence in (Confidence.MEDIUM, Confidence.HIGH)
+                )
                 or (op.status == OpportunityStatus.RESEARCH)
             )
         )
@@ -193,8 +197,12 @@ def select_active_public_opportunities(session: Any) -> list[Opportunity]:
         .filter(
             Opportunity.current_scoring_version == "v2",
             Opportunity.public_lifecycle == "active",
-            ((Opportunity.status == OpportunityStatus.INBOX) & (Opportunity.gate_status == "passed") & (Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH])))
-            | (Opportunity.status == OpportunityStatus.RESEARCH)
+            (
+                (Opportunity.status == OpportunityStatus.INBOX)
+                & (Opportunity.gate_status == "passed")
+                & (Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH]))
+            )
+            | (Opportunity.status == OpportunityStatus.RESEARCH),
         )
         .order_by(
             Opportunity.total_score.desc(),

@@ -620,7 +620,9 @@ class OpportunityScoringEngine:
 
         origins = {}
         for sig in positive_signals:
-            origin = calculate_evidence_origin(sig.source_type or "generic", sig.canonical_url)
+            origin = calculate_evidence_origin(
+                sig.source_type or "generic", sig.canonical_url
+            )
             origins.setdefault(origin, []).append(sig)
 
         independent_evidence_count = len(origins)
@@ -694,7 +696,10 @@ class OpportunityScoringEngine:
         combined_ev_excerpt = " ".join((sig.excerpt or "") for sig in positive_signals)
 
         from glintory.services.signal_facets import extract_signal_facets
-        facets = extract_signal_facets(combined_ev_title, combined_ev_excerpt, "generic", SignalType.TREND)
+
+        facets = extract_signal_facets(
+            combined_ev_title, combined_ev_excerpt, "generic", SignalType.TREND
+        )
         sc = facets["structural_completeness"]
 
         has_prob_el = sc["problem"] == "confirmed"
@@ -1062,7 +1067,11 @@ class OpportunityScoringEngine:
         # ----------------------------------------------------
         # Confidence Version 3
         # ----------------------------------------------------
-        has_essential_sc = sc["target_user"] == "confirmed" and sc["problem"] == "confirmed" and sc["workaround"] == "confirmed"
+        has_essential_sc = (
+            sc["target_user"] == "confirmed"
+            and sc["problem"] == "confirmed"
+            and sc["workaround"] == "confirmed"
+        )
         has_basic_sc = sc["problem"] == "confirmed"
 
         if (

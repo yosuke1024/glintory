@@ -51,7 +51,10 @@ def test_calculate_evidence_origin():
         calculate_evidence_origin("github", "https://api.github.com/repos/google/jax")
         == "github:google/jax"
     )
-    assert calculate_evidence_origin("github", "https://github.com/google") == "github:generic"
+    assert (
+        calculate_evidence_origin("github", "https://github.com/google")
+        == "github:generic"
+    )
 
     # Hacker News test
     assert (

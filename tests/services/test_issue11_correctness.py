@@ -871,6 +871,7 @@ def test_rejected_status_merges_future_evidence(test_db):
         OpportunityClusteringConfig,
         OpportunityClusteringEngine,
     )
+
     config = OpportunityClusteringConfig(similarity_threshold=0.1)
     engine = OpportunityClusteringEngine(config)
     service = OpportunityAnalysisService(session, repo, engine, config)

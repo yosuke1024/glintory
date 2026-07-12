@@ -37,7 +37,10 @@ class OpportunityAnalysisService:
         self, cluster_signals: list[dict]
     ) -> tuple[dict, bool, str]:
         from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
-        metrics, gate_status, passed_published, reason = calculate_metrics_and_gate_v3(cluster_signals)
+
+        metrics, gate_status, passed_published, reason = calculate_metrics_and_gate_v3(
+            cluster_signals
+        )
         return metrics, passed_published, reason
 
     def analyze_and_cluster(
@@ -188,8 +191,9 @@ class OpportunityAnalysisService:
                         from glintory.services.gate_v3 import (
                             calculate_metrics_and_gate_v3,
                         )
-                        metrics, gate_status_str, passed_published, reason = calculate_metrics_and_gate_v3(
-                            ev_signals_input
+
+                        metrics, gate_status_str, passed_published, reason = (
+                            calculate_metrics_and_gate_v3(ev_signals_input)
                         )
                         opp.independent_evidence_count = metrics[
                             "independent_evidence_count"
@@ -221,8 +225,9 @@ class OpportunityAnalysisService:
                     title = title[:197] + "..."
 
                 from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
-                metrics, gate_status_str, passed_published, reason = calculate_metrics_and_gate_v3(
-                    cluster["signals"]
+
+                metrics, gate_status_str, passed_published, reason = (
+                    calculate_metrics_and_gate_v3(cluster["signals"])
                 )
                 if gate_status_str == "passed":
                     gate_passed_count += 1

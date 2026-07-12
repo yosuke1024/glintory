@@ -115,6 +115,7 @@ def classify_signal_role(
     excerpt: str | None,
 ) -> SignalRole:
     from glintory.services.signal_facets import extract_signal_facets
+
     facets = extract_signal_facets(title, excerpt, source_type, signal_type)
     return facets["signal_role"]
 
@@ -136,24 +137,69 @@ def _classify_rss_entry(
         return pattern in text
 
     pain_phrases = [
-        "too expensive", "hard to use", "hard to configure", "too complex",
-        "manual process", "privacy concern", "missing support", "looking for an alternative",
-        "self-hosted alternative", "frustrating", "wish there was", "self-hosted version",
-        "offline support", "currently using a spreadsheet", "doing this manually",
-        "would pay for", "missing support for", "looking for alternative",
-        "ユーザー", "顧客", "開発者", "使いづらい", "複雑", "代替", "手動", "スプレッドシート", "エクセル"
+        "too expensive",
+        "hard to use",
+        "hard to configure",
+        "too complex",
+        "manual process",
+        "privacy concern",
+        "missing support",
+        "looking for an alternative",
+        "self-hosted alternative",
+        "frustrating",
+        "wish there was",
+        "self-hosted version",
+        "offline support",
+        "currently using a spreadsheet",
+        "doing this manually",
+        "would pay for",
+        "missing support for",
+        "looking for alternative",
+        "ユーザー",
+        "顧客",
+        "開発者",
+        "使いづらい",
+        "複雑",
+        "代替",
+        "手動",
+        "スプレッドシート",
+        "エクセル",
     ]
     migration_phrases = [
-        "migrate away", "migration", "import from", "export to", "transition", "move from",
-        "移行", "乗り換え"
+        "migrate away",
+        "migration",
+        "import from",
+        "export to",
+        "transition",
+        "move from",
+        "移行",
+        "乗り換え",
     ]
     complaint_phrases = [
-        "broken", "fail", "error", "bug", "doesn't work", "does not work", "defect",
-        "バグ", "エラー", "不具合", "壊れ"
+        "broken",
+        "fail",
+        "error",
+        "bug",
+        "doesn't work",
+        "does not work",
+        "defect",
+        "バグ",
+        "エラー",
+        "不具合",
+        "壊れ",
     ]
     launch_phrases = [
-        "announcing", "introducing", "released", "launching", "created a", "showcase",
-        "my project", "my tool", "github.com", "open source", "repository"
+        "announcing",
+        "introducing",
+        "released",
+        "launching",
+        "created a",
+        "showcase",
+        "my project",
+        "my tool",
+        "github.com",
+        "open source",
+        "repository",
     ]
 
     if any(has_word(phrase, search_text) for phrase in pain_phrases):
