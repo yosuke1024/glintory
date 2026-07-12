@@ -255,6 +255,7 @@ def main() -> None:
     # 3F. alembic migration roundtrip & seed fixture DB
     if gate_ok:
         migration_log = os.path.join(logs_dir, "migration_roundtrip.log")
+        os.makedirs(os.path.dirname(migration_log), exist_ok=True)
         with open(migration_log, "w", encoding="utf-8") as f:
             f.write("--- Migration Upgrade Head ---\n")
             res_up1 = subprocess.run(
@@ -314,6 +315,7 @@ def main() -> None:
     if gate_ok:
         # Build static site using seed database
         build_log_file = os.path.join(logs_dir, "publish_build.log")
+        os.makedirs(os.path.dirname(build_log_file), exist_ok=True)
         with open(build_log_file, "a", encoding="utf-8") as f:
             f.write("\n\n--- Publish Build Execution ---\n\n")
             res_build = subprocess.run(
