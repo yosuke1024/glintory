@@ -24,19 +24,43 @@
       "query": "\"too expensive\"",
       "sort": "created",
       "order": "desc",
-      "max_items": 5
+      "max_items": 10
     },
     {
       "query": "\"self-hosted alternative\"",
       "sort": "created",
       "order": "desc",
-      "max_items": 5
+      "max_items": 10
     },
     {
       "query": "\"wish there was\"",
       "sort": "created",
       "order": "desc",
-      "max_items": 5
+      "max_items": 10
+    },
+    {
+      "query": "\"looking for alternative\"",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 10
+    },
+    {
+      "query": "\"cannot self-host\"",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 10
+    },
+    {
+      "query": "\"privacy concern\"",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 10
+    },
+    {
+      "query": "\"frustrated with\"",
+      "sort": "created",
+      "order": "desc",
+      "max_items": 10
     }
   ],
   "per_page": 20,

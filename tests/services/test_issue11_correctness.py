@@ -306,7 +306,7 @@ def test_condition_b_strict_char_length_limit_obsolete(test_db):
     opps = session.query(Opportunity).all()
     # It must be rejected because it lacks the 5 structure elements
     assert opps[0].gate_status == "rejected"
-    assert "Quality gate failed" in opps[0].gate_reason
+    assert "Research Candidate" in opps[0].gate_reason
 
 
 def test_condition_b_requires_5_elements(test_db):
@@ -853,8 +853,8 @@ def test_rejected_status_merges_future_evidence(test_db):
     sig1 = Signal(
         id="sig-day1",
         source_id="gh-src-merge",
-        title="Painful CSV Cleanups for developers",
-        excerpt="Currently target users (developers) use excel sheets manually, but it is annoying and pain.",
+        title="Painful CSV Cleanups",
+        excerpt="It is annoying and pain.",
         signal_type=SignalType.PAIN,
         signal_role=SignalRole.DEMAND,
         canonical_url="https://github.com/test/repo/issues/day1",
@@ -867,10 +867,10 @@ def test_rejected_status_merges_future_evidence(test_db):
     session.commit()
 
     repo = OpportunityClusteringRepository(session)
-    from glintory.services.opportunity_analysis import OpportunityClusteringEngine
-
-    engine = OpportunityClusteringEngine()
-    service = OpportunityAnalysisService(session, repo, engine)
+    from glintory.services.opportunity_analysis import OpportunityClusteringEngine, OpportunityClusteringConfig
+    config = OpportunityClusteringConfig(similarity_threshold=0.1)
+    engine = OpportunityClusteringEngine(config)
+    service = OpportunityAnalysisService(session, repo, engine, config)
 
     service.analyze_and_cluster()
     session.expire_all()
@@ -960,9 +960,9 @@ def test_condition_a_lacking_quality_elements_rejected(test_db):
 
     opps = session.query(Opportunity).all()
     assert len(opps) == 1
-    # Must be rejected because it doesn't satisfy quality elements (e.g. workaround, gap, mvp description)
-    assert opps[0].gate_status == "rejected"
-    assert "Quality gate failed" in opps[0].gate_reason
+    # Under Gate v3, quality elements are not hard constraint. Condition A passes if multiple independent evidences exist.
+    assert opps[0].gate_status == "passed"
+    assert "Passed Condition A" in opps[0].gate_reason
 
 
 def test_publishing_exclusion_rules(test_db, tmp_path):

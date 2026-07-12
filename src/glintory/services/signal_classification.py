@@ -114,43 +114,9 @@ def classify_signal_role(
     title: str,
     excerpt: str | None,
 ) -> SignalRole:
-    source_type_lower = (source_type or "").lower()
-    title_lower = (title or "").lower()
-
-    if source_type_lower == "hackernews":
-        if title_lower.startswith("show hn:") or signal_type == SignalType.LAUNCH:
-            return SignalRole.SUPPLY
-        if (
-            title_lower.startswith("ask hn:")
-            or signal_type == SignalType.REQUEST
-            or "ask hn" in title_lower
-        ):
-            return SignalRole.DEMAND
-    elif source_type_lower == "github":
-        if signal_type == SignalType.PROJECT:
-            return SignalRole.SUPPLY
-        if signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT):
-            return SignalRole.DEMAND
-
-    if signal_type == SignalType.TREND:
-        return SignalRole.CONTEXT
-
-    if source_type_lower == "rss":
-        if signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT):
-            return SignalRole.DEMAND
-        if signal_type in (
-            sa_type
-            for sa_type in (
-                SignalType.PROJECT,
-                SignalType.LAUNCH,
-                SignalType.HACKATHON_PROJECT,
-            )
-        ):
-            return SignalRole.SUPPLY
-        if signal_type == SignalType.TREND:
-            return SignalRole.CONTEXT
-
-    return SignalRole.UNKNOWN
+    from glintory.services.signal_facets import extract_signal_facets
+    facets = extract_signal_facets(title, excerpt, source_type, signal_type)
+    return facets["signal_role"]
 
 
 def _classify_rss_entry(
@@ -170,32 +136,32 @@ def _classify_rss_entry(
         return pattern in text
 
     pain_phrases = [
-        "too expensive",
-        "hard to use",
-        "hard to configure",
-        "too complex",
-        "manual process",
-        "privacy concern",
-        "missing support",
-        "looking for an alternative",
-        "self-hosted alternative",
-        "doesn't work",
-        "does not work",
-        "frustrating",
+        "too expensive", "hard to use", "hard to configure", "too complex",
+        "manual process", "privacy concern", "missing support", "looking for an alternative",
+        "self-hosted alternative", "frustrating", "wish there was", "self-hosted version",
+        "offline support", "currently using a spreadsheet", "doing this manually",
+        "would pay for", "missing support for", "looking for alternative",
+        "ユーザー", "顧客", "開発者", "使いづらい", "複雑", "代替", "手動", "スプレッドシート", "エクセル"
+    ]
+    migration_phrases = [
+        "migrate away", "migration", "import from", "export to", "transition", "move from",
+        "移行", "乗り換え"
+    ]
+    complaint_phrases = [
+        "broken", "fail", "error", "bug", "doesn't work", "does not work", "defect",
+        "バグ", "エラー", "不具合", "壊れ"
     ]
     launch_phrases = [
-        "announcing",
-        "introducing",
-        "released",
-        "launching",
-        "created a",
-        "showcase",
-        "my project",
-        "my tool",
+        "announcing", "introducing", "released", "launching", "created a", "showcase",
+        "my project", "my tool", "github.com", "open source", "repository"
     ]
 
     if any(has_word(phrase, search_text) for phrase in pain_phrases):
         return SignalType.PAIN
+    if any(has_word(phrase, search_text) for phrase in migration_phrases):
+        return SignalType.MIGRATION
+    if any(has_word(phrase, search_text) for phrase in complaint_phrases):
+        return SignalType.COMPLAINT
     if any(has_word(phrase, search_text) for phrase in launch_phrases):
         return SignalType.LAUNCH
 

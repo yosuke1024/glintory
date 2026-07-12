@@ -36,283 +36,9 @@ class OpportunityAnalysisService:
     def _calculate_metrics_and_gate(
         self, cluster_signals: list[dict]
     ) -> tuple[dict, bool, str]:
-        import re
-        from urllib.parse import urlparse
-
-        signals = [item["signal"] for item in cluster_signals]
-        if not signals:
-            return (
-                {
-                    "independent_evidence_count": 0,
-                    "demand_evidence_count": 0,
-                    "source_type_count": 0,
-                    "source_domain_count": 0,
-                },
-                False,
-                "No signals in cluster.",
-            )
-
-        # Thread grouping
-        def get_thread_key(sig) -> str:
-            url = sig.canonical_url or ""
-            hn_match = re.search(r"news\.ycombinator\.com/item\?id=(\d+)", url)
-            if hn_match:
-                return f"hn_thread_{hn_match.group(1)}"
-            gh_issue_match = re.search(
-                r"github\.com/([^/]+/[^/]+)/(issues|pull)/(\d+)", url
-            )
-            if gh_issue_match:
-                return (
-                    f"github_issue_{gh_issue_match.group(1)}_{gh_issue_match.group(3)}"
-                )
-            gh_repo_match = re.search(r"github\.com/([^/]+/[^/]+)", url)
-            if gh_repo_match:
-                return f"github_repo_{gh_repo_match.group(1)}"
-            return url
-
-        threads = {}
-        for sig in signals:
-            key = get_thread_key(sig)
-            threads.setdefault(key, []).append(sig)
-
-        independent_count = len(threads)
-        demand_count = sum(1 for sig in signals if sig.signal_role == SignalRole.DEMAND)
-
-        source_types = {
-            sig.source.source_type
-            for sig in signals
-            if sig.source and sig.source.source_type
-        }
-        source_type_count = len(source_types)
-
-        domains = set()
-        for sig in signals:
-            if sig.canonical_url:
-                parsed = urlparse(sig.canonical_url)
-                if parsed.netloc:
-                    domains.add(parsed.netloc)
-        source_domain_count = len(domains)
-
-        metrics = {
-            "independent_evidence_count": independent_count,
-            "demand_evidence_count": demand_count,
-            "source_type_count": source_type_count,
-            "source_domain_count": source_domain_count,
-        }
-
-        # Show HN single check
-        if independent_count == 1:
-            single_thread_sigs = list(threads.values())[0]
-            is_show_hn = any(
-                (
-                    sig.source
-                    and sig.source.source_type == "hackernews"
-                    and (sig.title or "").lower().startswith("show hn:")
-                )
-                for sig in single_thread_sigs
-            )
-            if is_show_hn:
-                return (
-                    metrics,
-                    False,
-                    "Rejected: Single Show HN submission cannot be promoted.",
-                )
-
-        # Build combined lowercase text for keyword parsing
-        combined_text = "\n".join(
-            f"{sig.title or ''}\n{sig.excerpt or ''}" for sig in signals
-        ).lower()
-
-        # Word boundary matching helper for english keywords
-        def has_word(pattern: str, text: str) -> bool:
-            if pattern.replace(" ", "").isalnum() and pattern.isascii():
-                escaped = re.escape(pattern)
-                return bool(re.search(rf"\b{escaped}\b", text))
-            return pattern in text
-
-        # 1. Quality Gate Checks (Must satisfy all 9)
-        user_kws = [
-            "customer",
-            "target user",
-            "developer",
-            "target audience",
-            "for developers",
-            "for users",
-            "ユーザー",
-            "顧客",
-            "開発者",
-            "ターゲットユーザー",
-        ]
-        problem_kws = [
-            "problem",
-            "pain",
-            "issue",
-            "difficult",
-            "annoy",
-            "error",
-            "fail",
-            "broken",
-            "limit",
-            "課題",
-            "問題",
-            "困っ",
-            "痛手",
-            "バグ",
-            "エラー",
-        ]
-        workaround_kws = [
-            "workaround",
-            "instead of",
-            "alternative",
-            "current tool",
-            "manually",
-            "excel",
-            "scripts",
-            "回避",
-            "代替",
-            "手動",
-            "スプレッドシート",
-        ]
-        gap_kws = [
-            "why",
-            "limit",
-            "lack",
-            "cannot",
-            "expensive",
-            "slow",
-            "不足",
-            "できない",
-            "高価",
-            "遅い",
-        ]
-        mvp_kws = [
-            "mvp",
-            "solution",
-            "feature",
-            "idea",
-            "should",
-            "wish",
-            "提案",
-            "欲しい",
-            "必要",
-            "機能",
-        ]
-
-        has_user = any(has_word(kw, combined_text) for kw in user_kws)
-        has_problem = any(has_word(kw, combined_text) for kw in problem_kws)
-        has_workaround = any(has_word(kw, combined_text) for kw in workaround_kws)
-        has_gap = any(has_word(kw, combined_text) for kw in gap_kws)
-        has_mvp = any(has_word(kw, combined_text) for kw in mvp_kws)
-
-        is_solo_realistic = not any(
-            has_word(kw, combined_text)
-            for kw in [
-                "enterprise-grade",
-                "multi-tenant",
-                "collaboration",
-                "rbac",
-                "salesforce integration",
-                "large scale",
-                "組織向け",
-                "共同編集",
-                "権限管理",
-            ]
-        )
-        is_heavy_backend_free = not any(
-            has_word(kw, combined_text)
-            for kw in [
-                "heavy backend",
-                "complex backend",
-                "microservices",
-                "kubernetes",
-                "k8s",
-                "large scale database",
-                "heavy server",
-                "重いバックエンド",
-                "マイクロサービス",
-            ]
-        )
-        is_ai_cost_free = not any(
-            has_word(kw, combined_text)
-            for kw in [
-                "heavy api cost",
-                "expensive api",
-                "expensive ai",
-                "high hosting cost",
-                "high running cost",
-                "高額なapi",
-                "ai費用",
-                "高額なホスティング",
-            ]
-        )
-        is_enterprise_sales_free = not any(
-            has_word(kw, combined_text)
-            for kw in [
-                "enterprise sales",
-                "sales cycle",
-                "sales team",
-                "b2b sales",
-                "エンタープライズ営業",
-                "営業チーム",
-                "営業プロセス",
-            ]
-        )
-
-        quality_passed = (
-            has_user
-            and has_problem
-            and has_workaround
-            and has_gap
-            and has_mvp
-            and is_solo_realistic
-            and is_heavy_backend_free
-            and is_ai_cost_free
-            and is_enterprise_sales_free
-        )
-
-        if not quality_passed:
-            details = (
-                f"User:{has_user}, Problem:{has_problem}, Workaround:{has_workaround}, "
-                f"Gap:{has_gap}, MVP:{has_mvp}, Solo:{is_solo_realistic}, "
-                f"Backend:{is_heavy_backend_free}, AICost:{is_ai_cost_free}, Sales:{is_enterprise_sales_free}"
-            )
-            return (
-                metrics,
-                False,
-                f"Rejected: Quality gate failed. Missing structural elements or violating constraints. ({details})",
-            )
-
-        # 2. Evidence Gate Checks (Must satisfy Condition A or Condition B)
-        has_demand = demand_count > 0
-
-        # Condition A: Multiple independent evidences with demand
-        if independent_count >= 2:
-            if has_demand:
-                return (
-                    metrics,
-                    True,
-                    "Passed Condition A: Multiple independent evidences with demand.",
-                )
-            return (
-                metrics,
-                False,
-                "Rejected Condition A: Multiple independent evidences but no demand.",
-            )
-
-        # Condition B: Single independent evidence, must be demand
-        single_sig = signals[0]
-        if single_sig.signal_role == SignalRole.DEMAND:
-            return (
-                metrics,
-                True,
-                "Passed Condition B: Strong detailed single demand with all 5 structure elements.",
-            )
-
-        return (
-            metrics,
-            False,
-            "Rejected Condition B: Single evidence is not demand.",
-        )
+        from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+        metrics, gate_status, passed_published, reason = calculate_metrics_and_gate_v3(cluster_signals)
+        return metrics, passed_published, reason
 
     def analyze_and_cluster(
         self, *, dry_run: bool = False
@@ -379,6 +105,7 @@ class OpportunityAnalysisService:
                 key=lambda x: (x[0].collected_at, x[0].id),
             )
             rep_sig = sorted_sigs[0][0]
+            rep_sig._is_existing_rep = True
             existing_rep_signals.append(rep_sig)
             signal_id_to_opp_id[rep_sig.id] = opp.id
 
@@ -458,7 +185,8 @@ class OpportunityAnalysisService:
                             for opp_sig, sig in all_links
                         ]
 
-                        metrics, passed, reason = self._calculate_metrics_and_gate(
+                        from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+                        metrics, gate_status_str, passed_published, reason = calculate_metrics_and_gate_v3(
                             ev_signals_input
                         )
                         opp.independent_evidence_count = metrics[
@@ -468,27 +196,20 @@ class OpportunityAnalysisService:
                         opp.source_type_count = metrics["source_type_count"]
                         opp.source_domain_count = metrics["source_domain_count"]
 
-                        opp.gate_version = "v2"
-                        opp.gate_status = "passed" if passed else "rejected"
+                        opp.gate_version = "v3"
+                        opp.gate_status = gate_status_str
                         opp.gate_reason = reason
                         opp.gate_checked_at = now
 
-                        if passed:
+                        if gate_status_str == "passed":
                             gate_passed_count += 1
+                            opp.status = OpportunityStatus.INBOX
                         else:
                             gate_rejected_count += 1
-
-                        if opp.status in (
-                            OpportunityStatus.INBOX,
-                            OpportunityStatus.RESEARCH,
-                            OpportunityStatus.REJECTED,
-                            OpportunityStatus.ARCHIVED,
-                        ):
-                            opp.status = (
-                                OpportunityStatus.INBOX
-                                if passed
-                                else OpportunityStatus.RESEARCH
-                            )
+                            if reason.startswith("Research Candidate:"):
+                                opp.status = OpportunityStatus.RESEARCH
+                            else:
+                                opp.status = OpportunityStatus.REJECTED
                         opp.evidence_updated_at = now
             else:
                 # Create a new opportunity
@@ -497,29 +218,33 @@ class OpportunityAnalysisService:
                 if len(title) > 200:
                     title = title[:197] + "..."
 
-                metrics, passed, reason = self._calculate_metrics_and_gate(
+                from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+                metrics, gate_status_str, passed_published, reason = calculate_metrics_and_gate_v3(
                     cluster["signals"]
                 )
-                if passed:
+                if gate_status_str == "passed":
                     gate_passed_count += 1
+                    final_status = OpportunityStatus.INBOX
                 else:
                     gate_rejected_count += 1
+                    if reason.startswith("Research Candidate:"):
+                        final_status = OpportunityStatus.RESEARCH
+                    else:
+                        final_status = OpportunityStatus.REJECTED
 
                 opp = Opportunity(
                     title=title,
                     generation_method="deterministic_cluster",
                     cluster_version=self.config.cluster_version,
                     last_clustered_at=now,
-                    status=OpportunityStatus.INBOX
-                    if passed
-                    else OpportunityStatus.RESEARCH,
+                    status=final_status,
                     evidence_updated_at=now,
                     independent_evidence_count=metrics["independent_evidence_count"],
                     demand_evidence_count=metrics["demand_evidence_count"],
                     source_type_count=metrics["source_type_count"],
                     source_domain_count=metrics["source_domain_count"],
-                    gate_version="v2",
-                    gate_status="passed" if passed else "rejected",
+                    gate_version="v3",
+                    gate_status=gate_status_str,
                     gate_reason=reason,
                     gate_checked_at=now,
                     current_scoring_version="v2",

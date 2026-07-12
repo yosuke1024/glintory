@@ -344,6 +344,22 @@ LIST_TEMPLATE = """<!DOCTYPE html>
   <title>Opportunities - Glintory</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="{{ base_path }}/assets/app.css">
+  <style>
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -359,6 +375,14 @@ LIST_TEMPLATE = """<!DOCTYPE html>
 
   <div class="container">
     <div class="section-title">All Scored Opportunities</div>
+    
+    <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+      <button class="tab-btn" id="btn-pub" onclick="switchTab('inbox')">Published Opportunities (<span id="count-published">0</span>)</button>
+      <button class="tab-btn" id="btn-res" onclick="switchTab('research')">Research Candidates (<span id="count-research">0</span>)</button>
+      <button class="tab-btn" id="btn-rej" onclick="switchTab('rejected')">Rejected Candidates (<span id="count-rejected">0</span>)</button>
+      <button class="tab-btn" id="btn-all" onclick="switchTab('all')">All</button>
+    </div>
+
     <table>
       <thead>
         <tr>
@@ -373,7 +397,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       </thead>
       <tbody>
         {% for op_data in op_list_data %}
-          <tr>
+          <tr data-status="{{ op_data.op.status }}">
             <td>
               <a href="{{ base_path }}/opportunities/{{ op_data.op.id }}/" style="color: inherit; font-weight: 600; text-decoration: none;">
                 {% if op_data.op.title_ja %}
@@ -385,7 +409,11 @@ LIST_TEMPLATE = """<!DOCTYPE html>
             </td>
             <td><span class="score-value" style="font-size: 1.25rem;">{{ op_data.op.total_score }}</span></td>
             <td>{{ op_data.op.confidence }}</td>
-            <td><span class="badge badge-accent">{{ op_data.op.status }}</span></td>
+            <td>
+              <span class="badge {% if op_data.op.status == 'inbox' %}badge-success{% elif op_data.op.status == 'research' %}badge-info{% else %}badge-accent{% endif %}">
+                {{ op_data.op.status }}
+              </span>
+            </td>
             <td>{{ op_data.evidence_count }}</td>
             <td>{{ op_data.evidence_updated_at | format_datetime }}</td>
             <td>{{ op_data.last_scored_at | format_datetime }}</td>
@@ -398,6 +426,50 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       </tbody>
     </table>
   </div>
+
+  <script>
+    function switchTab(status) {
+      const rows = document.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        if (status === 'all' || rowStatus === status) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+      
+      const buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      
+      if (status === 'inbox') document.getElementById('btn-pub').classList.add('active');
+      else if (status === 'research') document.getElementById('btn-res').classList.add('active');
+      else if (status === 'rejected') document.getElementById('btn-rej').classList.add('active');
+      else if (status === 'all') document.getElementById('btn-all').classList.add('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const rows = document.querySelectorAll('tbody tr');
+      let pub = 0, res = 0, rej = 0;
+      rows.forEach(row => {
+        const status = row.getAttribute('data-status');
+        if (status === 'inbox') pub++;
+        else if (status === 'research') res++;
+        else if (status === 'rejected') rej++;
+      });
+      document.getElementById('count-published').textContent = pub;
+      document.getElementById('count-research').textContent = res;
+      document.getElementById('count-rejected').textContent = rej;
+      
+      if (pub > 0) {
+        switchTab('inbox');
+      } else if (res > 0) {
+        switchTab('research');
+      } else {
+        switchTab('all');
+      }
+    });
+  </script>
 
   <footer class="footer">
     <p>Powered by {% if repo_url %}<a href="{{ repo_url | safe_url }}" target="_blank" rel="noopener">Glintory</a>{% else %}Glintory{% endif %}.</p>
@@ -665,25 +737,100 @@ DIAGNOSTICS_TEMPLATE = """<!DOCTYPE html>
     <!-- Global Pipeline Summary -->
     <h2 style="margin-top: 2rem;">Global Pipeline Summary</h2>
     <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-      <div class="card" style="padding: 1.5rem;">
-        <h4>Opportunity Candidates</h4>
-        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: var(--accent);">{{ global_stats.opportunity_candidates }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">v2分析で抽出された案件候補数</p>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Opportunity Candidates</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: var(--accent);">{{ global_stats.opportunity_candidates }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">v3分析で抽出された全案件候補数</p>
       </div>
-      <div class="card" style="padding: 1.5rem;">
-        <h4>Hard Gate Passed</h4>
-        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: #34d399;">{{ global_stats.gate_passed }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">ゲート条件を満たして合格した件数</p>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Published Opportunities</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #34d399;">{{ global_stats.published_opportunities }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">十分な需要の証拠を持つ公開案件数</p>
       </div>
-      <div class="card" style="padding: 1.5rem;">
-        <h4>Hard Gate Rejected</h4>
-        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: #f87171;">{{ global_stats.gate_rejected }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">ゲート条件を満たさず却下された件数</p>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Research Candidates</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #60a5fa;">{{ global_stats.research_count }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">需要はあるが調査が必要な案件数</p>
       </div>
-      <div class="card" style="padding: 1.5rem;">
-        <h4>Published Opportunities</h4>
-        <div class="score-value" style="font-size: 2.5rem; margin-top: 0.5rem; color: #60a5fa;">{{ global_stats.published_opportunities }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">標準公開対象の案件数 (Confidence != LOW)</p>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Rejected Candidates</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #f87171;">{{ global_stats.rejected_count }}</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">除外条件等により却下された案件数</p>
+      </div>
+    </div>
+
+    <!-- Fine-grained Diagnostic Metrics -->
+    <h3>Quality & Evidence Classification Details</h3>
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin-top:0;">Evidence Distribution</h4>
+        <ul style="padding-left:1.25rem; font-size:0.9rem; line-height:1.6;">
+          <li><strong>Demand-only candidates:</strong> {{ global_stats.demand_only_count }}</li>
+          <li><strong>Multi-evidence candidates:</strong> {{ global_stats.multi_evidence_count }}</li>
+          <li><strong>Strong single-demand (Condition B):</strong> {{ global_stats.strong_single_demand_count }}</li>
+        </ul>
+      </div>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin-top:0;">Rejection Reasons Breakdown</h4>
+        <ul style="padding-left:1.25rem; font-size:0.9rem; line-height:1.6;">
+          <li><strong>Supply-only (No demand):</strong> {{ global_stats.supply_only_rejected_count }}</li>
+          <li><strong>Single Show HN:</strong> {{ global_stats.single_show_hn_rejected_count }}</li>
+          <li><strong>Feasibility Constraint:</strong> {{ global_stats.explicit_feasibility_rejected_count }}</li>
+        </ul>
+      </div>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin-top:0;">Clustering & Dedup Diagnostics</h4>
+        <ul style="padding-left:1.25rem; font-size:0.9rem; line-height:1.6;">
+          <li><strong>Average signals per cluster:</strong> {{ global_stats.average_signals_per_cluster }}</li>
+          <li><strong>Singleton clusters:</strong> {{ global_stats.singleton_cluster_count }}</li>
+          <li><strong>Cross-source clusters:</strong> {{ global_stats.cross_source_cluster_count }}</li>
+          <li><strong>Duplicate evidence removed:</strong> {{ global_stats.duplicate_evidence_removed_count }} signals</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Missing Facets & Gate Reasons tables -->
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div class="card" style="padding: 1.25rem;">
+        <h3 style="margin-top:0;">Missing Facets Summary (Completeness Gaps)</h3>
+        <p style="font-size:0.85rem; color:var(--text-secondary);">Gaps in the structural completeness of opportunities</p>
+        <table style="font-size: 0.9rem;">
+          <thead>
+            <tr>
+              <th>Structural Element</th>
+              <th>Missing Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for facet_key, m_count in global_stats.missing_facets_summary.items() %}
+            <tr>
+              <td style="font-weight:600; text-transform:capitalize;">{{ facet_key }}</td>
+              <td><span style="color:#f87171; font-weight:bold;">{{ m_count }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="padding: 1.25rem;">
+        <h3 style="margin-top:0;">Gate Reasons Distribution</h3>
+        <p style="font-size:0.85rem; color:var(--text-secondary);">Breakdown of opportunities by decision outcomes</p>
+        <table style="font-size: 0.9rem;">
+          <thead>
+            <tr>
+              <th>Decision Reason</th>
+              <th>Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for reason_str, r_count in global_stats.gate_reason_counts.items() %}
+            <tr>
+              <td style="font-size:0.85rem; max-width:280px; overflow:hidden; text-overflow:ellipsis;">{{ reason_str }}</td>
+              <td style="font-weight:bold;">{{ r_count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
 

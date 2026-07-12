@@ -617,44 +617,22 @@ class OpportunityScoringEngine:
             1 for s in signals if s.relation_type == EvidenceRelationType.CONTRADICTING
         )
 
-        # Thread grouping for independent evidence count
-        def get_thread_key(sig) -> str:
-            url = sig.canonical_url or ""
-            hn_match = re.search(r"news\.ycombinator\.com/item\?id=(\d+)", url)
-            if hn_match:
-                return f"hn_thread_{hn_match.group(1)}"
-            gh_issue_match = re.search(
-                r"github\.com/([^/]+/[^/]+)/(issues|pull)/(\d+)", url
-            )
-            if gh_issue_match:
-                return (
-                    f"github_issue_{gh_issue_match.group(1)}_{gh_issue_match.group(3)}"
-                )
-            gh_repo_match = re.search(r"github\.com/([^/]+/[^/]+)", url)
-            if gh_repo_match:
-                return f"github_repo_{gh_repo_match.group(1)}"
-            return url
+        from glintory.domain.clustering import calculate_evidence_origin
 
-        threads = {}
+        origins = {}
         for sig in positive_signals:
-            key = get_thread_key(sig)
-            threads.setdefault(key, []).append(sig)
+            origin = calculate_evidence_origin(sig.source_type or "generic", sig.canonical_url)
+            origins.setdefault(origin, []).append(sig)
 
-        independent_evidence_count = len(threads)
-        demand_evidence_count = sum(
-            1 for sig in positive_signals if sig.signal_role == SignalRole.DEMAND
-        )
+        independent_evidence_count = len(origins)
+        demand_evidence_count = 0
+        for origin, sigs_in_origin in origins.items():
+            if any(sig.signal_role == SignalRole.DEMAND for sig in sigs_in_origin):
+                demand_evidence_count += 1
 
         source_types = {sig.source_type for sig in positive_signals if sig.source_type}
         distinct_source_type_count = len(source_types)
-
-        domains = set()
-        for sig in positive_signals:
-            if sig.canonical_url:
-                parsed = urlparse(sig.canonical_url)
-                if parsed.netloc:
-                    domains.add(parsed.netloc)
-        distinct_origin_count = len(domains)
+        distinct_origin_count = independent_evidence_count
 
         # Freshness calculation
         def get_sig_weight(s: ScoringEvidenceSignal) -> float:
@@ -712,64 +690,17 @@ class OpportunityScoringEngine:
         elif demand_evidence_count >= 3:
             base_prob_score = 20
 
-        # Contents evaluation: check structural elements inside evidence texts
-        combined_ev_text = ""
-        for sig in scoring_input.signals:
-            combined_ev_text += " " + (sig.title or "").lower()
-            combined_ev_text += " " + (sig.excerpt or "").lower()
+        # Contents evaluation using facets
+        combined_ev_title = " ".join((sig.title or "") for sig in positive_signals)
+        combined_ev_excerpt = " ".join((sig.excerpt or "") for sig in positive_signals)
 
-        # Word boundary checker helper
-        def has_word_local(pattern: str, text: str) -> bool:
-            if pattern.replace(" ", "").isalnum() and pattern.isascii():
-                return bool(re.search(rf"\b{re.escape(pattern)}\b", text))
-            return pattern in text
+        from glintory.services.signal_facets import extract_signal_facets
+        facets = extract_signal_facets(combined_ev_title, combined_ev_excerpt, "generic", SignalType.TREND)
+        sc = facets["structural_completeness"]
 
-        # Check clarity elements
-        problem_kws = [
-            "problem",
-            "pain",
-            "issue",
-            "difficult",
-            "annoy",
-            "error",
-            "fail",
-            "broken",
-            "limit",
-            "課題",
-            "問題",
-            "困っ",
-            "バグ",
-            "エラー",
-        ]
-        workaround_kws = [
-            "workaround",
-            "instead of",
-            "alternative",
-            "current tool",
-            "manually",
-            "excel",
-            "scripts",
-            "回避",
-            "代替",
-            "手動",
-            "スプレッドシート",
-        ]
-        gap_kws = [
-            "why",
-            "limit",
-            "lack",
-            "cannot",
-            "expensive",
-            "slow",
-            "不足",
-            "できない",
-            "高価",
-            "遅い",
-        ]
-
-        has_prob_el = any(has_word_local(kw, combined_ev_text) for kw in problem_kws)
-        has_work_el = any(has_word_local(kw, combined_ev_text) for kw in workaround_kws)
-        has_gap_el = any(has_word_local(kw, combined_ev_text) for kw in gap_kws)
+        has_prob_el = sc["problem"] == "confirmed"
+        has_work_el = sc["workaround"] == "confirmed"
+        has_gap_el = sc["gap"] == "confirmed"
 
         bonus = 0
         if has_prob_el:
@@ -1130,15 +1061,23 @@ class OpportunityScoringEngine:
         total_score = max(0, min(100, raw_total))
 
         # ----------------------------------------------------
-        # Confidence Version 2
+        # Confidence Version 3
         # ----------------------------------------------------
+        has_essential_sc = sc["target_user"] == "confirmed" and sc["problem"] == "confirmed" and sc["workaround"] == "confirmed"
+        has_basic_sc = sc["problem"] == "confirmed"
+
         if (
             independent_evidence_count >= 3
             and demand_evidence_count >= 2
             and distinct_source_type_count >= 2
+            and has_essential_sc
         ):
             confidence = Confidence.HIGH
-        elif independent_evidence_count >= 2 and demand_evidence_count >= 1:
+        elif (
+            independent_evidence_count >= 2
+            and demand_evidence_count >= 1
+            and has_basic_sc
+        ):
             confidence = Confidence.MEDIUM
         elif demand_evidence_count >= 1:
             confidence = Confidence.LOW

@@ -151,11 +151,11 @@ def resolve_publication_lifecycle(session: Any, gen_time: datetime) -> None:
     for op in all_db_opps:
         is_active_candidate = (
             op.current_scoring_version == "v2"
-            and op.gate_status == "passed"
-            and op.status
-            not in (OpportunityStatus.REJECTED, OpportunityStatus.ARCHIVED)
-            and op.confidence in (Confidence.MEDIUM, Confidence.HIGH)
             and op.public_lifecycle != "merged"
+            and (
+                (op.status == OpportunityStatus.INBOX and op.gate_status == "passed" and op.confidence in (Confidence.MEDIUM, Confidence.HIGH))
+                or (op.status == OpportunityStatus.RESEARCH)
+            )
         )
 
         if is_active_candidate:
@@ -170,15 +170,13 @@ def resolve_publication_lifecycle(session: Any, gen_time: datetime) -> None:
                     op.retired_at = gen_time
                     if op.current_scoring_version != "v2":
                         op.retired_reason = "SCORING_VERSION_CHANGED"
-                    elif op.gate_status != "passed":
-                        op.retired_reason = "GATE_REJECTED"
+                    elif op.confidence == Confidence.LOW:
+                        op.retired_reason = "CONFIDENCE_LOW"
                     elif op.status in (
                         OpportunityStatus.REJECTED,
                         OpportunityStatus.ARCHIVED,
                     ):
                         op.retired_reason = "STATUS_EXCLUDED"
-                    elif op.confidence not in (Confidence.MEDIUM, Confidence.HIGH):
-                        op.retired_reason = "CONFIDENCE_LOW"
                     else:
                         op.retired_reason = "CLUSTERING_EXCLUDED"
             elif op.public_lifecycle != "merged":
@@ -194,11 +192,9 @@ def select_active_public_opportunities(session: Any) -> list[Opportunity]:
         session.query(Opportunity)
         .filter(
             Opportunity.current_scoring_version == "v2",
-            Opportunity.gate_status == "passed",
-            Opportunity.status != OpportunityStatus.REJECTED,
-            Opportunity.status != OpportunityStatus.ARCHIVED,
-            Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH]),
             Opportunity.public_lifecycle == "active",
+            ((Opportunity.status == OpportunityStatus.INBOX) & (Opportunity.gate_status == "passed") & (Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH])))
+            | (Opportunity.status == OpportunityStatus.RESEARCH)
         )
         .order_by(
             Opportunity.total_score.desc(),

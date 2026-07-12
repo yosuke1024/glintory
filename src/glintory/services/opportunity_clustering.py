@@ -1,13 +1,30 @@
+import re
+import logging
 from collections import defaultdict
-
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import connected_components
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from glintory.domain.clustering import OpportunityClusteringConfig
-from glintory.domain.enums import EvidenceRelationType
+from glintory.domain.enums import EvidenceRelationType, SignalRole
 
+logger = logging.getLogger(__name__)
+
+def normalize_text(text: str) -> str:
+    """Normalize text by removing boilerplates, markdown symbols, and extra whitespaces."""
+    if not text:
+        return ""
+    text = text.lower()
+    # Remove HN headers
+    text = re.sub(r"\b(show hn|ask hn|show-hn|ask-hn)\b", "", text)
+    # Remove GitHub issue number (#123)
+    text = re.sub(r"#\d+", "", text)
+    # Remove URLs
+    text = re.sub(r"https?://[^\s]+", "", text)
+    # Remove markdown formatting characters
+    text = re.sub(r"[\#\*_\[\]\(\)\`\-+]", " ", text)
+    # Collapse multiple whitespaces
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 class OpportunityClusteringEngine:
     def __init__(self, config: OpportunityClusteringConfig | None = None) -> None:
@@ -16,100 +33,122 @@ class OpportunityClusteringEngine:
     def cluster_signals(self, signals: list) -> list[dict]:
         """Group a list of signals into opportunity clusters based on text similarity.
 
-        Returns a list of dictionaries, each representing an Opportunity candidate:
-        {
-            "representative_signal": Signal,
-            "signals": list[dict]  # {"signal": Signal, "relation_type": EvidenceRelationType, "relevance_score": float}
-        }
+        Uses a Demand-Anchored Greedy Clustering strategy to prevent transitive chain merges.
+        
+        Returns:
+            list[dict]: A list of Opportunity candidates:
+            {
+                "representative_signal": Signal,
+                "signals": list[dict]  # {"signal": Signal, "relation_type": EvidenceRelationType, "relevance_score": float}
+            }
         """
         if not signals:
             return []
 
-        # 1. Prepare text features
-        texts = []
-        for s in signals:
-            title = s.title or ""
-            excerpt = s.excerpt or ""
-            texts.append(f"{title}\n{excerpt}".strip())
+        # 1. Filter and sort Demands (as anchors) and Non-Demands
+        demands = [s for s in signals if s.signal_role == SignalRole.DEMAND or getattr(s, "_is_existing_rep", False)]
+        non_demands = [s for s in signals if not (s.signal_role == SignalRole.DEMAND or getattr(s, "_is_existing_rep", False))]
 
-        # 2. Vectorize texts
-        vectorizer = TfidfVectorizer(stop_words="english", min_df=1)
-        try:
-            tfidf_matrix = vectorizer.fit_transform(texts)
-        except ValueError:
-            # Handle cases where all texts are empty or only contain stop words
-            # Fallback to putting each signal in its own cluster
-            candidates = []
-            for s in signals:
-                candidates.append(
-                    {
-                        "representative_signal": s,
-                        "signals": [
-                            {
-                                "signal": s,
-                                "relation_type": EvidenceRelationType.SUPPORTING,
-                                "relevance_score": 1.0,
-                            }
-                        ],
-                    }
-                )
-            return candidates
+        # Sort demands by oldest collected_at first, to establish stable centroids
+        demands = sorted(demands, key=lambda s: (s.collected_at, getattr(s, "id", "")))
+        all_ordered = demands + non_demands
 
-        # 3. Calculate Cosine Similarity
-        sim_matrix = cosine_similarity(tfidf_matrix)
+        # 2. Extract and normalize texts
+        texts = [normalize_text(f"{s.title or ''}\n{s.excerpt or ''}") for s in all_ordered]
 
-        # 4. Build adjacency matrix for graph partitioning
-        threshold = self.config.similarity_threshold
-        adj = (sim_matrix >= threshold).astype(int)
-
-        # 5. Find connected components (each component is a cluster)
-        n_components, labels = connected_components(
-            csgraph=csr_matrix(adj), directed=False, connection="weak"
+        # 3. Vectorize texts using TF-IDF (1, 2) ngrams
+        custom_stop_words = "english"
+        vectorizer = TfidfVectorizer(
+            stop_words=custom_stop_words,
+            ngram_range=(1, 2),
+            sublinear_tf=True,
+            min_df=1,
         )
 
-        # 6. Group signal indices by component label
-        component_to_indices = defaultdict(list)
-        for idx, label in enumerate(labels):
-            component_to_indices[label].append(idx)
+        try:
+            tfidf_matrix = vectorizer.fit_transform(texts)
+            sim_matrix = cosine_similarity(tfidf_matrix)
+        except ValueError:
+            # Fallback when vectorization fails (e.g. all texts empty or only stopwords)
+            # Create single-signal clusters for demands only
+            candidates = []
+            for s in demands:
+                candidates.append({
+                    "representative_signal": s,
+                    "signals": [{
+                        "signal": s,
+                        "relation_type": EvidenceRelationType.SUPPORTING,
+                        "relevance_score": 1.0,
+                    }]
+                })
+            return candidates
 
+        threshold = self.config.similarity_threshold
+
+        # 4. Greedy Clustering on Demands
+        # clusters will store dict: {"rep_idx": int, "members": list[int]}
+        clusters = []
+
+        for d_i in range(len(demands)):
+            best_match_cluster = None
+            best_sim = -1.0
+
+            # Find the best matching cluster based on similarity with its Representative
+            for c in clusters:
+                sim_val = float(sim_matrix[c["rep_idx"]][d_i])
+                if sim_val > best_sim:
+                    best_sim = sim_val
+                    best_match_cluster = c
+
+            if best_match_cluster and best_sim >= threshold:
+                best_match_cluster["members"].append(d_i)
+            else:
+                # Start a new cluster anchored at this demand signal
+                clusters.append({
+                    "rep_idx": d_i,
+                    "members": [d_i],
+                })
+
+        # 5. Greedy Association for Non-Demands
+        # We do not create new clusters for non-demands. They can only join existing demand clusters.
+        start_nd_idx = len(demands)
+        for nd_offset in range(len(non_demands)):
+            nd_i = start_nd_idx + nd_offset
+            best_match_cluster = None
+            best_sim = -1.0
+
+            for c in clusters:
+                sim_val = float(sim_matrix[c["rep_idx"]][nd_i])
+                if sim_val > best_sim:
+                    best_sim = sim_val
+                    best_match_cluster = c
+
+            if best_match_cluster and best_sim >= threshold:
+                best_match_cluster["members"].append(nd_i)
+
+        # 6. Build the final output structure
         candidates = []
-        for _label, indices in component_to_indices.items():
-            cluster_signals = [signals[idx] for idx in indices]
-
-            # Determine representative signal: oldest collected_at, fallback to ID
-            sorted_cluster = sorted(
-                cluster_signals, key=lambda x: (x.collected_at, getattr(x, "id", ""))
-            )
-            rep_signal = sorted_cluster[0]
-            rep_idx = signals.index(rep_signal)
-
-            # Map relations and relevance score for each signal in the cluster
+        for c in clusters:
+            rep_sig = all_ordered[c["rep_idx"]]
             signals_info = []
-            for idx in indices:
-                sig = signals[idx]
-                sim_val = float(sim_matrix[rep_idx][idx])
-                # Ensure similarity is bounded between 0.0 and 1.0
+
+            for idx in c["members"]:
+                sig = all_ordered[idx]
+                sim_val = float(sim_matrix[c["rep_idx"]][idx])
                 sim_val = max(0.0, min(1.0, sim_val))
 
-                # Decide relation type: supporting if similarity with rep is high (>= 0.5), related otherwise
-                if sim_val >= 0.5:
-                    rel_type = EvidenceRelationType.SUPPORTING
-                else:
-                    rel_type = EvidenceRelationType.RELATED
+                # Relation type based on similarity to representative
+                rel_type = EvidenceRelationType.SUPPORTING if sim_val >= 0.5 else EvidenceRelationType.RELATED
 
-                signals_info.append(
-                    {
-                        "signal": sig,
-                        "relation_type": rel_type,
-                        "relevance_score": sim_val,
-                    }
-                )
+                signals_info.append({
+                    "signal": sig,
+                    "relation_type": rel_type,
+                    "relevance_score": sim_val,
+                })
 
-            candidates.append(
-                {
-                    "representative_signal": rep_signal,
-                    "signals": signals_info,
-                }
-            )
+            candidates.append({
+                "representative_signal": rep_sig,
+                "signals": signals_info,
+            })
 
         return candidates

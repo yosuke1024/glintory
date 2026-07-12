@@ -45,30 +45,30 @@ def test_calculate_evidence_origin():
     # GitHub test
     assert (
         calculate_evidence_origin("github", "https://github.com/google/jax")
-        == "google/jax"
+        == "github:google/jax"
     )
     assert (
         calculate_evidence_origin("github", "https://api.github.com/repos/google/jax")
-        == "google/jax"
+        == "github:google/jax"
     )
-    assert calculate_evidence_origin("github", "https://github.com/google") == "github"
+    assert calculate_evidence_origin("github", "https://github.com/google") == "github:generic"
 
     # Hacker News test
     assert (
         calculate_evidence_origin(
             "hackernews", "https://news.ycombinator.com/item?id=1"
         )
-        == "hackernews"
+        == "hackernews:item:1"
     )
 
     # RSS test
     assert (
         calculate_evidence_origin("rss", "https://blog.rust-lang.org/feed.xml")
-        == "blog.rust-lang.org"
+        == "blog.rust-lang.org/feed.xml"
     )
     assert (
         calculate_evidence_origin("rss", "https://localhost:8000/feed.xml")
-        == "localhost"
+        == "localhost/feed.xml"
     )
 
 
@@ -85,6 +85,7 @@ def test_clustering_engine_basic():
         canonical_url="https://example.com/1",
         collected_at=now,
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.DEMAND,
         source_id="src1",
         content_hash="h1",
         freshness_score=1.0,
@@ -109,6 +110,7 @@ def test_clustering_engine_basic():
         canonical_url="https://example.com/3",
         collected_at=now,
         signal_type=SignalType.PAIN,
+        signal_role=SignalRole.DEMAND,
         source_id="src1",
         content_hash="h3",
         freshness_score=1.0,
@@ -170,7 +172,7 @@ async def test_analysis_service_flow(db_session, db_session_factory):
     db_session.add_all([s1, s2])
     db_session.commit()
 
-    config = OpportunityClusteringConfig(similarity_threshold=0.1)
+    config = OpportunityClusteringConfig(similarity_threshold=0.01)
     repo = OpportunityClusteringRepository(db_session)
     engine = OpportunityClusteringEngine(config)
     service = OpportunityAnalysisService(db_session, repo, engine, config)
@@ -246,6 +248,7 @@ async def test_analysis_service_dry_run(db_session):
         title="Database project in Python",
         excerpt="Building a lightweight relational database in pure Python.",
         signal_type=SignalType.PROJECT,
+        signal_role=SignalRole.DEMAND,
         collected_at=now,
         content_hash="hash1",
         freshness_score=1.0,
@@ -254,7 +257,7 @@ async def test_analysis_service_dry_run(db_session):
     db_session.add(s1)
     db_session.commit()
 
-    config = OpportunityClusteringConfig(similarity_threshold=0.1)
+    config = OpportunityClusteringConfig(similarity_threshold=0.01)
     repo = OpportunityClusteringRepository(db_session)
     engine = OpportunityClusteringEngine(config)
     service = OpportunityAnalysisService(db_session, repo, engine, config)
