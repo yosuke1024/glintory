@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import os
-import sys
 import sqlite3
+import sys
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -10,6 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from glintory.domain.models import Opportunity
 from glintory.services.opportunity_rebuild_service import OpportunityRebuildService
+
 
 def main():
     db_url = os.environ.get("GLINTORY_DATABASE_URL", "sqlite:///.state/public-glintory.sqlite3")
@@ -47,8 +49,8 @@ def main():
 
     # 2. Setup SQLAlchemy Session
     engine = create_engine(db_url)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    session_class = sessionmaker(bind=engine)
+    session = session_class()
 
     try:
         # Check if rebuild is required based on DB opportunities

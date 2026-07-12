@@ -1787,8 +1787,8 @@ async def run_opportunities_command(args: argparse.Namespace, runtime: Any) -> i
                 from_version=from_version,
                 to_version=to_version,
                 reclassify_signals=getattr(args, "reclassify_signals", False),
-                cluster_version=getattr(args, "cluster_version", None),
-                gate_version=getattr(args, "gate_version", None),
+                cluster_version=getattr(args, "cluster_version", "v2") or "v2",
+                gate_version=getattr(args, "gate_version", "v3") or "v3",
             )
 
             if args.json:

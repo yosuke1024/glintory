@@ -2,6 +2,7 @@
 import os
 import sqlite3
 
+
 def main():
     db_path = ".state/public-glintory.sqlite3"
     if not os.path.exists(db_path):
