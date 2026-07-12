@@ -27,6 +27,8 @@ from glintory.domain.enums import (
     OpportunityStatus,
     SignalRole,
     SignalType,
+    SignalDocumentKind,
+    SourceSpecificity,
 )
 from glintory.domain.operations import CollectionTriggerType
 
@@ -223,6 +225,34 @@ class Signal(Base):
         onupdate=utc_now,
         nullable=False,
     )
+    document_kind: Mapped[SignalDocumentKind] = mapped_column(
+        Enum(
+            SignalDocumentKind,
+            native_enum=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=SignalDocumentKind.UNKNOWN,
+    )
+    opportunity_anchor: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    discovery_eligible: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    source_specificity: Mapped[SourceSpecificity] = mapped_column(
+        Enum(
+            SourceSpecificity,
+            native_enum=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=SourceSpecificity.UNKNOWN,
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -345,6 +375,9 @@ class Opportunity(Base):
     )
     last_scored_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    generalizability: Mapped[str | None] = mapped_column(
+        String(50), default="unknown", nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -738,7 +771,7 @@ class OpportunityEnrichment(Base):
         ),
         Index("idx_opportunity_enrichments_opp_id", "opportunity_id"),
         CheckConstraint(
-            "status IN ('running', 'succeeded', 'failed', 'invalid_output', 'skipped')",
+            "status IN ('running', 'succeeded', 'completed', 'failed', 'invalid_output', 'skipped')",
             name="chk_opportunity_enrichments_status",
         ),
         CheckConstraint(
@@ -861,3 +894,68 @@ class PublishingRun(Base):
         Integer, default=0, nullable=False
     )
     dataset_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class DiscoveryReport(Base):
+    __tablename__ = "discovery_reports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    manifest_date: Mapped[date] = mapped_column(Date, unique=True, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    report_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class DiscoveryLead(Base):
+    __tablename__ = "discovery_leads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    target_url: Mapped[str] = mapped_column(String(1024), unique=True, nullable=False)
+    first_discovered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurrence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    verification_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="pending"
+    )
+    dispatch_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="pending"
+    )
+    resolved_signal_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("signals.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    resolved_signal = relationship("Signal")
+
+
+class DiscoveryLeadOccurrence(Base):
+    __tablename__ = "discovery_lead_occurrences"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    lead_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("discovery_leads.id"), nullable=False
+    )
+    report_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("discovery_reports.id"), nullable=False
+    )
+    raw_title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    raw_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    discovered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    lead = relationship("DiscoveryLead")
+    report = relationship("DiscoveryReport")

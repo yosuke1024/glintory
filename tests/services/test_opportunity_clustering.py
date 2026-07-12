@@ -192,7 +192,7 @@ async def test_analysis_service_flow(db_session, db_session_factory):
     assert len(opps) == 1
     opp = opps[0]
     assert opp.generation_method == "deterministic_cluster"
-    assert opp.status == OpportunityStatus.INBOX
+    assert opp.status == OpportunityStatus.RESEARCH
 
     links = db_session.query(OpportunitySignal).all()
     assert len(links) == 2

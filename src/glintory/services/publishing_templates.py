@@ -299,7 +299,14 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
           </div>
         </a>
       {% else %}
-        <p>No opportunities found yet.</p>
+        <div style="grid-column: 1 / -1; background-color: rgba(99, 102, 241, 0.05); border: 1px solid var(--border); border-radius: 0.5rem; padding: 2rem; text-align: center;">
+          <p style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--text-secondary);">
+            現在、公開条件を満たしたOpportunityはありません。
+          </p>
+          <p style="margin: 0.5rem 0 0 0; font-size: 0.95rem; color: var(--text-secondary);">
+            調査中のResearch Candidateを確認してください。
+          </p>
+        </div>
       {% endfor %}
     </div>
 
@@ -377,7 +384,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
     <div class="section-title">All Scored Opportunities</div>
     
     <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
-      <button class="tab-btn" id="btn-pub" onclick="switchTab('inbox')">Published Opportunities (<span id="count-published">0</span>)</button>
+      <button class="tab-btn" id="btn-pub" onclick="switchTab('published')">Published Opportunities (<span id="count-published">0</span>)</button>
       <button class="tab-btn" id="btn-res" onclick="switchTab('research')">Research Candidates (<span id="count-research">0</span>)</button>
       <button class="tab-btn" id="btn-rej" onclick="switchTab('rejected')">Rejected Candidates (<span id="count-rejected">0</span>)</button>
       <button class="tab-btn" id="btn-all" onclick="switchTab('all')">All</button>
@@ -397,7 +404,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       </thead>
       <tbody>
         {% for op_data in op_list_data %}
-          <tr data-status="{{ op_data.op.status }}">
+          <tr data-status="{{ op_data.stage }}">
             <td>
               <a href="{{ base_path }}/opportunities/{{ op_data.op.id }}/" style="color: inherit; font-weight: 600; text-decoration: none;">
                 {% if op_data.op.title_ja %}
@@ -410,8 +417,8 @@ LIST_TEMPLATE = """<!DOCTYPE html>
             <td><span class="score-value" style="font-size: 1.25rem;">{{ op_data.op.total_score }}</span></td>
             <td>{{ op_data.op.confidence }}</td>
             <td>
-              <span class="badge {% if op_data.op.status == 'inbox' %}badge-success{% elif op_data.op.status == 'research' %}badge-info{% else %}badge-accent{% endif %}">
-                {{ op_data.op.status }}
+              <span class="badge {% if op_data.stage == 'published' %}badge-success{% elif op_data.stage == 'research' %}badge-info{% else %}badge-accent{% endif %}">
+                {{ op_data.stage }}
               </span>
             </td>
             <td>{{ op_data.evidence_count }}</td>
@@ -442,7 +449,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       const buttons = document.querySelectorAll('.tab-btn');
       buttons.forEach(btn => btn.classList.remove('active'));
       
-      if (status === 'inbox') document.getElementById('btn-pub').classList.add('active');
+      if (status === 'published') document.getElementById('btn-pub').classList.add('active');
       else if (status === 'research') document.getElementById('btn-res').classList.add('active');
       else if (status === 'rejected') document.getElementById('btn-rej').classList.add('active');
       else if (status === 'all') document.getElementById('btn-all').classList.add('active');
@@ -453,7 +460,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       let pub = 0, res = 0, rej = 0;
       rows.forEach(row => {
         const status = row.getAttribute('data-status');
-        if (status === 'inbox') pub++;
+        if (status === 'published') pub++;
         else if (status === 'research') res++;
         else if (status === 'rejected') rej++;
       });
@@ -462,7 +469,7 @@ LIST_TEMPLATE = """<!DOCTYPE html>
       document.getElementById('count-rejected').textContent = rej;
       
       if (pub > 0) {
-        switchTab('inbox');
+        switchTab('published');
       } else if (res > 0) {
         switchTab('research');
       } else {
@@ -482,7 +489,7 @@ DETAIL_TEMPLATE = """<!DOCTYPE html>
 <html lang="{% if locale == 'ja' %}ja{% else %}en{% endif %}">
 <head>
   <meta charset="UTF-8">
-  <title>{{ loc_data.title }} - Glintory</title>
+  <title>{% if locale == 'ja' and translation_fallback %}{{ op.title_en or op.title }}{% else %}{{ loc_data.title }}{% endif %} - Glintory</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="{{ base_path }}/assets/app.css">
 </head>
@@ -734,28 +741,78 @@ DIAGNOSTICS_TEMPLATE = """<!DOCTYPE html>
     <h1>Collector &amp; Pipeline Diagnostics</h1>
     <p>ソース収集ログとシステム診断情報です。</p>
 
-    <!-- Global Pipeline Summary -->
-    <h2 style="margin-top: 2rem;">Global Pipeline Summary</h2>
-    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-      <div class="card" style="padding: 1.25rem;">
-        <h4 style="margin:0;">Opportunity Candidates</h4>
-        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: var(--accent);">{{ global_stats.opportunity_candidates }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">v3分析で抽出された全案件候補数</p>
+    <!-- Current Snapshot -->
+    <h2 style="margin-top: 2rem;">Current Snapshot</h2>
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Current Published</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #34d399;">{{ global_stats.current_published }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">公開中の案件数</p>
       </div>
-      <div class="card" style="padding: 1.25rem;">
-        <h4 style="margin:0;">Published Opportunities</h4>
-        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #34d399;">{{ global_stats.published_opportunities }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">十分な需要の証拠を持つ公開案件数</p>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Current Research</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #60a5fa;">{{ global_stats.current_research }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">調査中の案件数</p>
       </div>
-      <div class="card" style="padding: 1.25rem;">
-        <h4 style="margin:0;">Research Candidates</h4>
-        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #60a5fa;">{{ global_stats.research_count }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">需要はあるが調査が必要な案件数</p>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Current Rejected</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #f87171;">{{ global_stats.current_rejected }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">却下された案件数</p>
       </div>
-      <div class="card" style="padding: 1.25rem;">
-        <h4 style="margin:0;">Rejected Candidates</h4>
-        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #f87171;">{{ global_stats.rejected_count }}</div>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">除外条件等により却下された案件数</p>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Enrichment Pending</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #fbbf24;">{{ global_stats.current_enrichment_pending }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">付加情報生成待ち</p>
+      </div>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Discovery Leads</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: var(--accent);">{{ global_stats.current_discovery_leads }} ({{ global_stats.verified_discovery_leads }} verified)</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">探索リード数</p>
+      </div>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Active Candidates</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #e879f9;">{{ global_stats.current_active_candidates }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">アクティブ候補数</p>
+      </div>
+    </div>
+
+    <!-- Identity Verification Check -->
+    <div style="margin-bottom: 2rem; padding: 0.75rem; border-radius: 0.25rem; font-size: 0.9rem; background-color: rgba(52, 211, 153, 0.1); border: 1px solid #34d399; color: #34d399; font-weight: bold;">
+      ✓ Snapshot Identity Check: current_total ({{ global_stats.current_total }}) = published ({{ global_stats.current_published }}) + research ({{ global_stats.current_research }}) + rejected ({{ global_stats.current_rejected }}) + pending ({{ global_stats.current_enrichment_pending }})
+    </div>
+
+    <!-- Historical Stats -->
+    <h2>Historical Metrics</h2>
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Historical Gate Passed</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #34d399;">{{ global_stats.historical_gate_passed }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">過去ゲート通過回数</p>
+      </div>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Historical Gate Rejected</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #f87171;">{{ global_stats.historical_gate_rejected }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">過去ゲート却下回数</p>
+      </div>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Historical Analysis Runs</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #60a5fa;">{{ global_stats.historical_analysis_runs }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">過去クラスタ分析回数</p>
+      </div>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Discovery Reports Processed</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #a78bfa;">{{ global_stats.discovery_reports_processed }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">処理済みレポート数</p>
+      </div>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Discovery URLs Extracted</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #fbbf24;">{{ global_stats.discovery_urls_extracted }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">抽出一次情報URL数</p>
+      </div>
+      <div class="card" style="padding: 1rem;">
+        <h4 style="margin:0; font-size:0.9rem;">Primary Sources Dispatched</h4>
+        <div class="score-value" style="font-size: 2rem; margin-top: 0.5rem; color: #e879f9;">{{ global_stats.primary_sources_dispatched }}</div>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">配信済み一次クエリ数</p>
       </div>
     </div>
 

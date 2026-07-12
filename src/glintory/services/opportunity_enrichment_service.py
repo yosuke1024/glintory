@@ -30,6 +30,7 @@ from glintory.infrastructure.opportunity_enrichment_repository import (
 logger = logging.getLogger(__name__)
 
 from glintory.domain.enrichment_contract import PROMPT_VERSION, SCHEMA_VERSION
+from glintory.domain.public_contract import is_enrichment_complete
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +167,7 @@ class OpportunityEnrichmentService:
                     opp.id, input_hash, PROMPT_VERSION
                 )
                 if existing:
-                    if existing.status == "succeeded" and not force:
+                    if is_enrichment_complete(existing.status) and not force:
                         logger.info(
                             f"Skipping opportunity {opp.id} (matching input hash already succeeded)."
                         )
@@ -418,8 +419,8 @@ class OpportunityEnrichmentService:
                         opp.risks_en = res.english.risks if res.english else None
                         opp.risks_ja = res.japanese.risks if res.japanese else None
 
-                        opp.enrichment_status = "succeeded"
-                        opp.translation_status = "succeeded"
+                        opp.enrichment_status = "completed"
+                        opp.translation_status = "completed"
                         opp.enriched_at = completed_at
                         opp.enrichment_error = None
 

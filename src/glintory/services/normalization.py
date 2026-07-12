@@ -247,6 +247,14 @@ class SignalNormalizer:
                     metadata=sanitized_metadata,
                 )
 
+                doc_kind = item.document_kind or "STANDALONE_DEMAND"
+                opp_anchor = item.opportunity_anchor
+                if opp_anchor is None:
+                    from glintory.domain.enums import SignalRole as SR, SignalType as ST
+                    opp_anchor = (signal_role == SR.DEMAND and signal_type in (ST.PAIN, ST.MANUAL))
+                disc_eligible = item.discovery_eligible if item.discovery_eligible is not None else True
+                src_spec = item.source_specificity or "unknown"
+
                 normalized_signal = NormalizedSignal(
                     source_id=source_id,
                     collection_run_id=collection_run_id,
@@ -267,6 +275,10 @@ class SignalNormalizer:
                     content_hash=content_hash,
                     freshness_score=freshness_score,
                     source_quality_score=settings.signal_default_source_quality_score,
+                    document_kind=doc_kind,
+                    opportunity_anchor=opp_anchor,
+                    discovery_eligible=disc_eligible,
+                    source_specificity=src_spec,
                 )
 
                 signals.append(normalized_signal)

@@ -28,6 +28,8 @@ from glintory.domain.public_contract import (
     PublicManifestV1,
     PublicOpportunityDetailV1,
     PublicOpportunityListV1,
+    is_enrichment_complete,
+    is_translation_complete,
 )
 from glintory.services.content_hashing import (
     calculate_opportunity_detail_canonical_hash,
@@ -278,7 +280,7 @@ def validate_public_contract(data_dir: str) -> list[str]:
             if detail.score.demand_evidence_count < 1:
                 reasons_recalc.append("INSUFFICIENT_DEMAND_EVIDENCE")
 
-            if detail.enrichment_status not in ("completed", "succeeded"):
+            if not is_enrichment_complete(detail.enrichment_status):
                 reasons_recalc.append("ENRICHMENT_MISSING")
 
             if (
@@ -289,7 +291,7 @@ def validate_public_contract(data_dir: str) -> list[str]:
 
             # Check localizations
             if (
-                detail.translation_status != "completed"
+                not is_translation_complete(detail.translation_status)
                 or (
                     detail.localization and detail.localization.ja.status != "completed"
                 )

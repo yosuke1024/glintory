@@ -24,7 +24,7 @@ class OpportunityEnrichmentRepository:
             self.session.query(OpportunityEnrichment)
             .filter(
                 OpportunityEnrichment.opportunity_id == opportunity_id,
-                OpportunityEnrichment.status == "succeeded",
+                OpportunityEnrichment.status.in_(("succeeded", "completed")),
             )
             .order_by(OpportunityEnrichment.completed_at.desc())
             .first()
@@ -97,7 +97,7 @@ class OpportunityEnrichmentRepository:
         if not enrichment:
             return
 
-        enrichment.status = status
+        enrichment.status = "completed" if status == "succeeded" else status
         enrichment.completed_at = completed_at
         enrichment.duration_ms = duration_ms
         enrichment.error_code = error_code

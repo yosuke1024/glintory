@@ -36,9 +36,9 @@ class OpportunityAnalysisService:
     def _calculate_metrics_and_gate(
         self, cluster_signals: list[dict]
     ) -> tuple[dict, bool, str]:
-        from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+        from glintory.services.gate_v4 import calculate_metrics_and_gate_v4
 
-        metrics, gate_status, passed_published, reason = calculate_metrics_and_gate_v3(
+        metrics, gate_status, passed_published, reason = calculate_metrics_and_gate_v4(
             cluster_signals
         )
         return metrics, passed_published, reason
@@ -188,12 +188,12 @@ class OpportunityAnalysisService:
                             for opp_sig, sig in all_links
                         ]
 
-                        from glintory.services.gate_v3 import (
-                            calculate_metrics_and_gate_v3,
+                        from glintory.services.gate_v4 import (
+                            calculate_metrics_and_gate_v4,
                         )
 
                         metrics, gate_status_str, passed_published, reason = (
-                            calculate_metrics_and_gate_v3(ev_signals_input)
+                            calculate_metrics_and_gate_v4(ev_signals_input)
                         )
                         opp.independent_evidence_count = metrics[
                             "independent_evidence_count"
@@ -202,10 +202,23 @@ class OpportunityAnalysisService:
                         opp.source_type_count = metrics["source_type_count"]
                         opp.source_domain_count = metrics["source_domain_count"]
 
-                        opp.gate_version = "v3"
+                        opp.gate_version = "v4"
                         opp.gate_status = gate_status_str
                         opp.gate_reason = reason
                         opp.gate_checked_at = now
+
+                        # Calculate generalizability
+                        demand_c = metrics["demand_evidence_count"]
+                        if demand_c >= 2:
+                            opp.generalizability = "confirmed"
+                        elif demand_c == 1:
+                            has_high_specificity = any(
+                                getattr(sig, "source_specificity", None) == "high"
+                                for _, sig in all_links
+                            )
+                            opp.generalizability = "source_specific" if has_high_specificity else "plausible"
+                        else:
+                            opp.generalizability = "unknown"
 
                         if gate_status_str == "passed":
                             gate_passed_count += 1
@@ -225,10 +238,10 @@ class OpportunityAnalysisService:
                 if len(title) > 200:
                     title = title[:197] + "..."
 
-                from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+                from glintory.services.gate_v4 import calculate_metrics_and_gate_v4
 
                 metrics, gate_status_str, passed_published, reason = (
-                    calculate_metrics_and_gate_v3(cluster["signals"])
+                    calculate_metrics_and_gate_v4(cluster["signals"])
                 )
                 if gate_status_str == "passed":
                     gate_passed_count += 1
@@ -251,11 +264,17 @@ class OpportunityAnalysisService:
                     demand_evidence_count=metrics["demand_evidence_count"],
                     source_type_count=metrics["source_type_count"],
                     source_domain_count=metrics["source_domain_count"],
-                    gate_version="v3",
+                    gate_version="v4",
                     gate_status=gate_status_str,
                     gate_reason=reason,
                     gate_checked_at=now,
                     current_scoring_version="v2",
+                    generalizability="confirmed" if metrics["demand_evidence_count"] >= 2 else (
+                        "source_specific" if any(
+                            getattr(sig_info["signal"], "source_specificity", None) == "high"
+                            for sig_info in cluster["signals"]
+                        ) else "plausible"
+                    ) if metrics["demand_evidence_count"] == 1 else "unknown",
                 )
                 if not dry_run:
                     self.repository.save_opportunity(opp)

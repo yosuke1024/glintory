@@ -212,3 +212,12 @@ def to_public_completion_status(
     if internal_status == "failed":
         return "failed"
     return "pending"
+
+
+def is_enrichment_complete(status: str | None) -> bool:
+    return status in ("succeeded", "completed")
+
+
+def is_translation_complete(status: str | None) -> bool:
+    return status in ("succeeded", "completed")
+

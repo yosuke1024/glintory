@@ -518,7 +518,7 @@ def test_static_site_fallback_and_rendering(
     )
     with open(opp_detail_file) as f:
         content = f.read()
-    assert "テスト案件タイトル" in content
+    assert "Test Opportunity Title" in content
     assert "AI-generated brief based on the evidence below." not in content
 
     # Add enrichment data and its localization
@@ -869,9 +869,9 @@ def test_provider_response_deficient_count_mismatch(
     assert e2 is not None
 
     statuses = {e1.status, e2.status}
-    assert statuses == {"succeeded", "failed"}
+    assert statuses == {"completed", "failed"}
 
-    succeeded_enrich = e1 if e1.status == "succeeded" else e2
+    succeeded_enrich = e1 if e1.status == "completed" else e2
     failed_enrich = e1 if e1.status == "failed" else e2
 
     assert succeeded_enrich.generated_title == "Deficient Title 1"
@@ -971,7 +971,7 @@ def test_v1_to_v2_migration_recomputation(db_session_factory, mock_opportunity_d
         .first()
     )
     assert v2_enrich is not None
-    assert v2_enrich.status == "succeeded"
+    assert v2_enrich.status == "completed"
     assert v2_enrich.generated_title == "V2 Title"
     session.close()
 
@@ -1177,7 +1177,7 @@ def test_research_candidate_is_enriched(db_session_factory):
     assert updated_opp is not None
     assert updated_opp.title_ja == "日本語タイトル"
     assert updated_opp.summary_ja == "日本語の要約内容"
-    assert updated_opp.enrichment_status == "succeeded"
+    assert updated_opp.enrichment_status == "completed"
     session.close()
 
     # 2. Run enrichment again: should be skipped since it's already enriched (matching hash)

@@ -378,10 +378,14 @@ def test_condition_b_requires_5_elements(test_db):
     service = OpportunityAnalysisService(session, repo, engine)
 
     service.analyze_and_cluster()
-    opps = session.query(Opportunity).filter(Opportunity.gate_status == "passed").all()
-    # Passed because it has all 5 elements
-    assert len(opps) > 0
-    assert "Passed Condition B" in opps[0].gate_reason
+    opps_passed = session.query(Opportunity).filter(Opportunity.gate_status == "passed").all()
+    # In Gate v4, Condition B is abolished. Even with 5 elements, a single demand opportunity must not pass.
+    assert len(opps_passed) == 0
+
+    opps_all = session.query(Opportunity).all()
+    assert len(opps_all) == 1
+    assert opps_all[0].gate_status == "rejected"
+    assert "Research Candidate:" in opps_all[0].gate_reason
 
 
 def test_source_type_count_multiple_github_is_one(test_db):
@@ -824,7 +828,7 @@ def test_diagnostics_pipeline_stats(test_db, tmp_path):
     with open(diag_file) as f:
         diag_content = f.read()
 
-    assert "Global Pipeline Summary" in diag_content
+    assert "Current Snapshot" in diag_content
     assert "Source Type Pipeline Audits" in diag_content
     assert "github" in diag_content
 
@@ -1010,7 +1014,7 @@ def test_condition_a_lacking_quality_elements_rejected(test_db):
     assert len(opps) == 1
     # Under Gate v3, quality elements are not hard constraint. Condition A passes if multiple independent evidences exist.
     assert opps[0].gate_status == "passed"
-    assert "Passed Condition A" in opps[0].gate_reason
+    assert "Passed Gate v4" in opps[0].gate_reason
 
 
 def test_publishing_exclusion_rules(test_db, tmp_path):

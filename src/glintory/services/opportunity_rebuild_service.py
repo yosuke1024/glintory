@@ -30,9 +30,9 @@ class OpportunityRebuildService:
     def _calculate_metrics_and_gate(
         self, cluster_signals: list[dict[str, Any]]
     ) -> tuple[dict[str, int], bool, str]:
-        from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+        from glintory.services.gate_v4 import calculate_metrics_and_gate_v4
 
-        metrics, gate_status, passed_published, reason = calculate_metrics_and_gate_v3(
+        metrics, gate_status, passed_published, reason = calculate_metrics_and_gate_v4(
             cluster_signals
         )
         return metrics, passed_published, reason
@@ -229,10 +229,10 @@ class OpportunityRebuildService:
             if len(title) > 200:
                 title = title[:197] + "..."
 
-            from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+            from glintory.services.gate_v4 import calculate_metrics_and_gate_v4
 
             metrics, gate_status_str, passed_published, reason = (
-                calculate_metrics_and_gate_v3(cluster["signals"])
+                calculate_metrics_and_gate_v4(cluster["signals"])
             )
             if gate_status_str == "passed":
                 gate_passed_count += 1
@@ -263,6 +263,19 @@ class OpportunityRebuildService:
                     opp.status = final_status
                     opp.current_scoring_version = to_version
                     opp.public_lifecycle = "active"
+
+                    # Calculate generalizability
+                    demand_c = metrics["demand_evidence_count"]
+                    if demand_c >= 2:
+                        opp.generalizability = "confirmed"
+                    elif demand_c == 1:
+                        has_high_specificity = any(
+                            getattr(sig_info["signal"], "source_specificity", None) == "high"
+                            for sig_info in cluster["signals"]
+                        )
+                        opp.generalizability = "source_specific" if has_high_specificity else "plausible"
+                    else:
+                        opp.generalizability = "unknown"
 
                     saved_opp_ids.add(opp.id)
                     updated_count += 1
@@ -299,6 +312,12 @@ class OpportunityRebuildService:
                     gate_reason=reason,
                     gate_checked_at=now,
                     current_scoring_version=to_version,
+                    generalizability="confirmed" if metrics["demand_evidence_count"] >= 2 else (
+                        "source_specific" if any(
+                            getattr(sig_info["signal"], "source_specificity", None) == "high"
+                            for sig_info in cluster["signals"]
+                        ) else "plausible"
+                    ) if metrics["demand_evidence_count"] == 1 else "unknown",
                 )
                 self.session.add(opp)
                 self.session.flush()

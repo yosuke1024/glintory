@@ -253,6 +253,110 @@ BILINGUAL_ENRICHMENT_JSON_SCHEMA = {
 }
 
 
+STAGE_A_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "english": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "summary": {"type": "string"},
+                "target_user": {"type": "string"},
+                "problem": {"type": "string"},
+                "current_workaround": {"type": "string"},
+                "existing_solution_gap": {"type": "string"},
+                "mvp_direction": {"type": "string"},
+                "why_selected": {"type": "string"},
+                "risks": {"type": "string"},
+            },
+            "required": [
+                "title",
+                "summary",
+                "target_user",
+                "problem",
+                "current_workaround",
+                "existing_solution_gap",
+                "mvp_direction",
+                "why_selected",
+                "risks",
+            ],
+            "additionalProperties": False,
+        },
+        "evidence_summaries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "summary_en": {"type": "string"},
+                },
+                "required": ["id", "summary_en"],
+                "additionalProperties": False,
+            },
+        },
+        "evidence_refs": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+    },
+    "required": [
+        "english",
+        "evidence_summaries",
+        "evidence_refs",
+        "confidence",
+    ],
+    "additionalProperties": False,
+}
+
+
+STAGE_B_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "japanese": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "summary": {"type": "string"},
+                "target_user": {"type": "string"},
+                "problem": {"type": "string"},
+                "current_workaround": {"type": "string"},
+                "existing_solution_gap": {"type": "string"},
+                "mvp_direction": {"type": "string"},
+                "why_selected": {"type": "string"},
+                "risks": {"type": "string"},
+            },
+            "required": [
+                "title",
+                "summary",
+                "target_user",
+                "problem",
+                "current_workaround",
+                "existing_solution_gap",
+                "mvp_direction",
+                "why_selected",
+                "risks",
+            ],
+            "additionalProperties": False,
+        },
+        "evidence_summaries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "summary_ja": {"type": "string"},
+                },
+                "required": ["id", "summary_ja"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": [
+        "japanese",
+        "evidence_summaries",
+    ],
+    "additionalProperties": False,
+}
+
+
 def sanitize_brief_data(
     data: dict[str, Any], request: OpportunityEnrichmentRequest
 ) -> dict[str, Any]:
@@ -518,19 +622,16 @@ class LocalLlmProvider:
     ) -> OpportunityEnrichmentResponse:
         start_time = time.perf_counter()
 
-        system_prompt = (
-            "First create the canonical English brief from the supplied evidence. Output detailed target_user, problem, current_workaround, existing_solution_gap, mvp_direction, why_selected, and risks.\n\n"
-            "Also generate a short summary for each evidence in both English and Japanese.\n\n"
-            "Then create a faithful and natural Japanese translation of the English brief.\n\n"
-            "The Japanese version must not add, remove, strengthen, or weaken any factual claim.\n\n"
-            "Both language versions must use the same evidence_refs and confidence.\n\n"
-            "Use professional but readable Japanese.\n"
-            "Avoid literal word-for-word translation when it sounds unnatural.\n"
-            "Do not add market data, companies, numbers, or recommendations not present in the evidence.\n\n"
+        # --- Stage A: Canonical Opportunity Extraction ---
+        system_prompt_a = (
+            "Analyze the supplied evidence and create the canonical English brief of the opportunity. "
+            "Output detailed target_user, problem, current_workaround, existing_solution_gap, mvp_direction, why_selected, and risks. "
+            "Also generate a short summary for each evidence in English and select the relevant evidence_refs and confidence level. "
+            "Output in JSON format conforming to the Stage A schema.\n\n"
             "/no_think"
         )
 
-        user_content = {
+        user_content_a = {
             "opportunity_id": request.opportunity_id,
             "title": request.title,
             "summary": request.summary,
@@ -539,18 +640,16 @@ class LocalLlmProvider:
             "evidence": request.evidence,
         }
 
-        user_json_str = json.dumps(user_content, ensure_ascii=False)
-
         url = f"http://{self.host}:{self.port}/v1/chat/completions"
-        payload = {
+        payload_a = {
             "model": "local-model",
             "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_json_str},
+                {"role": "system", "content": system_prompt_a},
+                {"role": "user", "content": json.dumps(user_content_a, ensure_ascii=False)},
             ],
             "response_format": {
                 "type": "json_object",
-                "schema": BILINGUAL_ENRICHMENT_JSON_SCHEMA,
+                "schema": STAGE_A_JSON_SCHEMA,
             },
             "chat_template_kwargs": {
                 "enable_thinking": False,
@@ -563,69 +662,126 @@ class LocalLlmProvider:
             with httpx.Client(
                 timeout=float(settings.local_llm_timeout_seconds)
             ) as client:
-                response = client.post(url, json=payload)
-                if response.status_code != 200:
-                    logger.error("LLM_INFERENCE_FAILED")
+                # 1. Call Stage A
+                resp_a = client.post(url, json=payload_a)
+                if resp_a.status_code != 200:
+                    logger.error("LLM_INFERENCE_FAILED: Stage A failed.")
                     return OpportunityEnrichmentResponse(
                         status="failed",
                         error_code="LLM_INFERENCE_FAILED",
                         duration_ms=int((time.perf_counter() - start_time) * 1000),
                     )
 
+                result_a = resp_a.json()
+                content_a = result_a["choices"][0].get("message", {}).get("content")
+                if not content_a:
+                    logger.error("LLM_SCHEMA_VALIDATION_FAILED: Stage A empty content.")
+                    return OpportunityEnrichmentResponse(
+                        status="invalid_output",
+                        error_code="LLM_SCHEMA_VALIDATION_FAILED",
+                        duration_ms=int((time.perf_counter() - start_time) * 1000),
+                    )
+
                 try:
-                    result = response.json()
-                except Exception:
-                    logger.error("LLM_INVALID_JSON")
+                    data_a = json.loads(content_a)
+                except json.JSONDecodeError:
+                    logger.error("LLM_INVALID_JSON: Stage A response not valid JSON.")
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_INVALID_JSON",
                         duration_ms=int((time.perf_counter() - start_time) * 1000),
                     )
 
-                if (
-                    not isinstance(result, dict)
-                    or "choices" not in result
-                    or not result["choices"]
-                ):
-                    logger.error("LLM_SCHEMA_VALIDATION_FAILED")
+                # --- Stage B: Japanese Localization ---
+                system_prompt_b = (
+                    "You are an expert translator. Given the canonical English brief of an opportunity and the English evidence summaries, "
+                    "create a faithful and natural Japanese translation. Do not add, remove, strengthen, or weaken any factual claim. "
+                    "Avoid literal word-for-word translation when it sounds unnatural. Output in JSON format conforming to the Stage B schema.\n\n"
+                    "/no_think"
+                )
+
+                payload_b = {
+                    "model": "local-model",
+                    "messages": [
+                        {"role": "system", "content": system_prompt_b},
+                        {"role": "user", "content": json.dumps(data_a, ensure_ascii=False)},
+                    ],
+                    "response_format": {
+                        "type": "json_object",
+                        "schema": STAGE_B_JSON_SCHEMA,
+                    },
+                    "chat_template_kwargs": {
+                        "enable_thinking": False,
+                    },
+                    "max_tokens": settings.local_llm_max_output_tokens,
+                    "temperature": 0.0,
+                }
+
+                # 2. Call Stage B
+                resp_b = client.post(url, json=payload_b)
+                if resp_b.status_code != 200:
+                    logger.error("LLM_INFERENCE_FAILED: Stage B failed.")
+                    return OpportunityEnrichmentResponse(
+                        status="failed",
+                        error_code="LLM_INFERENCE_FAILED",
+                        duration_ms=int((time.perf_counter() - start_time) * 1000),
+                    )
+
+                result_b = resp_b.json()
+                content_b = result_b["choices"][0].get("message", {}).get("content")
+                if not content_b:
+                    logger.error("LLM_SCHEMA_VALIDATION_FAILED: Stage B empty content.")
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_SCHEMA_VALIDATION_FAILED",
                         duration_ms=int((time.perf_counter() - start_time) * 1000),
                     )
 
-                content = result["choices"][0].get("message", {}).get("content")
-                if not content:
-                    logger.error("LLM_SCHEMA_VALIDATION_FAILED")
+                try:
+                    data_b = json.loads(content_b)
+                except json.JSONDecodeError:
+                    logger.error("LLM_INVALID_JSON: Stage B response not valid JSON.")
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
-                        error_code="LLM_SCHEMA_VALIDATION_FAILED",
+                        error_code="LLM_INVALID_JSON",
                         duration_ms=int((time.perf_counter() - start_time) * 1000),
                     )
+
+                # --- Merge Stage A & Stage B results ---
+                merged_data = {
+                    "english": data_a.get("english"),
+                    "japanese": data_b.get("japanese"),
+                    "evidence_refs": data_a.get("evidence_refs"),
+                    "confidence": data_a.get("confidence"),
+                }
+
+                # Merge evidence summaries by matching IDs
+                evidence_summaries = []
+                sum_a = {s["id"]: s for s in data_a.get("evidence_summaries", []) if isinstance(s, dict) and "id" in s}
+                sum_b = {s["id"]: s for s in data_b.get("evidence_summaries", []) if isinstance(s, dict) and "id" in s}
+
+                for e in request.evidence:
+                    e_id = e["id"]
+                    summary_en = sum_a.get(e_id, {}).get("summary_en", "Evidence detail")
+                    summary_ja = sum_b.get(e_id, {}).get("summary_ja", "証拠の詳細")
+                    evidence_summaries.append({
+                        "id": e_id,
+                        "summary_en": summary_en,
+                        "summary_ja": summary_ja
+                    })
+                merged_data["evidence_summaries"] = evidence_summaries
 
                 duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-                try:
-                    data = json.loads(content)
-                except json.JSONDecodeError:
-                    logger.error("LLM_INVALID_JSON")
-                    return OpportunityEnrichmentResponse(
-                        status="invalid_output",
-                        error_code="LLM_INVALID_JSON",
-                        duration_ms=duration_ms,
-                    )
-
-                # Sanitize the output to fix any minor issues (HTML tags, URLs, bad evidence refs etc)
-                # generated by smaller 1.7B LLMs.
-                data = sanitize_brief_data(data, request)
+                # Sanitize the output to fix any minor issues
+                data = sanitize_brief_data(merged_data, request)
 
                 try:
                     brief = BilingualOpportunityBrief.model_validate(data)
                 except Exception as e:
                     logger.error(
-                        "LLM_SCHEMA_VALIDATION_FAILED: BilingualOpportunityBrief validation failed. Error: %s, Raw content: %s",
+                        "LLM_SCHEMA_VALIDATION_FAILED: BilingualOpportunityBrief validation failed. Error: %s",
                         e,
-                        content,
                     )
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
@@ -638,10 +794,9 @@ class LocalLlmProvider:
                     for ref in brief.evidence_refs:
                         if ref not in input_evidence_ids:
                             logger.error(
-                                "LLM_SCHEMA_VALIDATION_FAILED: evidence ref %s not in input evidence ids %s. Raw content: %s",
+                                "LLM_SCHEMA_VALIDATION_FAILED: evidence ref %s not in input evidence ids %s.",
                                 ref,
                                 input_evidence_ids,
-                                content,
                             )
                             return OpportunityEnrichmentResponse(
                                 status="invalid_output",
@@ -650,9 +805,8 @@ class LocalLlmProvider:
                             )
                 except Exception as e:
                     logger.error(
-                        "LLM_SCHEMA_VALIDATION_FAILED: evidence ref check failed. Error: %s, Raw content: %s",
+                        "LLM_SCHEMA_VALIDATION_FAILED: evidence ref check failed. Error: %s",
                         e,
-                        content,
                     )
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
@@ -661,7 +815,7 @@ class LocalLlmProvider:
                     )
 
                 return OpportunityEnrichmentResponse(
-                    status="succeeded",
+                    status="completed",
                     english=brief.english,
                     japanese=brief.japanese,
                     evidence_summaries=brief.evidence_summaries,
@@ -677,8 +831,8 @@ class LocalLlmProvider:
                 error_code="LLM_TIMEOUT",
                 duration_ms=int((time.perf_counter() - start_time) * 1000),
             )
-        except Exception:
-            logger.error("LLM_INFERENCE_FAILED")
+        except Exception as e:
+            logger.error(f"LLM_INFERENCE_FAILED: {e}")
             return OpportunityEnrichmentResponse(
                 status="failed",
                 error_code="LLM_INFERENCE_FAILED",

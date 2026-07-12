@@ -18,6 +18,7 @@ from glintory.domain.models import (
     OpportunitySignal,
     Signal,
     Source,
+    OpportunityEnrichment,
 )
 from glintory.services.public_contract_generator import generate_public_contract
 from glintory.services.static_publishing import build_static_site
@@ -103,6 +104,24 @@ def test_case_k_static_publishing(memory_db, tmp_path):
             source_quality_score=1.0,
         )
         session.add(sig)
+
+        enrich = OpportunityEnrichment(
+            id=f"enrich-{i}",
+            opportunity_id=opp.id,
+            status="completed",
+            model_provider="openai",
+            model_id="gpt-4",
+            model_revision="v1",
+            model_sha256="sha",
+            runtime="python",
+            runtime_version="3.11",
+            prompt_version="v1",
+            input_hash="hash",
+            started_at=now,
+            completed_at=now,
+            duration_ms=100,
+        )
+        session.add(enrich)
 
         opp_sig = OpportunitySignal(
             opportunity_id=opp.id,
@@ -226,11 +245,12 @@ def test_case_k_static_publishing(memory_db, tmp_path):
     # Opportunities page tab should contain the research count or status
     assert "research" in opp_index_content
 
-    # Home Dashboard should show Top Opportunities (Research Candidates are active and shown)
+    # Home Dashboard should show empty Top Opportunities (Research Candidates are active but NOT shown in Published Top Opportunities)
     index_html_path = dist_dir / "index.html"
     assert index_html_path.exists()
     index_content = index_html_path.read_text(encoding="utf-8")
-    assert "リサーチ案件 1" in index_content
+    assert "リサーチ案件 1" not in index_content
+    assert "公開条件を満たしたOpportunityはありません" in index_content
 
     # Check detail HTML files exist
     for i in range(1, 4):

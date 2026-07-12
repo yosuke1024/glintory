@@ -26,6 +26,10 @@ class NormalizedSignal:
     content_hash: str
     freshness_score: float
     source_quality_score: float
+    document_kind: str | None = None
+    opportunity_anchor: bool | None = None
+    discovery_eligible: bool | None = None
+    source_specificity: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -52,3 +52,17 @@ class SignalRole(StrEnum):
     SUPPLY = "supply"
     CONTEXT = "context"
     UNKNOWN = "unknown"
+
+
+class SignalDocumentKind(StrEnum):
+    STANDALONE_DEMAND = "STANDALONE_DEMAND"
+    GENERATED_DIGEST = "GENERATED_DIGEST"
+    REPOST = "REPOST"
+    UNKNOWN = "UNKNOWN"
+
+
+class SourceSpecificity(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    UNKNOWN = "unknown"

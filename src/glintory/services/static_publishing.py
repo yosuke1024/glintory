@@ -138,6 +138,10 @@ def build_static_site(
     generated_at: datetime | None = None,
 ) -> dict:
     from glintory.domain.models import OpportunityPublicAlias, PublishingRun
+    from glintory.domain.public_contract import (
+        is_enrichment_complete,
+        is_translation_complete,
+    )
     from glintory.services.public_contract_generator import (
         generate_public_contract,
         resolve_publication_lifecycle,
@@ -189,6 +193,31 @@ def build_static_site(
         )
 
         opportunities = select_active_public_opportunities(session)
+        from glintory.domain.enums import Confidence
+        top_ops = [
+            o for o in opportunities
+            if o.gate_status == "passed"
+            and o.status == OpportunityStatus.INBOX
+            and o.confidence in (Confidence.MEDIUM, Confidence.HIGH)
+        ][:5]
+
+        # All display opportunities for lists and detail pages
+        all_display_opps = (
+            session.query(Opportunity)
+            .filter(
+                Opportunity.current_scoring_version == "v2",
+                (
+                    Opportunity.public_lifecycle.in_(["active", "retired"])
+                    | (Opportunity.status == OpportunityStatus.REJECTED)
+                )
+            )
+            .order_by(
+                Opportunity.total_score.desc(),
+                Opportunity.last_scored_at.desc(),
+                Opportunity.id.desc(),
+            )
+            .all()
+        )
 
         signals_data = (
             session.query(Signal, Source.name, Source.source_type)
@@ -200,8 +229,6 @@ def build_static_site(
             .limit(20)
             .all()
         )
-
-        top_ops = opportunities[:5]
 
         latest_signals = []
         for sig, src_name, src_type in signals_data[:10]:
@@ -315,19 +342,28 @@ def build_static_site(
             f.write(rendered_index)
 
         op_list_data = []
-        for op in opportunities:
+        for op in all_display_opps:
             ev_count = (
                 session.query(OpportunitySignal)
                 .filter(OpportunitySignal.opportunity_id == op.id)
                 .filter(OpportunitySignal.is_excluded.is_(False))
                 .count()
             )
+            # Calculate display stage/status
+            if op.status == OpportunityStatus.REJECTED:
+                stage = "rejected"
+            elif op.gate_status == "passed" and op.status != OpportunityStatus.RESEARCH:
+                stage = "published"
+            else:
+                stage = "research"
+
             op_list_data.append(
                 {
                     "op": op,
                     "evidence_count": ev_count,
                     "evidence_updated_at": op.evidence_updated_at,
                     "last_scored_at": op.last_scored_at,
+                    "stage": stage,
                 }
             )
 
@@ -342,7 +378,7 @@ def build_static_site(
             f.write(rendered_list)
 
         enrich_repo = OpportunityEnrichmentRepository(session)
-        for op in opportunities:
+        for op in all_display_opps:
             ev_signals = (
                 session.query(
                     Signal,
@@ -422,13 +458,12 @@ def build_static_site(
             # Render Japanese (Default Detailed Page)
             loc_data_ja = get_localized_data(op, "ja")
             translation_available_ja = (
-                op.translation_status == "completed"
+                is_translation_complete(op.translation_status)
                 and op.title_ja is not None
                 and len(op.title_ja.strip()) > 0
                 and op.summary_ja is not None
                 and len(op.summary_ja.strip()) > 0
                 and enrichment is not None
-                and not llm_is_stale
             )
             translation_fallback_ja = not translation_available_ja
 
@@ -564,9 +599,16 @@ def build_static_site(
         def is_opp_published(opp):
             if opp.current_scoring_version != "v2":
                 return False
-            return opp.status == OpportunityStatus.INBOX and opp.confidence in (
-                Confidence.MEDIUM,
-                Confidence.HIGH,
+            if opp.gate_status != "passed":
+                return False
+            if opp.status == OpportunityStatus.REJECTED:
+                return False
+            # Require completion of enrichment and translation
+            return (
+                opp.status == OpportunityStatus.INBOX
+                and opp.confidence in (Confidence.MEDIUM, Confidence.HIGH)
+                and is_enrichment_complete(opp.enrichment_status)
+                and is_translation_complete(opp.translation_status)
             )
 
         # Compile pipeline stats by Source Type
@@ -650,7 +692,7 @@ def build_static_site(
                 1 for opp in opps_by_type if opp.last_scored_at is not None
             )
             enriched_count = sum(
-                1 for opp in opps_by_type if opp.enrichment_status == "completed"
+                1 for opp in opps_by_type if is_enrichment_complete(opp.enrichment_status)
             )
             published_count = sum(1 for opp in opps_by_type if is_opp_published(opp))
 
@@ -691,17 +733,58 @@ def build_static_site(
                 "evidence_used": evidence_used,
             }
 
-        opp_candidates = len(v2_opps)
+        # Current snapshot counts
+        current_published = sum(1 for opp in v2_opps if is_opp_published(opp))
+        current_research = sum(1 for opp in v2_opps if opp.status == OpportunityStatus.RESEARCH)
+        current_rejected = sum(1 for opp in v2_opps if opp.status == OpportunityStatus.REJECTED)
+
+        current_enrichment_pending = sum(
+            1 for opp in v2_opps
+            if opp.gate_status == "passed"
+            and opp.status not in (OpportunityStatus.RESEARCH, OpportunityStatus.REJECTED)
+            and not (is_enrichment_complete(opp.enrichment_status) and is_translation_complete(opp.translation_status))
+        )
+
+        current_total = current_published + current_research + current_rejected + current_enrichment_pending
+        current_active_candidates = sum(
+            1 for opp in v2_opps if opp.status in (OpportunityStatus.INBOX, OpportunityStatus.RESEARCH)
+        )
+
+        # Discovery statistics from new models
+        current_discovery_leads = 0
+        verified_discovery_leads = 0
+        discovery_reports_processed = 0
+        discovery_urls_extracted = 0
+        primary_sources_dispatched = 0
+
+        from glintory.domain.models import DiscoveryReport, DiscoveryLead
+        try:
+            current_discovery_leads = session.query(DiscoveryLead).count()
+            verified_discovery_leads = session.query(DiscoveryLead).filter(DiscoveryLead.verification_status == "verified").count()
+            discovery_reports_processed = session.query(DiscoveryReport).count()
+            discovery_urls_extracted = current_discovery_leads
+            primary_sources_dispatched = session.query(DiscoveryLead).filter(DiscoveryLead.dispatch_status == "dispatched").count()
+        except Exception as e:
+            logger.warning(f"Discovery tables query failed (might not be migrated yet): {e}")
+
+        # Historical stats
+        from glintory.domain.models import AnalysisRun
+        historical_analysis_runs = 0
+        historical_gate_passed = 0
+        historical_gate_rejected = 0
+        try:
+            historical_analysis_runs = session.query(AnalysisRun).count()
+            historical_gate_passed = session.query(sa.func.sum(sa.cast(AnalysisRun.gate_passed_count, sa.Integer))).scalar() or 0
+            historical_gate_rejected = session.query(sa.func.sum(sa.cast(AnalysisRun.gate_rejected_count, sa.Integer))).scalar() or 0
+        except Exception as e:
+            logger.warning(f"AnalysisRun historical query failed: {e}")
+
+        opp_candidates = current_total
         gate_passed = sum(1 for opp in v2_opps if opp.gate_status == "passed")
         gate_rejected = sum(1 for opp in v2_opps if opp.gate_status == "rejected")
-        published_opps = sum(1 for opp in v2_opps if is_opp_published(opp))
-
-        research_count = sum(
-            1 for opp in v2_opps if opp.status == OpportunityStatus.RESEARCH
-        )
-        rejected_count = sum(
-            1 for opp in v2_opps if opp.status == OpportunityStatus.REJECTED
-        )
+        published_opps = current_published
+        research_count = current_research
+        rejected_count = current_rejected
 
         demand_only_count = 0
         multi_evidence_count = 0
@@ -788,6 +871,22 @@ def build_static_site(
         )
 
         global_stats = {
+            "current_published": current_published,
+            "current_research": current_research,
+            "current_rejected": current_rejected,
+            "current_enrichment_pending": current_enrichment_pending,
+            "current_total": current_total,
+            "current_discovery_leads": current_discovery_leads,
+            "verified_discovery_leads": verified_discovery_leads,
+            "current_active_candidates": current_active_candidates,
+            "historical_gate_passed": historical_gate_passed,
+            "historical_gate_rejected": historical_gate_rejected,
+            "historical_gate_reasons": gate_reason_counts,
+            "historical_analysis_runs": historical_analysis_runs,
+            "discovery_reports_processed": discovery_reports_processed,
+            "discovery_urls_extracted": discovery_urls_extracted,
+            "primary_sources_dispatched": primary_sources_dispatched,
+
             "opportunity_candidates": opp_candidates,
             "gate_passed": gate_passed,
             "gate_rejected": gate_rejected,
@@ -976,18 +1075,24 @@ def build_static_site(
         with contextlib.suppress(Exception):
             session.rollback()
 
-        # Save failure run in a separate commit
+        # Update existing pub_run to failed status
         try:
-            fail_run = PublishingRun(
-                started_at=gen_time,
-                completed_at=datetime.now(UTC),
-                status="failed",
-                published_count=0,
-                jurypress_ready_count=0,
-                dataset_content_hash="",
-            )
-            session.add(fail_run)
-            session.commit()
+            db_pub_run = session.query(PublishingRun).filter(PublishingRun.id == pub_run.id).first()
+            if db_pub_run:
+                db_pub_run.status = "failed"
+                db_pub_run.completed_at = datetime.now(UTC)
+                session.commit()
+            else:
+                fail_run = PublishingRun(
+                    started_at=gen_time,
+                    completed_at=datetime.now(UTC),
+                    status="failed",
+                    published_count=0,
+                    jurypress_ready_count=0,
+                    dataset_content_hash="",
+                )
+                session.add(fail_run)
+                session.commit()
         except Exception:
             pass
 

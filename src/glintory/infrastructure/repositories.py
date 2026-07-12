@@ -308,6 +308,13 @@ class SignalRepository:
         )
 
     def insert(self, signal: NormalizedSignal) -> Signal:
+        from glintory.domain.enums import SignalDocumentKind, SourceSpecificity
+        
+        doc_kind = signal.document_kind or SignalDocumentKind.UNKNOWN
+        opp_anchor = False if signal.opportunity_anchor is None else signal.opportunity_anchor
+        disc_eligible = False if signal.discovery_eligible is None else signal.discovery_eligible
+        src_spec = signal.source_specificity or SourceSpecificity.UNKNOWN
+
         sig = Signal(
             source_id=signal.source_id,
             collection_run_id=signal.collection_run_id,
@@ -328,6 +335,10 @@ class SignalRepository:
             content_hash=signal.content_hash,
             freshness_score=signal.freshness_score,
             source_quality_score=signal.source_quality_score,
+            document_kind=doc_kind,
+            opportunity_anchor=opp_anchor,
+            discovery_eligible=disc_eligible,
+            source_specificity=src_spec,
             created_at=signal.collected_at,
             updated_at=signal.collected_at,
         )
@@ -382,3 +393,8 @@ class SignalRepository:
         existing.content_hash = incoming.content_hash
         existing.freshness_score = incoming.freshness_score
         existing.source_quality_score = incoming.source_quality_score
+        from glintory.domain.enums import SignalDocumentKind, SourceSpecificity
+        existing.document_kind = incoming.document_kind or SignalDocumentKind.UNKNOWN
+        existing.opportunity_anchor = False if incoming.opportunity_anchor is None else incoming.opportunity_anchor
+        existing.discovery_eligible = False if incoming.discovery_eligible is None else incoming.discovery_eligible
+        existing.source_specificity = incoming.source_specificity or SourceSpecificity.UNKNOWN

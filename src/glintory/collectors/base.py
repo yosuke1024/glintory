@@ -14,6 +14,10 @@ class RawItem:
     published_at: datetime | None = None
     item_type: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    document_kind: str | None = None
+    opportunity_anchor: bool | None = None
+    discovery_eligible: bool | None = None
+    source_specificity: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
