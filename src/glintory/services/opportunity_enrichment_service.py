@@ -624,7 +624,8 @@ class OpportunityEnrichmentService:
                         OpportunityStatus.REJECTED,
                         OpportunityStatus.ARCHIVED,
                     ]
-                )
+                ),
+                Opportunity.public_lifecycle.notin_(["retired", "merged"])
             )
 
         opportunities = query.all()

@@ -262,6 +262,7 @@ class OpportunityRebuildService:
                     opp.gate_checked_at = now
                     opp.status = final_status
                     opp.current_scoring_version = to_version
+                    opp.public_lifecycle = "active"
 
                     saved_opp_ids.add(opp.id)
                     updated_count += 1

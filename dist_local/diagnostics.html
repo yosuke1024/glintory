@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glintory - Diagnostics</title>
+  <link rel="stylesheet" href="/glintory/assets/app.css">
+</head>
+<body>
+  <header>
+    <div class="nav-container">
+      <a href="/glintory/" class="logo">Glintory</a>
+      <nav class="nav-links">
+        <a href="/glintory/">Dashboard</a>
+        <a href="/glintory/opportunities/">Opportunities</a>
+        <a href="/glintory/diagnostics.html">Diagnostics</a>
+      </nav>
+    </div>
+  </header>
+  
+  <main class="container">
+    <h1>Collector &amp; Pipeline Diagnostics</h1>
+    <p>ソース収集ログとシステム診断情報です。</p>
+
+    <!-- Global Pipeline Summary -->
+    <h2 style="margin-top: 2rem;">Global Pipeline Summary</h2>
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Opportunity Candidates</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: var(--accent);">31</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">v3分析で抽出された全案件候補数</p>
+      </div>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Published Opportunities</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #34d399;">0</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">十分な需要の証拠を持つ公開案件数</p>
+      </div>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Research Candidates</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #60a5fa;">19</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">需要はあるが調査が必要な案件数</p>
+      </div>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin:0;">Rejected Candidates</h4>
+        <div class="score-value" style="font-size: 2.25rem; margin-top: 0.5rem; color: #f87171;">0</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">除外条件等により却下された案件数</p>
+      </div>
+    </div>
+
+    <!-- Fine-grained Diagnostic Metrics -->
+    <h3>Quality & Evidence Classification Details</h3>
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin-top:0;">Evidence Distribution</h4>
+        <ul style="padding-left:1.25rem; font-size:0.9rem; line-height:1.6;">
+          <li><strong>Demand-only candidates:</strong> 31</li>
+          <li><strong>Multi-evidence candidates:</strong> 0</li>
+          <li><strong>Strong single-demand (Condition B):</strong> 12</li>
+        </ul>
+      </div>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin-top:0;">Rejection Reasons Breakdown</h4>
+        <ul style="padding-left:1.25rem; font-size:0.9rem; line-height:1.6;">
+          <li><strong>Supply-only (No demand):</strong> 0</li>
+          <li><strong>Single Show HN:</strong> 0</li>
+          <li><strong>Feasibility Constraint:</strong> 0</li>
+        </ul>
+      </div>
+      <div class="card" style="padding: 1.25rem;">
+        <h4 style="margin-top:0;">Clustering & Dedup Diagnostics</h4>
+        <ul style="padding-left:1.25rem; font-size:0.9rem; line-height:1.6;">
+          <li><strong>Average signals per cluster:</strong> 1.0</li>
+          <li><strong>Singleton clusters:</strong> 31</li>
+          <li><strong>Cross-source clusters:</strong> 0</li>
+          <li><strong>Duplicate evidence removed:</strong> 0 signals</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Missing Facets & Gate Reasons tables -->
+    <div class="grid" style="margin-bottom: 2rem; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+      <div class="card" style="padding: 1.25rem;">
+        <h3 style="margin-top:0;">Missing Facets Summary (Completeness Gaps)</h3>
+        <p style="font-size:0.85rem; color:var(--text-secondary);">Gaps in the structural completeness of opportunities</p>
+        <table style="font-size: 0.9rem;">
+          <thead>
+            <tr>
+              <th>Structural Element</th>
+              <th>Missing Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+            <tr>
+              <td style="font-weight:600; text-transform:capitalize;">target_user</td>
+              <td><span style="color:#f87171; font-weight:bold;">27</span></td>
+            </tr>
+            
+            <tr>
+              <td style="font-weight:600; text-transform:capitalize;">problem</td>
+              <td><span style="color:#f87171; font-weight:bold;">20</span></td>
+            </tr>
+            
+            <tr>
+              <td style="font-weight:600; text-transform:capitalize;">workaround</td>
+              <td><span style="color:#f87171; font-weight:bold;">23</span></td>
+            </tr>
+            
+            <tr>
+              <td style="font-weight:600; text-transform:capitalize;">gap</td>
+              <td><span style="color:#f87171; font-weight:bold;">25</span></td>
+            </tr>
+            
+            <tr>
+              <td style="font-weight:600; text-transform:capitalize;">mvp</td>
+              <td><span style="color:#f87171; font-weight:bold;">21</span></td>
+            </tr>
+            
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="padding: 1.25rem;">
+        <h3 style="margin-top:0;">Gate Reasons Distribution</h3>
+        <p style="font-size:0.85rem; color:var(--text-secondary);">Breakdown of opportunities by decision outcomes</p>
+        <table style="font-size: 0.9rem;">
+          <thead>
+            <tr>
+              <th>Decision Reason</th>
+              <th>Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+            <tr>
+              <td style="font-size:0.85rem; max-width:280px; overflow:hidden; text-overflow:ellipsis;">Research Candidate: Needs further validation (structural completeness or more independent evidence).</td>
+              <td style="font-weight:bold;">19</td>
+            </tr>
+            
+            <tr>
+              <td style="font-size:0.85rem; max-width:280px; overflow:hidden; text-overflow:ellipsis;">Passed Condition B: Strong single demand evidence.</td>
+              <td style="font-weight:bold;">12</td>
+            </tr>
+            
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pipeline Stats by Source Type -->
+    <h2>Source Type Pipeline Audits</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 0.75rem;">Source Type</th>
+            <th style="padding: 0.75rem;">Enabled Sources</th>
+            <th style="padding: 0.75rem;">Last Run</th>
+            <th style="padding: 0.75rem;">Collection Runs</th>
+            <th style="padding: 0.75rem;">Fetched</th>
+            <th style="padding: 0.75rem;">Inserted</th>
+            <th style="padding: 0.75rem;">Updated</th>
+            <th style="padding: 0.75rem;">Persisted</th>
+            <th style="padding: 0.75rem;">Skipped</th>
+            <th style="padding: 0.75rem;">Failed Runs</th>
+            <th style="padding: 0.75rem;">Signals Submitted to Analysis</th>
+            <th style="padding: 0.75rem;">Candidate Opportunities</th>
+            <th style="padding: 0.75rem;">Gate Passed</th>
+            <th style="padding: 0.75rem;">Gate Rejected</th>
+            <th style="padding: 0.75rem;">Scored</th>
+            <th style="padding: 0.75rem;">Enriched</th>
+            <th style="padding: 0.75rem;">Published</th>
+            <th style="padding: 0.75rem;">Evidence Used by Published Opportunities</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--accent);">github</td>
+              <td style="padding: 0.75rem;">1</td>
+              <td style="padding: 0.75rem; font-size: 0.75rem;">2026-07-11 10:10 JST</td>
+              <td style="padding: 0.75rem;">1</td>
+              <td style="padding: 0.75rem;">45</td>
+              <td style="padding: 0.75rem;">45</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">45</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">
+                <span style="color: inherit;">
+                  0
+                </span>
+              </td>
+              <td style="padding: 0.75rem;">15</td>
+              <td style="padding: 0.75rem;">15</td>
+              <td style="padding: 0.75rem;">8</td>
+              <td style="padding: 0.75rem;">7</td>
+              <td style="padding: 0.75rem;">15</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+            </tr>
+          
+            
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--accent);">hackernews</td>
+              <td style="padding: 0.75rem;">1</td>
+              <td style="padding: 0.75rem; font-size: 0.75rem;">2026-07-11 10:10 JST</td>
+              <td style="padding: 0.75rem;">1</td>
+              <td style="padding: 0.75rem;">61</td>
+              <td style="padding: 0.75rem;">61</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">61</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">
+                <span style="color: inherit;">
+                  0
+                </span>
+              </td>
+              <td style="padding: 0.75rem;">16</td>
+              <td style="padding: 0.75rem;">16</td>
+              <td style="padding: 0.75rem;">4</td>
+              <td style="padding: 0.75rem;">12</td>
+              <td style="padding: 0.75rem;">16</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+            </tr>
+          
+            
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--accent);">rss</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem; font-size: 0.75rem;">N/A</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">
+                <span style="color: inherit;">
+                  0
+                </span>
+              </td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+              <td style="padding: 0.75rem;">0</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Analysis Executions -->
+    <h2 style="margin-top: 2rem;">Recent Analysis Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Submitted Signals</th>
+            <th style="padding: 1rem;">Created Candidates</th>
+            <th style="padding: 1rem;">Updated Candidates</th>
+            <th style="padding: 1rem;">Gate Passed</th>
+            <th style="padding: 1rem;">Gate Rejected</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">2026-07-12 05:42 JST</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #065f46;
+                  color: #fff;
+                ">succeeded</span>
+              </td>
+              <td style="padding: 1rem;">106</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">31</td>
+              <td style="padding: 1rem;">12</td>
+              <td style="padding: 1rem;">19</td>
+            </tr>
+          
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">2026-07-12 05:42 JST</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #065f46;
+                  color: #fff;
+                ">succeeded</span>
+              </td>
+              <td style="padding: 1rem;">106</td>
+              <td style="padding: 1rem;">31</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">12</td>
+              <td style="padding: 1rem;">19</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Scoring Executions -->
+    <h2>Recent Scoring Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Analyzed</th>
+            <th style="padding: 1rem;">Scored</th>
+            <th style="padding: 1rem;">Unchanged</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">2026-07-12 05:42 JST</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #065f46;
+                  color: #fff;
+                ">succeeded</span>
+              </td>
+              <td style="padding: 1rem;">31</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">31</td>
+            </tr>
+          
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">2026-07-12 05:42 JST</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #991b1b;
+                  color: #fff;
+                ">running</span>
+              </td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">0</td>
+            </tr>
+          
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">2026-07-12 05:42 JST</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #065f46;
+                  color: #fff;
+                ">succeeded</span>
+              </td>
+              <td style="padding: 1rem;">31</td>
+              <td style="padding: 1rem;">31</td>
+              <td style="padding: 1rem;">0</td>
+            </tr>
+          
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">2026-07-12 05:42 JST</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #991b1b;
+                  color: #fff;
+                ">running</span>
+              </td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">0</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Publishing Executions -->
+    <h2>Recent Publishing Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem; margin-bottom: 2rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Published Opportunities</th>
+            <th style="padding: 1rem;">JuryPress Ready</th>
+            <th style="padding: 1rem;">Dataset Content Hash</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+              <td style="padding: 1rem; color: var(--text-secondary);">2026-07-12 07:25 JST</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #991b1b;
+                  color: #fff;
+                ">running</span>
+              </td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem; font-family: monospace;">-</td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Recent Collector Runs -->
+    <h2>Recent Collector Executions</h2>
+    <div class="table-container" style="overflow-x: auto; margin-top: 1rem;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; background-color: var(--bg-secondary); border: 1px solid var(--border); border-radius: 0.5rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); font-weight: bold; background-color: rgba(255,255,255,0.02);">
+            <th style="padding: 1rem;">Source</th>
+            <th style="padding: 1rem;">Status</th>
+            <th style="padding: 1rem;">Fetched</th>
+            <th style="padding: 1rem;">Persisted</th>
+            <th style="padding: 1rem;">Skipped</th>
+            <th style="padding: 1rem;">Errors</th>
+            <th style="padding: 1rem;">Run Time</th>
+            <th style="padding: 1rem;">Error Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 1rem; font-weight: 600;">hacker-news-opportunity-signals</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #065f46;
+                  color: #fff;
+                ">succeeded</span>
+              </td>
+              <td style="padding: 1rem;">61</td>
+              <td style="padding: 1rem;">61</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                2026-07-11 10:10 JST
+              </td>
+              <td style="padding: 1rem; font-size: 0.85rem; color: #f87171; max-width: 300px; word-wrap: break-word;">
+                
+                  -
+                
+              </td>
+            </tr>
+          
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 1rem; font-weight: 600;">github-opportunity-signals</td>
+              <td style="padding: 1rem;">
+                <span class="status-badge" style="
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 0.25rem;
+                  font-size: 0.85rem;
+                  font-weight: 600;
+                  background-color: #065f46;
+                  color: #fff;
+                ">succeeded</span>
+              </td>
+              <td style="padding: 1rem;">45</td>
+              <td style="padding: 1rem;">45</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem;">0</td>
+              <td style="padding: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                2026-07-11 10:10 JST
+              </td>
+              <td style="padding: 1rem; font-size: 0.85rem; color: #f87171; max-width: 300px; word-wrap: break-word;">
+                
+                  -
+                
+              </td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

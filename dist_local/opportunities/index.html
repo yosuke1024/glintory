@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Opportunities - Glintory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/glintory/assets/app.css">
+  <style>
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav-container">
+      <a href="/glintory/" class="logo">Glintory</a>
+      <nav class="nav-links">
+        <a href="/glintory/">Dashboard</a>
+        <a href="/glintory/opportunities/">Opportunities</a>
+        <a href="/glintory/diagnostics.html">Diagnostics</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="section-title">All Scored Opportunities</div>
+    
+    <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+      <button class="tab-btn" id="btn-pub" onclick="switchTab('inbox')">Published Opportunities (<span id="count-published">0</span>)</button>
+      <button class="tab-btn" id="btn-res" onclick="switchTab('research')">Research Candidates (<span id="count-research">0</span>)</button>
+      <button class="tab-btn" id="btn-rej" onclick="switchTab('rejected')">Rejected Candidates (<span id="count-rejected">0</span>)</button>
+      <button class="tab-btn" id="btn-all" onclick="switchTab('all')">All</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Total Score</th>
+          <th>Confidence</th>
+          <th>Status</th>
+          <th>Evidence Count</th>
+          <th>Evidence Updated At</th>
+          <th>Last Scored At</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/4f98fafa-0301-4627-baf3-968bdc6bb3ea/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">41</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/7b00374c-02f5-4c7f-9df0-e8ae98fae214/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">39</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/c411e27c-cf06-4840-ae6d-5029f2775d89/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">37</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/629e81cb-132c-4ffd-8488-72a6b6bd680c/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">32</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/7de28ae1-f295-4ed3-9049-231e27934850/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">31</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/5696d97d-dea5-4c60-9177-25eb42cff59e/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">31</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/09ab1fad-25be-4079-b774-d19238dae4c0/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">31</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/ddbb96c3-fbf2-4e36-bfc0-3c9a31465e86/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/bf4b3b1e-87db-4ea6-aa9f-ab74b0339b5a/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/a1128c03-8ecc-49e0-b00f-90d9d2ce1fd8/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/9d667e84-2fb7-47ac-adad-88091fec5451/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/676c8255-f5a8-48d6-8993-ff8b4ceb5370/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/5de73454-536e-4d98-8bad-df56e714ab43/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/5a0f6373-6351-4334-b4b4-f62fc20db631/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/4440321d-d506-4ed4-af5e-725b103703da/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/33c4e70c-1bac-4abe-8370-c35055d09ee8/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/2a2edf05-c9fe-46f5-8f70-efaf4975a2c9/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">29</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/f85230ae-c115-4bb7-9938-b94ff2485777/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">28</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+          <tr data-status="research">
+            <td>
+              <a href="/glintory/opportunities/e9b790d7-5acb-4354-8d1e-5fdf4e1f09cc/" style="color: inherit; font-weight: 600; text-decoration: none;">
+                
+                  日本語要約はまだ生成されていません。
+                
+              </a>
+            </td>
+            <td><span class="score-value" style="font-size: 1.25rem;">28</span></td>
+            <td>low</td>
+            <td>
+              <span class="badge badge-info">
+                research
+              </span>
+            </td>
+            <td>1</td>
+            <td>2026-07-12 05:42 JST</td>
+            <td>2026-07-12 05:42 JST</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    function switchTab(status) {
+      const rows = document.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        if (status === 'all' || rowStatus === status) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+      
+      const buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      
+      if (status === 'inbox') document.getElementById('btn-pub').classList.add('active');
+      else if (status === 'research') document.getElementById('btn-res').classList.add('active');
+      else if (status === 'rejected') document.getElementById('btn-rej').classList.add('active');
+      else if (status === 'all') document.getElementById('btn-all').classList.add('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const rows = document.querySelectorAll('tbody tr');
+      let pub = 0, res = 0, rej = 0;
+      rows.forEach(row => {
+        const status = row.getAttribute('data-status');
+        if (status === 'inbox') pub++;
+        else if (status === 'research') res++;
+        else if (status === 'rejected') rej++;
+      });
+      document.getElementById('count-published').textContent = pub;
+      document.getElementById('count-research').textContent = res;
+      document.getElementById('count-rejected').textContent = rej;
+      
+      if (pub > 0) {
+        switchTab('inbox');
+      } else if (res > 0) {
+        switchTab('research');
+      } else {
+        switchTab('all');
+      }
+    });
+  </script>
+
+  <footer class="footer">
+    <p>Powered by Glintory.</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,1092 @@
+automation	Set up job	﻿2026-07-12T07:20:02.2450180Z Current runner version: '2.335.1'
+automation	Set up job	2026-07-12T07:20:02.2487206Z ##[group]Runner Image Provisioner
+automation	Set up job	2026-07-12T07:20:02.2488697Z Hosted Compute Agent
+automation	Set up job	2026-07-12T07:20:02.2489729Z Version: 20260624.560
+automation	Set up job	2026-07-12T07:20:02.2490721Z Commit: 925d229a51159bc391ae97e54a2dd1fe20af789d
+automation	Set up job	2026-07-12T07:20:02.2491910Z Build Date: 2026-06-24T18:26:47Z
+automation	Set up job	2026-07-12T07:20:02.2493424Z Worker ID: {911199c6-f0cd-4731-8664-339aadbc054a}
+automation	Set up job	2026-07-12T07:20:02.2494977Z Azure Region: eastus
+automation	Set up job	2026-07-12T07:20:02.2496058Z ##[endgroup]
+automation	Set up job	2026-07-12T07:20:02.2498522Z ##[group]Operating System
+automation	Set up job	2026-07-12T07:20:02.2499561Z Ubuntu
+automation	Set up job	2026-07-12T07:20:02.2500453Z 24.04.4
+automation	Set up job	2026-07-12T07:20:02.2501234Z LTS
+automation	Set up job	2026-07-12T07:20:02.2502232Z ##[endgroup]
+automation	Set up job	2026-07-12T07:20:02.2503152Z ##[group]Runner Image
+automation	Set up job	2026-07-12T07:20:02.2504316Z Image: ubuntu-24.04
+automation	Set up job	2026-07-12T07:20:02.2505364Z Version: 20260705.232.1
+automation	Set up job	2026-07-12T07:20:02.2507177Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260705.232/images/ubuntu/Ubuntu2404-Readme.md
+automation	Set up job	2026-07-12T07:20:02.2510185Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260705.232
+automation	Set up job	2026-07-12T07:20:02.2511783Z ##[endgroup]
+automation	Set up job	2026-07-12T07:20:02.2513779Z ##[group]GITHUB_TOKEN Permissions
+automation	Set up job	2026-07-12T07:20:02.2517037Z Contents: write
+automation	Set up job	2026-07-12T07:20:02.2518092Z Metadata: read
+automation	Set up job	2026-07-12T07:20:02.2519032Z Pages: write
+automation	Set up job	2026-07-12T07:20:02.2520025Z ##[endgroup]
+automation	Set up job	2026-07-12T07:20:02.2523343Z Secret source: Actions
+automation	Set up job	2026-07-12T07:20:02.2524829Z Prepare workflow directory
+automation	Set up job	2026-07-12T07:20:02.3305326Z Prepare all required actions
+automation	Set up job	2026-07-12T07:20:02.3365104Z Getting action download info
+automation	Set up job	2026-07-12T07:20:02.5275200Z Download action repository 'actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683' (SHA:11bd71901bbe5b1630ceea73d27597364c9af683)
+automation	Set up job	2026-07-12T07:20:02.6237457Z Download action repository 'actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f' (SHA:39cd14951b08e74b54015e9e001cdefcf80e669f)
+automation	Set up job	2026-07-12T07:20:02.8695827Z Download action repository 'astral-sh/setup-uv@1edb52594c857e2b5b13128931090f0640537287' (SHA:1edb52594c857e2b5b13128931090f0640537287)
+automation	Set up job	2026-07-12T07:20:03.4999237Z Download action repository 'actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57' (SHA:1bd1e32a3bdc45362d1e726936510720a7c30a57)
+automation	Set up job	2026-07-12T07:20:03.8506622Z Download action repository 'actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b' (SHA:983d7736d9b0ae728b81ab479565c72886d7745b)
+automation	Set up job	2026-07-12T07:20:03.9713546Z Download action repository 'actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa' (SHA:56afc609e74202658d3ffba0e8f6dda462b719fa)
+automation	Set up job	2026-07-12T07:20:04.1742289Z Getting action download info
+automation	Set up job	2026-07-12T07:20:04.2393299Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+automation	Set up job	2026-07-12T07:20:04.3799714Z Complete job name: automation
+automation	Record start time	﻿2026-07-12T07:20:04.4705663Z ##[group]Run echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+automation	Record start time	2026-07-12T07:20:04.4707699Z ^[[36;1mecho "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"^[[0m
+automation	Record start time	2026-07-12T07:20:04.4927764Z shell: /usr/bin/bash -e {0}
+automation	Record start time	2026-07-12T07:20:04.4929291Z env:
+automation	Record start time	2026-07-12T07:20:04.4930557Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Record start time	2026-07-12T07:20:04.4932473Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Record start time	2026-07-12T07:20:04.4934614Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Record start time	2026-07-12T07:20:04.4936255Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Record start time	2026-07-12T07:20:04.4937555Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Record start time	2026-07-12T07:20:04.4938766Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Record start time	2026-07-12T07:20:04.4940064Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Record start time	2026-07-12T07:20:04.4941452Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Record start time	2026-07-12T07:20:04.4943105Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Record start time	2026-07-12T07:20:04.4945552Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Record start time	2026-07-12T07:20:04.4947758Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Record start time	2026-07-12T07:20:04.4948968Z   LLAMA_CPP_VERSION: b5092
+automation	Record start time	2026-07-12T07:20:04.4950448Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Record start time	2026-07-12T07:20:04.4952261Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Record start time	2026-07-12T07:20:04.4954321Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Record start time	2026-07-12T07:20:04.4956061Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Record start time	2026-07-12T07:20:04.4957522Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Record start time	2026-07-12T07:20:04.4959622Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Record start time	2026-07-12T07:20:04.4962035Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Record start time	2026-07-12T07:20:04.4963808Z ##[endgroup]
+automation	Checkout codebase	﻿2026-07-12T07:20:04.5414598Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+automation	Checkout codebase	2026-07-12T07:20:04.5425329Z ##[group]Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+automation	Checkout codebase	2026-07-12T07:20:04.5426715Z with:
+automation	Checkout codebase	2026-07-12T07:20:04.5427496Z   repository: yosuke1024/glintory
+automation	Checkout codebase	2026-07-12T07:20:04.5436997Z   token: ***
+automation	Checkout codebase	2026-07-12T07:20:04.5437787Z   ssh-strict: true
+automation	Checkout codebase	2026-07-12T07:20:04.5438593Z   ssh-user: git
+automation	Checkout codebase	2026-07-12T07:20:04.5439403Z   persist-credentials: true
+automation	Checkout codebase	2026-07-12T07:20:04.5440309Z   clean: true
+automation	Checkout codebase	2026-07-12T07:20:04.5441281Z   sparse-checkout-cone-mode: true
+automation	Checkout codebase	2026-07-12T07:20:04.5442422Z   fetch-depth: 1
+automation	Checkout codebase	2026-07-12T07:20:04.5443706Z   fetch-tags: false
+automation	Checkout codebase	2026-07-12T07:20:04.5444753Z   show-progress: true
+automation	Checkout codebase	2026-07-12T07:20:04.5445575Z   lfs: false
+automation	Checkout codebase	2026-07-12T07:20:04.5446395Z   submodules: false
+automation	Checkout codebase	2026-07-12T07:20:04.5447220Z   set-safe-directory: true
+automation	Checkout codebase	2026-07-12T07:20:04.5448131Z env:
+automation	Checkout codebase	2026-07-12T07:20:04.5449135Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Checkout codebase	2026-07-12T07:20:04.5450713Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Checkout codebase	2026-07-12T07:20:04.5452262Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Checkout codebase	2026-07-12T07:20:04.5453637Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Checkout codebase	2026-07-12T07:20:04.5454927Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Checkout codebase	2026-07-12T07:20:04.5456009Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Checkout codebase	2026-07-12T07:20:04.5457255Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Checkout codebase	2026-07-12T07:20:04.5458590Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Checkout codebase	2026-07-12T07:20:04.5460186Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Checkout codebase	2026-07-12T07:20:04.5462214Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Checkout codebase	2026-07-12T07:20:04.5464157Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Checkout codebase	2026-07-12T07:20:04.5465307Z   LLAMA_CPP_VERSION: b5092
+automation	Checkout codebase	2026-07-12T07:20:04.5466726Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Checkout codebase	2026-07-12T07:20:04.5468476Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Checkout codebase	2026-07-12T07:20:04.5470224Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Checkout codebase	2026-07-12T07:20:04.5471870Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Checkout codebase	2026-07-12T07:20:04.5473269Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Checkout codebase	2026-07-12T07:20:04.5475410Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Checkout codebase	2026-07-12T07:20:04.5477743Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Checkout codebase	2026-07-12T07:20:04.5479438Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:04.6493296Z Syncing repository: yosuke1024/glintory
+automation	Checkout codebase	2026-07-12T07:20:04.6498143Z ##[group]Getting Git version info
+automation	Checkout codebase	2026-07-12T07:20:04.6500275Z Working directory is '/home/runner/work/glintory/glintory'
+automation	Checkout codebase	2026-07-12T07:20:04.6503455Z [command]/usr/bin/git version
+automation	Checkout codebase	2026-07-12T07:20:04.6554278Z git version 2.54.0
+automation	Checkout codebase	2026-07-12T07:20:04.6580551Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:04.6599477Z Temporarily overriding HOME='/home/runner/work/_temp/e6ee842d-17ca-4081-a588-3d3525bca5ad' before making global git config changes
+automation	Checkout codebase	2026-07-12T07:20:04.6604438Z Adding repository directory to the temporary git global config as a safe directory
+automation	Checkout codebase	2026-07-12T07:20:04.6608043Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/glintory/glintory
+automation	Checkout codebase	2026-07-12T07:20:04.6670640Z Deleting the contents of '/home/runner/work/glintory/glintory'
+automation	Checkout codebase	2026-07-12T07:20:04.6674371Z ##[group]Initializing the repository
+automation	Checkout codebase	2026-07-12T07:20:04.6678936Z [command]/usr/bin/git init /home/runner/work/glintory/glintory
+automation	Checkout codebase	2026-07-12T07:20:04.6828606Z hint: Using 'master' as the name for the initial branch. This default branch name
+automation	Checkout codebase	2026-07-12T07:20:04.6832559Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+automation	Checkout codebase	2026-07-12T07:20:04.6836842Z hint: to use in all of your new repositories, which will suppress this warning,
+automation	Checkout codebase	2026-07-12T07:20:04.6839573Z hint: call:
+automation	Checkout codebase	2026-07-12T07:20:04.6841093Z hint:
+automation	Checkout codebase	2026-07-12T07:20:04.6842929Z hint: 	git config --global init.defaultBranch <name>
+automation	Checkout codebase	2026-07-12T07:20:04.6845266Z hint:
+automation	Checkout codebase	2026-07-12T07:20:04.6847393Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+automation	Checkout codebase	2026-07-12T07:20:04.6850314Z hint: 'development'. The just-created branch can be renamed via this command:
+automation	Checkout codebase	2026-07-12T07:20:04.6853470Z hint:
+automation	Checkout codebase	2026-07-12T07:20:04.6855227Z hint: 	git branch -m <name>
+automation	Checkout codebase	2026-07-12T07:20:04.6857063Z hint:
+automation	Checkout codebase	2026-07-12T07:20:04.6859351Z hint: Disable this message with "git config set advice.defaultBranchName false"
+automation	Checkout codebase	2026-07-12T07:20:04.6863218Z Initialized empty Git repository in /home/runner/work/glintory/glintory/.git/
+automation	Checkout codebase	2026-07-12T07:20:04.6869712Z [command]/usr/bin/git remote add origin https://github.com/yosuke1024/glintory
+automation	Checkout codebase	2026-07-12T07:20:04.6938912Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:04.6941496Z ##[group]Disabling automatic garbage collection
+automation	Checkout codebase	2026-07-12T07:20:04.6945029Z [command]/usr/bin/git config --local gc.auto 0
+automation	Checkout codebase	2026-07-12T07:20:04.6993806Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:04.6996935Z ##[group]Setting up auth
+automation	Checkout codebase	2026-07-12T07:20:04.7003402Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+automation	Checkout codebase	2026-07-12T07:20:04.7055769Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+automation	Checkout codebase	2026-07-12T07:20:04.7459957Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+automation	Checkout codebase	2026-07-12T07:20:04.7505890Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+automation	Checkout codebase	2026-07-12T07:20:04.7759340Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+automation	Checkout codebase	2026-07-12T07:20:04.7805810Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:04.7807361Z ##[group]Fetching the repository
+automation	Checkout codebase	2026-07-12T07:20:04.7819322Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +1c5a117d035a4655606dab38f6733807dabed6a5:refs/remotes/origin/main
+automation	Checkout codebase	2026-07-12T07:20:05.0526506Z From https://github.com/yosuke1024/glintory
+automation	Checkout codebase	2026-07-12T07:20:05.0530004Z  * [new ref]         1c5a117d035a4655606dab38f6733807dabed6a5 -> origin/main
+automation	Checkout codebase	2026-07-12T07:20:05.0573669Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:05.0576294Z ##[group]Determining the checkout info
+automation	Checkout codebase	2026-07-12T07:20:05.0578594Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:05.0581908Z [command]/usr/bin/git sparse-checkout disable
+automation	Checkout codebase	2026-07-12T07:20:05.0642506Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+automation	Checkout codebase	2026-07-12T07:20:05.0682973Z ##[group]Checking out the ref
+automation	Checkout codebase	2026-07-12T07:20:05.0687816Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+automation	Checkout codebase	2026-07-12T07:20:05.0905151Z Switched to a new branch 'main'
+automation	Checkout codebase	2026-07-12T07:20:05.0907486Z branch 'main' set up to track 'origin/main'.
+automation	Checkout codebase	2026-07-12T07:20:05.0914598Z ##[endgroup]
+automation	Checkout codebase	2026-07-12T07:20:05.0971389Z [command]/usr/bin/git log -1 --format=%H
+automation	Checkout codebase	2026-07-12T07:20:05.1005277Z 1c5a117d035a4655606dab38f6733807dabed6a5
+automation	Setup Python	﻿2026-07-12T07:20:05.1289156Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+automation	Setup Python	2026-07-12T07:20:05.1294579Z ##[group]Run actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f
+automation	Setup Python	2026-07-12T07:20:05.1295915Z with:
+automation	Setup Python	2026-07-12T07:20:05.1296597Z   python-version: 3.12
+automation	Setup Python	2026-07-12T07:20:05.1297382Z   check-latest: false
+automation	Setup Python	2026-07-12T07:20:05.1306647Z   token: ***
+automation	Setup Python	2026-07-12T07:20:05.1307382Z   update-environment: true
+automation	Setup Python	2026-07-12T07:20:05.1308226Z   allow-prereleases: false
+automation	Setup Python	2026-07-12T07:20:05.1309028Z env:
+automation	Setup Python	2026-07-12T07:20:05.1309976Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Setup Python	2026-07-12T07:20:05.1311493Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Setup Python	2026-07-12T07:20:05.1312996Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Setup Python	2026-07-12T07:20:05.1314584Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Setup Python	2026-07-12T07:20:05.1315608Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Setup Python	2026-07-12T07:20:05.1316638Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Setup Python	2026-07-12T07:20:05.1317833Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Setup Python	2026-07-12T07:20:05.1319138Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Setup Python	2026-07-12T07:20:05.1320692Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Setup Python	2026-07-12T07:20:05.1322703Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Setup Python	2026-07-12T07:20:05.1324645Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Setup Python	2026-07-12T07:20:05.1325726Z   LLAMA_CPP_VERSION: b5092
+automation	Setup Python	2026-07-12T07:20:05.1327079Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Setup Python	2026-07-12T07:20:05.1328784Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Setup Python	2026-07-12T07:20:05.1330483Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Setup Python	2026-07-12T07:20:05.1332112Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Setup Python	2026-07-12T07:20:05.1333459Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Setup Python	2026-07-12T07:20:05.1335570Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Setup Python	2026-07-12T07:20:05.1337880Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Setup Python	2026-07-12T07:20:05.1339558Z ##[endgroup]
+automation	Setup Python	2026-07-12T07:20:05.2762612Z ##[group]Installed versions
+automation	Setup Python	2026-07-12T07:20:05.2876330Z (node:2182) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+automation	Setup Python	2026-07-12T07:20:05.2881984Z (Use `node --trace-deprecation ...` to show where the warning was created)
+automation	Setup Python	2026-07-12T07:20:05.2883651Z Successfully set up CPython (3.12.13)
+automation	Setup Python	2026-07-12T07:20:05.2885665Z ##[endgroup]
+automation	Set up uv	﻿2026-07-12T07:20:05.3262512Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+automation	Set up uv	2026-07-12T07:20:05.3271541Z ##[group]Run astral-sh/setup-uv@1edb52594c857e2b5b13128931090f0640537287
+automation	Set up uv	2026-07-12T07:20:05.3273625Z with:
+automation	Set up uv	2026-07-12T07:20:05.3274520Z   version: 0.5.21
+automation	Set up uv	2026-07-12T07:20:05.3291125Z   github-token: ***
+automation	Set up uv	2026-07-12T07:20:05.3292732Z   enable-cache: auto
+automation	Set up uv	2026-07-12T07:20:05.3294064Z   cache-dependency-glob: **/uv.lock
+automation	Set up uv	**/requirements*.txt
+automation	Set up uv	
+automation	Set up uv	2026-07-12T07:20:05.3295422Z   prune-cache: true
+automation	Set up uv	2026-07-12T07:20:05.3296408Z   ignore-nothing-to-cache: false
+automation	Set up uv	2026-07-12T07:20:05.3297804Z env:
+automation	Set up uv	2026-07-12T07:20:05.3299106Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Set up uv	2026-07-12T07:20:05.3300650Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Set up uv	2026-07-12T07:20:05.3302247Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Set up uv	2026-07-12T07:20:05.3303552Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Set up uv	2026-07-12T07:20:05.3305157Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Set up uv	2026-07-12T07:20:05.3306465Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Set up uv	2026-07-12T07:20:05.3307686Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Set up uv	2026-07-12T07:20:05.3308976Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Set up uv	2026-07-12T07:20:05.3310507Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Set up uv	2026-07-12T07:20:05.3312510Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Set up uv	2026-07-12T07:20:05.3314446Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Set up uv	2026-07-12T07:20:05.3315521Z   LLAMA_CPP_VERSION: b5092
+automation	Set up uv	2026-07-12T07:20:05.3316888Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Set up uv	2026-07-12T07:20:05.3318586Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Set up uv	2026-07-12T07:20:05.3320285Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Set up uv	2026-07-12T07:20:05.3321891Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Set up uv	2026-07-12T07:20:05.3323250Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Set up uv	2026-07-12T07:20:05.3325346Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Set up uv	2026-07-12T07:20:05.3327668Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Set up uv	2026-07-12T07:20:05.3329526Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Set up uv	2026-07-12T07:20:05.3331007Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Set up uv	2026-07-12T07:20:05.3332497Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Set up uv	2026-07-12T07:20:05.3333815Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Set up uv	2026-07-12T07:20:05.3335271Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Set up uv	2026-07-12T07:20:05.3336632Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Set up uv	2026-07-12T07:20:05.3337757Z ##[endgroup]
+automation	Set up uv	2026-07-12T07:20:05.4897262Z (node:2190) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+automation	Set up uv	2026-07-12T07:20:05.4902301Z (Use `node --trace-deprecation ...` to show where the warning was created)
+automation	Set up uv	2026-07-12T07:20:05.5184119Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.5.21/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+automation	Set up uv	2026-07-12T07:20:05.7882267Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/52badb94-c23a-4d55-b557-a73b39378615 -f /home/runner/work/_temp/3beb2d9c-2f69-4d7b-b655-d2300149a64e
+automation	Set up uv	2026-07-12T07:20:06.1002560Z Added /opt/hostedtoolcache/uv/0.5.21/x86_64 to the path
+automation	Set up uv	2026-07-12T07:20:06.1004946Z Added /home/runner/.local/bin to the path
+automation	Set up uv	2026-07-12T07:20:06.1018326Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+automation	Set up uv	2026-07-12T07:20:06.1020426Z Successfully installed uv version 0.5.21
+automation	Set up uv	2026-07-12T07:20:06.1022261Z Searching files using cache dependency glob: **/uv.lock,**/requirements*.txt
+automation	Set up uv	2026-07-12T07:20:06.1497491Z /home/runner/work/glintory/glintory/uv.lock
+automation	Set up uv	2026-07-12T07:20:06.1515147Z Found 1 files to hash.
+automation	Set up uv	2026-07-12T07:20:06.7834888Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.13-ca8b33e401bfa7e1c7a2fbca75a49206417af8fadf280d8baf5772208fa0ba43
+automation	Set up uv	2026-07-12T07:20:06.8303185Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-3.12.13-ca8b33e401bfa7e1c7a2fbca75a49206417af8fadf280d8baf5772208fa0ba43
+automation	Set up uv	2026-07-12T07:20:06.8460173Z (node:2190) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+automation	Set up uv	2026-07-12T07:20:06.9225372Z Received 251320 of 251320 (100.0%), 6.5 MBs/sec
+automation	Set up uv	2026-07-12T07:20:06.9226564Z Cache Size: ~0 MB (251320 B)
+automation	Set up uv	2026-07-12T07:20:06.9255272Z [command]/usr/bin/tar -xf /home/runner/work/_temp/b88a8e0f-5f82-4153-a6f3-dd8e6c6dcb35/cache.tzst -P -C /home/runner/work/glintory/glintory --use-compress-program unzstd
+automation	Set up uv	2026-07-12T07:20:06.9374343Z Cache restored successfully
+automation	Set up uv	2026-07-12T07:20:06.9380476Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.13-ca8b33e401bfa7e1c7a2fbca75a49206417af8fadf280d8baf5772208fa0ba43
+automation	Prepare directories	﻿2026-07-12T07:20:06.9512157Z ##[group]Run mkdir -p .state build/state dist bin models build
+automation	Prepare directories	2026-07-12T07:20:06.9512772Z ^[[36;1mmkdir -p .state build/state dist bin models build^[[0m
+automation	Prepare directories	2026-07-12T07:20:06.9549395Z shell: /usr/bin/bash -e {0}
+automation	Prepare directories	2026-07-12T07:20:06.9549712Z env:
+automation	Prepare directories	2026-07-12T07:20:06.9550064Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Prepare directories	2026-07-12T07:20:06.9550599Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Prepare directories	2026-07-12T07:20:06.9551136Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Prepare directories	2026-07-12T07:20:06.9551599Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Prepare directories	2026-07-12T07:20:06.9551947Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Prepare directories	2026-07-12T07:20:06.9552302Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Prepare directories	2026-07-12T07:20:06.9552698Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Prepare directories	2026-07-12T07:20:06.9553131Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Prepare directories	2026-07-12T07:20:06.9553636Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Prepare directories	2026-07-12T07:20:06.9554589Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Prepare directories	2026-07-12T07:20:06.9555182Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Prepare directories	2026-07-12T07:20:06.9555576Z   LLAMA_CPP_VERSION: b5092
+automation	Prepare directories	2026-07-12T07:20:06.9556034Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Prepare directories	2026-07-12T07:20:06.9556591Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Prepare directories	2026-07-12T07:20:06.9557149Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Prepare directories	2026-07-12T07:20:06.9557677Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Prepare directories	2026-07-12T07:20:06.9558123Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Prepare directories	2026-07-12T07:20:06.9558789Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Prepare directories	2026-07-12T07:20:06.9559556Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Prepare directories	2026-07-12T07:20:06.9560166Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare directories	2026-07-12T07:20:06.9560656Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Prepare directories	2026-07-12T07:20:06.9561136Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare directories	2026-07-12T07:20:06.9561580Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare directories	2026-07-12T07:20:06.9562025Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare directories	2026-07-12T07:20:06.9562473Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Prepare directories	2026-07-12T07:20:06.9562902Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Prepare directories	2026-07-12T07:20:06.9563260Z ##[endgroup]
+automation	Install dependencies	﻿2026-07-12T07:20:06.9672248Z ##[group]Run uv sync --frozen
+automation	Install dependencies	2026-07-12T07:20:06.9672643Z ^[[36;1muv sync --frozen^[[0m
+automation	Install dependencies	2026-07-12T07:20:06.9707675Z shell: /usr/bin/bash -e {0}
+automation	Install dependencies	2026-07-12T07:20:06.9707990Z env:
+automation	Install dependencies	2026-07-12T07:20:06.9708337Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Install dependencies	2026-07-12T07:20:06.9709133Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Install dependencies	2026-07-12T07:20:06.9709942Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Install dependencies	2026-07-12T07:20:06.9710390Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Install dependencies	2026-07-12T07:20:06.9710741Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Install dependencies	2026-07-12T07:20:06.9711094Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Install dependencies	2026-07-12T07:20:06.9711714Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Install dependencies	2026-07-12T07:20:06.9712139Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Install dependencies	2026-07-12T07:20:06.9712733Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Install dependencies	2026-07-12T07:20:06.9713382Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Install dependencies	2026-07-12T07:20:06.9714279Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Install dependencies	2026-07-12T07:20:06.9714648Z   LLAMA_CPP_VERSION: b5092
+automation	Install dependencies	2026-07-12T07:20:06.9715093Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Install dependencies	2026-07-12T07:20:06.9715668Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Install dependencies	2026-07-12T07:20:06.9716198Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Install dependencies	2026-07-12T07:20:06.9716715Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Install dependencies	2026-07-12T07:20:06.9717151Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Install dependencies	2026-07-12T07:20:06.9717774Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Install dependencies	2026-07-12T07:20:06.9718483Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Install dependencies	2026-07-12T07:20:06.9719069Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Install dependencies	2026-07-12T07:20:06.9719551Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Install dependencies	2026-07-12T07:20:06.9720029Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Install dependencies	2026-07-12T07:20:06.9720477Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Install dependencies	2026-07-12T07:20:06.9720921Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Install dependencies	2026-07-12T07:20:06.9721364Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Install dependencies	2026-07-12T07:20:06.9721797Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Install dependencies	2026-07-12T07:20:06.9722148Z ##[endgroup]
+automation	Install dependencies	2026-07-12T07:20:06.9851635Z Using CPython 3.12.13 interpreter at: /opt/hostedtoolcache/Python/3.12.13/x64/bin/python3.12
+automation	Install dependencies	2026-07-12T07:20:06.9852609Z Creating virtual environment at: .venv
+automation	Install dependencies	2026-07-12T07:20:08.9736230Z Prepared 52 packages in 1.98s
+automation	Install dependencies	2026-07-12T07:20:09.1341833Z Installed 52 packages in 160ms
+automation	Install dependencies	2026-07-12T07:20:09.1342645Z  + alembic==1.18.5
+automation	Install dependencies	2026-07-12T07:20:09.1343213Z  + annotated-doc==0.0.4
+automation	Install dependencies	2026-07-12T07:20:09.1343818Z  + annotated-types==0.7.0
+automation	Install dependencies	2026-07-12T07:20:09.1344626Z  + anyio==4.14.1
+automation	Install dependencies	2026-07-12T07:20:09.1345138Z  + attrs==26.1.0
+automation	Install dependencies	2026-07-12T07:20:09.1345645Z  + certifi==2026.6.17
+automation	Install dependencies	2026-07-12T07:20:09.1346173Z  + click==8.4.2
+automation	Install dependencies	2026-07-12T07:20:09.1346681Z  + fastapi==0.139.0
+automation	Install dependencies	2026-07-12T07:20:09.1347236Z  + feedparser==6.0.12
+automation	Install dependencies	2026-07-12T07:20:09.1347986Z  + glintory==0.1.0 (from file:///home/runner/work/glintory/glintory)
+automation	Install dependencies	2026-07-12T07:20:09.1348879Z  + greenlet==3.5.3
+automation	Install dependencies	2026-07-12T07:20:09.1349371Z  + h11==0.16.0
+automation	Install dependencies	2026-07-12T07:20:09.1349843Z  + httpcore==1.0.9
+automation	Install dependencies	2026-07-12T07:20:09.1350351Z  + httptools==0.8.0
+automation	Install dependencies	2026-07-12T07:20:09.1350879Z  + httpx==0.28.1
+automation	Install dependencies	2026-07-12T07:20:09.1351361Z  + idna==3.18
+automation	Install dependencies	2026-07-12T07:20:09.1351851Z  + iniconfig==2.3.0
+automation	Install dependencies	2026-07-12T07:20:09.1352397Z  + jinja2==3.1.6
+automation	Install dependencies	2026-07-12T07:20:09.1352909Z  + joblib==1.5.3
+automation	Install dependencies	2026-07-12T07:20:09.1353431Z  + jsonschema==4.26.0
+automation	Install dependencies	2026-07-12T07:20:09.1354199Z  + jsonschema-specifications==2025.9.1
+automation	Install dependencies	2026-07-12T07:20:09.1354903Z  + mako==1.3.12
+automation	Install dependencies	2026-07-12T07:20:09.1355624Z  + markupsafe==3.0.3
+automation	Install dependencies	2026-07-12T07:20:09.1355992Z  + narwhals==2.23.0
+automation	Install dependencies	2026-07-12T07:20:09.1356363Z  + nodeenv==1.10.0
+automation	Install dependencies	2026-07-12T07:20:09.1356724Z  + numpy==2.5.1
+automation	Install dependencies	2026-07-12T07:20:09.1357073Z  + packaging==26.2
+automation	Install dependencies	2026-07-12T07:20:09.1357553Z  + pluggy==1.6.0
+automation	Install dependencies	2026-07-12T07:20:09.1358130Z  + pydantic==2.13.4
+automation	Install dependencies	2026-07-12T07:20:09.1358506Z  + pydantic-core==2.46.4
+automation	Install dependencies	2026-07-12T07:20:09.1358936Z  + pydantic-settings==2.14.2
+automation	Install dependencies	2026-07-12T07:20:09.1359359Z  + pygments==2.20.0
+automation	Install dependencies	2026-07-12T07:20:09.1359711Z  + pyright==1.1.411
+automation	Install dependencies	2026-07-12T07:20:09.1360062Z  + pytest==9.1.1
+automation	Install dependencies	2026-07-12T07:20:09.1360435Z  + pytest-asyncio==1.4.0
+automation	Install dependencies	2026-07-12T07:20:09.1360832Z  + python-dotenv==1.2.2
+automation	Install dependencies	2026-07-12T07:20:09.1361215Z  + pyyaml==6.0.3
+automation	Install dependencies	2026-07-12T07:20:09.1361567Z  + referencing==0.37.0
+automation	Install dependencies	2026-07-12T07:20:09.1361946Z  + rpds-py==2026.6.3
+automation	Install dependencies	2026-07-12T07:20:09.1362300Z  + ruff==0.15.20
+automation	Install dependencies	2026-07-12T07:20:09.1362645Z  + scikit-learn==1.9.0
+automation	Install dependencies	2026-07-12T07:20:09.1363009Z  + scipy==1.18.0
+automation	Install dependencies	2026-07-12T07:20:09.1363367Z  + sgmllib3k==1.0.0
+automation	Install dependencies	2026-07-12T07:20:09.1363721Z  + sqlalchemy==2.0.51
+automation	Install dependencies	2026-07-12T07:20:09.1364278Z  + starlette==1.3.1
+automation	Install dependencies	2026-07-12T07:20:09.1364640Z  + threadpoolctl==3.6.0
+automation	Install dependencies	2026-07-12T07:20:09.1365043Z  + typing-extensions==4.16.0
+automation	Install dependencies	2026-07-12T07:20:09.1365452Z  + typing-inspection==0.4.2
+automation	Install dependencies	2026-07-12T07:20:09.1365842Z  + uvicorn==0.51.0
+automation	Install dependencies	2026-07-12T07:20:09.1366156Z  + uvloop==0.22.1
+automation	Install dependencies	2026-07-12T07:20:09.1366486Z  + watchfiles==1.2.0
+automation	Install dependencies	2026-07-12T07:20:09.1366839Z  + websockets==16.1
+automation	Cache LLM assets	﻿2026-07-12T07:20:09.1499016Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+automation	Cache LLM assets	2026-07-12T07:20:09.1500431Z ##[group]Run actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57
+automation	Cache LLM assets	2026-07-12T07:20:09.1500787Z with:
+automation	Cache LLM assets	2026-07-12T07:20:09.1500990Z   path: ./bin
+automation	Cache LLM assets	./models
+automation	Cache LLM assets	
+automation	Cache LLM assets	2026-07-12T07:20:09.1501661Z   key: local-llm-Qwen/Qwen3-1.7B-GGUF-90862c4b9d2787eaed51d12237eafdfe7c5f6077-061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a-b5092
+automation	Cache LLM assets	2026-07-12T07:20:09.1502379Z   enableCrossOsArchive: false
+automation	Cache LLM assets	2026-07-12T07:20:09.1502637Z   fail-on-cache-miss: false
+automation	Cache LLM assets	2026-07-12T07:20:09.1502891Z   lookup-only: false
+automation	Cache LLM assets	2026-07-12T07:20:09.1503106Z   save-always: false
+automation	Cache LLM assets	2026-07-12T07:20:09.1503307Z env:
+automation	Cache LLM assets	2026-07-12T07:20:09.1503589Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Cache LLM assets	2026-07-12T07:20:09.1504357Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Cache LLM assets	2026-07-12T07:20:09.1504816Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Cache LLM assets	2026-07-12T07:20:09.1505188Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Cache LLM assets	2026-07-12T07:20:09.1505481Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Cache LLM assets	2026-07-12T07:20:09.1505784Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Cache LLM assets	2026-07-12T07:20:09.1506131Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Cache LLM assets	2026-07-12T07:20:09.1506497Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Cache LLM assets	2026-07-12T07:20:09.1506939Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Cache LLM assets	2026-07-12T07:20:09.1507512Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Cache LLM assets	2026-07-12T07:20:09.1508025Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Cache LLM assets	2026-07-12T07:20:09.1508337Z   LLAMA_CPP_VERSION: b5092
+automation	Cache LLM assets	2026-07-12T07:20:09.1508726Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Cache LLM assets	2026-07-12T07:20:09.1509230Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Cache LLM assets	2026-07-12T07:20:09.1509708Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Cache LLM assets	2026-07-12T07:20:09.1510167Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Cache LLM assets	2026-07-12T07:20:09.1510565Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Cache LLM assets	2026-07-12T07:20:09.1511134Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Cache LLM assets	2026-07-12T07:20:09.1511785Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Cache LLM assets	2026-07-12T07:20:09.1512319Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Cache LLM assets	2026-07-12T07:20:09.1512932Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Cache LLM assets	2026-07-12T07:20:09.1513353Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Cache LLM assets	2026-07-12T07:20:09.1513735Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Cache LLM assets	2026-07-12T07:20:09.1514480Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Cache LLM assets	2026-07-12T07:20:09.1514875Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Cache LLM assets	2026-07-12T07:20:09.1515246Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Cache LLM assets	2026-07-12T07:20:09.1515552Z ##[endgroup]
+automation	Cache LLM assets	2026-07-12T07:20:09.2685164Z (node:2287) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+automation	Cache LLM assets	2026-07-12T07:20:09.2686237Z (Use `node --trace-deprecation ...` to show where the warning was created)
+automation	Cache LLM assets	2026-07-12T07:20:09.3381595Z Cache hit for: local-llm-Qwen/Qwen3-1.7B-GGUF-90862c4b9d2787eaed51d12237eafdfe7c5f6077-061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a-b5092
+automation	Cache LLM assets	2026-07-12T07:20:09.3497771Z (node:2287) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+automation	Cache LLM assets	2026-07-12T07:20:10.3915236Z Received 222298112 of 1758325656 (12.6%), 211.6 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:11.3969823Z Received 503316480 of 1758325656 (28.6%), 238.8 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:12.3959646Z Received 750780416 of 1758325656 (42.7%), 237.8 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:13.3959852Z Received 1019215872 of 1758325656 (58.0%), 242.3 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:14.3959454Z Received 1207959552 of 1758325656 (68.7%), 229.9 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:15.4175727Z Received 1476395008 of 1758325656 (84.0%), 233.6 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:16.4132953Z Received 1736441856 of 1758325656 (98.8%), 235.6 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:16.6330943Z Received 1758325656 of 1758325656 (100.0%), 231.4 MBs/sec
+automation	Cache LLM assets	2026-07-12T07:20:16.6334310Z Cache Size: ~1677 MB (1758325656 B)
+automation	Cache LLM assets	2026-07-12T07:20:16.6461163Z [command]/usr/bin/tar -xf /home/runner/work/_temp/ca552c73-caef-4306-b3d8-22e77969b213/cache.tzst -P -C /home/runner/work/glintory/glintory --use-compress-program unzstd
+automation	Cache LLM assets	2026-07-12T07:20:19.2925153Z Cache restored successfully
+automation	Cache LLM assets	2026-07-12T07:20:19.9169598Z Cache restored from key: local-llm-Qwen/Qwen3-1.7B-GGUF-90862c4b9d2787eaed51d12237eafdfe7c5f6077-061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a-b5092
+automation	Prepare and verify LLM assets	﻿2026-07-12T07:20:19.9339777Z ##[group]Run # 1. Check and prepare llama-server and library files
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9340348Z ^[[36;1m# 1. Check and prepare llama-server and library files^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9340688Z ^[[36;1mbin_ok=false^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9341013Z ^[[36;1mif [ -f "./bin/llama-server" ] && [ -f "./bin/libllama.so" ]; then^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9341786Z ^[[36;1m  echo "f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e  ./bin/llama-server" | sha256sum -c - --status && bin_ok=true || bin_ok=false^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9342461Z ^[[36;1mfi^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9342650Z ^[[36;1m^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9342871Z ^[[36;1mif [ "$bin_ok" = "false" ]; then^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9343226Z ^[[36;1m  echo "Binary missing or hash mismatch. Downloading..."^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9344277Z ^[[36;1m  ZIP_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_VERSION}/llama-${LLAMA_CPP_VERSION}-bin-ubuntu-x64.zip"^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9344950Z ^[[36;1m  curl -L -o llama.zip "$ZIP_URL"^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9345274Z ^[[36;1m  # Verify zip archive hash^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9345779Z ^[[36;1m  echo "36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5  llama.zip" | sha256sum -c -^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9346311Z ^[[36;1m  unzip -o llama.zip -d llama_temp^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9346710Z ^[[36;1m  find llama_temp -name "llama-server" -exec cp {} ./bin/llama-server \;^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9347211Z ^[[36;1m  find llama_temp -name "*.so" -exec cp {} ./bin/ \;^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9347557Z ^[[36;1m  chmod +x ./bin/llama-server^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9347827Z ^[[36;1m  rm -rf llama.zip llama_temp^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9348302Z ^[[36;1m  # Verify extracted binary hash^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9348839Z ^[[36;1m  echo "f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e  ./bin/llama-server" | sha256sum -c -^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9349359Z ^[[36;1melse^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9349608Z ^[[36;1m  echo "Binary cached and verified successfully."^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9349905Z ^[[36;1mfi^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9350085Z ^[[36;1m^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9350284Z ^[[36;1m# 2. Check and prepare Model GGUF^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9350549Z ^[[36;1mmodel_ok=false^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9350808Z ^[[36;1mif [ -f "./models/Qwen3-1.7B-Q8_0.gguf" ]; then^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9351523Z ^[[36;1m  echo "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a  ./models/Qwen3-1.7B-Q8_0.gguf" | sha256sum -c - --status && model_ok=true || model_ok=false^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9352191Z ^[[36;1mfi^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9352369Z ^[[36;1m^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9352564Z ^[[36;1mif [ "$model_ok" = "false" ]; then^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9352911Z ^[[36;1m  echo "Model missing or hash mismatch. Downloading..."^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9353556Z ^[[36;1m  MODEL_URL="https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/90862c4b9d2787eaed51d12237eafdfe7c5f6077/Qwen3-1.7B-Q8_0.gguf"^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9354716Z ^[[36;1m  curl -L -o "./models/Qwen3-1.7B-Q8_0.gguf" "$MODEL_URL"^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9355056Z ^[[36;1m  # Verify model hash^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9355603Z ^[[36;1m  echo "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a  ./models/Qwen3-1.7B-Q8_0.gguf" | sha256sum -c -^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9356156Z ^[[36;1melse^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9356408Z ^[[36;1m  echo "Model cached and verified successfully."^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9356715Z ^[[36;1mfi^[[0m
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9389805Z shell: /usr/bin/bash -e {0}
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9390062Z env:
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9390365Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9390835Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9391288Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9391663Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9391966Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9392269Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9392607Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9393200Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9393659Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9394602Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9395114Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9395423Z   LLAMA_CPP_VERSION: b5092
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9395810Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9396304Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9396772Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9397225Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9397606Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9398166Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9398820Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9399347Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9399762Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9400177Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9400556Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9401130Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9401511Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9401877Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Prepare and verify LLM assets	2026-07-12T07:20:19.9402181Z ##[endgroup]
+automation	Prepare and verify LLM assets	2026-07-12T07:20:20.0560523Z Binary cached and verified successfully.
+automation	Prepare and verify LLM assets	2026-07-12T07:20:21.3885030Z Model cached and verified successfully.
+automation	Preflight Check	﻿2026-07-12T07:20:21.3922944Z ##[group]Run uv run glintory publish validate-config --site-url "$GLINTORY_PUBLIC_SITE_URL"
+automation	Preflight Check	2026-07-12T07:20:21.3923635Z ^[[36;1muv run glintory publish validate-config --site-url "$GLINTORY_PUBLIC_SITE_URL"^[[0m
+automation	Preflight Check	2026-07-12T07:20:21.3956977Z shell: /usr/bin/bash -e {0}
+automation	Preflight Check	2026-07-12T07:20:21.3957241Z env:
+automation	Preflight Check	2026-07-12T07:20:21.3957561Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Preflight Check	2026-07-12T07:20:21.3958034Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Preflight Check	2026-07-12T07:20:21.3958464Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Preflight Check	2026-07-12T07:20:21.3958868Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Preflight Check	2026-07-12T07:20:21.3959173Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Preflight Check	2026-07-12T07:20:21.3959476Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Preflight Check	2026-07-12T07:20:21.3959824Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Preflight Check	2026-07-12T07:20:21.3960187Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Preflight Check	2026-07-12T07:20:21.3960630Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Preflight Check	2026-07-12T07:20:21.3961255Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Preflight Check	2026-07-12T07:20:21.3961777Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Preflight Check	2026-07-12T07:20:21.3962089Z   LLAMA_CPP_VERSION: b5092
+automation	Preflight Check	2026-07-12T07:20:21.3962488Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Preflight Check	2026-07-12T07:20:21.3962981Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Preflight Check	2026-07-12T07:20:21.3963465Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Preflight Check	2026-07-12T07:20:21.3964161Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Preflight Check	2026-07-12T07:20:21.3964561Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Preflight Check	2026-07-12T07:20:21.3965132Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Preflight Check	2026-07-12T07:20:21.3965783Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Preflight Check	2026-07-12T07:20:21.3966317Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Preflight Check	2026-07-12T07:20:21.3966754Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Preflight Check	2026-07-12T07:20:21.3967172Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Preflight Check	2026-07-12T07:20:21.3967547Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Preflight Check	2026-07-12T07:20:21.3967928Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Preflight Check	2026-07-12T07:20:21.3968313Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Preflight Check	2026-07-12T07:20:21.3968686Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Preflight Check	2026-07-12T07:20:21.3968988Z ##[endgroup]
+automation	Preflight Check	2026-07-12T07:20:24.4480980Z Configuration URL is valid.
+automation	Download latest state	﻿2026-07-12T07:20:24.6175575Z ##[group]Run uv run python scripts/github_state_store.py --state-dir .state --db-url "$GLINTORY_DATABASE_URL" download-latest
+automation	Download latest state	2026-07-12T07:20:24.6176463Z ^[[36;1muv run python scripts/github_state_store.py --state-dir .state --db-url "$GLINTORY_DATABASE_URL" download-latest^[[0m
+automation	Download latest state	2026-07-12T07:20:24.6209441Z shell: /usr/bin/bash -e {0}
+automation	Download latest state	2026-07-12T07:20:24.6209709Z env:
+automation	Download latest state	2026-07-12T07:20:24.6210007Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Download latest state	2026-07-12T07:20:24.6210467Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Download latest state	2026-07-12T07:20:24.6210892Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Download latest state	2026-07-12T07:20:24.6211269Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Download latest state	2026-07-12T07:20:24.6211767Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Download latest state	2026-07-12T07:20:24.6212077Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Download latest state	2026-07-12T07:20:24.6212420Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Download latest state	2026-07-12T07:20:24.6212780Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Download latest state	2026-07-12T07:20:24.6213254Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Download latest state	2026-07-12T07:20:24.6213826Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Download latest state	2026-07-12T07:20:24.6214581Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Download latest state	2026-07-12T07:20:24.6214890Z   LLAMA_CPP_VERSION: b5092
+automation	Download latest state	2026-07-12T07:20:24.6215282Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Download latest state	2026-07-12T07:20:24.6215764Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Download latest state	2026-07-12T07:20:24.6216245Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Download latest state	2026-07-12T07:20:24.6216715Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Download latest state	2026-07-12T07:20:24.6217100Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Download latest state	2026-07-12T07:20:24.6217662Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Download latest state	2026-07-12T07:20:24.6218318Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Download latest state	2026-07-12T07:20:24.6218845Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Download latest state	2026-07-12T07:20:24.6219286Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Download latest state	2026-07-12T07:20:24.6219717Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Download latest state	2026-07-12T07:20:24.6220095Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Download latest state	2026-07-12T07:20:24.6220473Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Download latest state	2026-07-12T07:20:24.6220892Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Download latest state	2026-07-12T07:20:24.6221268Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Download latest state	2026-07-12T07:20:24.6224758Z   GH_TOKEN: ***
+automation	Download latest state	2026-07-12T07:20:24.6227410Z   GITHUB_TOKEN: ***
+automation	Download latest state	2026-07-12T07:20:24.6230098Z   GLINTORY_GITHUB_TOKEN: ***
+automation	Download latest state	2026-07-12T07:20:24.6230351Z ##[endgroup]
+automation	Download latest state	2026-07-12T07:20:27.7109094Z Checking for latest state asset...
+automation	Download latest state	2026-07-12T07:20:27.7109868Z Latest asset selected (Asset ID: 474185317)
+automation	Download latest state	2026-07-12T07:20:27.7110312Z Verifying downloaded archive...
+automation	Download latest state	2026-07-12T07:20:27.7110592Z Database restored successfully.
+automation	SQLite integrity and migration check	﻿2026-07-12T07:20:27.8325457Z ##[group]Run # Verify SQLite physical DB integrity
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8326156Z ^[[36;1m# Verify SQLite physical DB integrity^[[0m
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8326884Z ^[[36;1msqlite3 .state/public-glintory.sqlite3 "PRAGMA integrity_check;"^[[0m
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8327608Z ^[[36;1m# Apply Alembic migrations^[[0m
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8328086Z ^[[36;1muv run alembic upgrade head^[[0m
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8375666Z shell: /usr/bin/bash -e {0}
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8376121Z env:
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8376645Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8377447Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8378206Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8378898Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8379426Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8379957Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8380565Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8381292Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8382093Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8383131Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8384322Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8384911Z   LLAMA_CPP_VERSION: b5092
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8385914Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8386796Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8387671Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8388493Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8389169Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8390248Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8391461Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8392450Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8393175Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8394202Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8394910Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8395599Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8396296Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8396966Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8397500Z ##[endgroup]
+automation	SQLite integrity and migration check	2026-07-12T07:20:27.8686120Z ok
+automation	SQLite integrity and migration check	2026-07-12T07:20:28.5230167Z INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+automation	SQLite integrity and migration check	2026-07-12T07:20:28.5244341Z INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+automation	Sync source manifest	﻿2026-07-12T07:20:28.6792997Z ##[group]Run uv run glintory source sync-manifest --file config/public-sources.json --json
+automation	Sync source manifest	2026-07-12T07:20:28.6793728Z ^[[36;1muv run glintory source sync-manifest --file config/public-sources.json --json^[[0m
+automation	Sync source manifest	2026-07-12T07:20:28.6826670Z shell: /usr/bin/bash -e {0}
+automation	Sync source manifest	2026-07-12T07:20:28.6826932Z env:
+automation	Sync source manifest	2026-07-12T07:20:28.6827234Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Sync source manifest	2026-07-12T07:20:28.6827737Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Sync source manifest	2026-07-12T07:20:28.6828195Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Sync source manifest	2026-07-12T07:20:28.6828589Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Sync source manifest	2026-07-12T07:20:28.6828894Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Sync source manifest	2026-07-12T07:20:28.6829215Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Sync source manifest	2026-07-12T07:20:28.6829568Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Sync source manifest	2026-07-12T07:20:28.6829946Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Sync source manifest	2026-07-12T07:20:28.6830411Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Sync source manifest	2026-07-12T07:20:28.6831053Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Sync source manifest	2026-07-12T07:20:28.6831597Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Sync source manifest	2026-07-12T07:20:28.6831922Z   LLAMA_CPP_VERSION: b5092
+automation	Sync source manifest	2026-07-12T07:20:28.6832344Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Sync source manifest	2026-07-12T07:20:28.6832863Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Sync source manifest	2026-07-12T07:20:28.6833366Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Sync source manifest	2026-07-12T07:20:28.6834057Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Sync source manifest	2026-07-12T07:20:28.6834525Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Sync source manifest	2026-07-12T07:20:28.6835125Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Sync source manifest	2026-07-12T07:20:28.6835796Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Sync source manifest	2026-07-12T07:20:28.6836344Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Sync source manifest	2026-07-12T07:20:28.6836770Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Sync source manifest	2026-07-12T07:20:28.6837199Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Sync source manifest	2026-07-12T07:20:28.6837756Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Sync source manifest	2026-07-12T07:20:28.6838143Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Sync source manifest	2026-07-12T07:20:28.6838539Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Sync source manifest	2026-07-12T07:20:28.6838933Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Sync source manifest	2026-07-12T07:20:28.6839240Z ##[endgroup]
+automation	Sync source manifest	2026-07-12T07:20:29.5503196Z 2026-07-12 07:20:29,549 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+automation	Sync source manifest	2026-07-12T07:20:29.5504653Z 2026-07-12 07:20:29,550 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+automation	Sync source manifest	2026-07-12T07:20:29.6143091Z {
+automation	Sync source manifest	2026-07-12T07:20:29.6143566Z   "created_count": 0,
+automation	Sync source manifest	2026-07-12T07:20:29.6144193Z   "updated_count": 3,
+automation	Sync source manifest	2026-07-12T07:20:29.6144548Z   "total_sources": 3
+automation	Sync source manifest	2026-07-12T07:20:29.6144868Z }
+automation	Run due collection	﻿2026-07-12T07:20:29.8015326Z ##[group]Run set +e
+automation	Run due collection	2026-07-12T07:20:29.8015809Z ^[[36;1mset +e^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8016475Z ^[[36;1muv run glintory scheduler run --once --force --json > build/state/scheduler_metadata.json^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8017303Z ^[[36;1mcmd_exit_code=$?^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8017684Z ^[[36;1mset -e^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8018016Z ^[[36;1m^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8018442Z ^[[36;1mif [ ! -s build/state/scheduler_metadata.json ]; then^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8019594Z ^[[36;1m  echo "{\"exit_code\": $cmd_exit_code, \"operational_status\": \"infrastructure_failed\", \"tick\": null}" > build/state/scheduler_metadata.json^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8020704Z ^[[36;1mfi^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8021060Z ^[[36;1m^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8021448Z ^[[36;1mcat build/state/scheduler_metadata.json^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8021953Z ^[[36;1m^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8022530Z ^[[36;1mexit_code=$(jq -r '.exit_code' build/state/scheduler_metadata.json)^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8023426Z ^[[36;1mstatus=$(jq -r '.operational_status' build/state/scheduler_metadata.json)^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8024821Z ^[[36;1mdue_count=$(jq -r '.tick.due_schedule_count // 0' build/state/scheduler_metadata.json)^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8025945Z ^[[36;1msucceeded_count=$(jq -r '.tick.succeeded_count // 0' build/state/scheduler_metadata.json)^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8027022Z ^[[36;1mpartial_count=$(jq -r '.tick.partial_count // 0' build/state/scheduler_metadata.json)^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8028045Z ^[[36;1mfailed_count=$(jq -r '.tick.failed_count // 0' build/state/scheduler_metadata.json)^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8028817Z ^[[36;1m^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8029149Z ^[[36;1m{^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8029555Z ^[[36;1m  echo "collection_exit_code=$exit_code"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8030106Z ^[[36;1m  echo "collection_status=$status"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8030623Z ^[[36;1m  echo "due_count=$due_count"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8031137Z ^[[36;1m  echo "succeeded_count=$succeeded_count"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8031700Z ^[[36;1m  echo "partial_count=$partial_count"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8032253Z ^[[36;1m  echo "failed_count=$failed_count"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8032748Z ^[[36;1m} >> "$GITHUB_OUTPUT"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8033165Z ^[[36;1m^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8033582Z ^[[36;1mif [ "$exit_code" = "0" ] || [ "$exit_code" = "3" ]; then^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8034403Z ^[[36;1m  exit 0^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8034760Z ^[[36;1melse^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8035242Z ^[[36;1m  echo "Collection step failed with exit code $exit_code"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8035857Z ^[[36;1m  exit "$exit_code"^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8036271Z ^[[36;1mfi^[[0m
+automation	Run due collection	2026-07-12T07:20:29.8075619Z shell: /usr/bin/bash -e {0}
+automation	Run due collection	2026-07-12T07:20:29.8075889Z env:
+automation	Run due collection	2026-07-12T07:20:29.8076196Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Run due collection	2026-07-12T07:20:29.8076663Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Run due collection	2026-07-12T07:20:29.8077092Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Run due collection	2026-07-12T07:20:29.8077469Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Run due collection	2026-07-12T07:20:29.8077784Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Run due collection	2026-07-12T07:20:29.8078081Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Run due collection	2026-07-12T07:20:29.8078636Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Run due collection	2026-07-12T07:20:29.8078999Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Run due collection	2026-07-12T07:20:29.8079450Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Run due collection	2026-07-12T07:20:29.8080032Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Run due collection	2026-07-12T07:20:29.8080540Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Run due collection	2026-07-12T07:20:29.8080851Z   LLAMA_CPP_VERSION: b5092
+automation	Run due collection	2026-07-12T07:20:29.8081241Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Run due collection	2026-07-12T07:20:29.8081731Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Run due collection	2026-07-12T07:20:29.8082203Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Run due collection	2026-07-12T07:20:29.8083397Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Run due collection	2026-07-12T07:20:29.8084399Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Run due collection	2026-07-12T07:20:29.8085034Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Run due collection	2026-07-12T07:20:29.8085697Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Run due collection	2026-07-12T07:20:29.8086227Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Run due collection	2026-07-12T07:20:29.8086652Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Run due collection	2026-07-12T07:20:29.8087065Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Run due collection	2026-07-12T07:20:29.8087435Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Run due collection	2026-07-12T07:20:29.8087812Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Run due collection	2026-07-12T07:20:29.8088194Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Run due collection	2026-07-12T07:20:29.8088563Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Run due collection	2026-07-12T07:20:29.8091741Z   GLINTORY_GITHUB_TOKEN: ***
+automation	Run due collection	2026-07-12T07:20:29.8092565Z ##[endgroup]
+automation	Run due collection	2026-07-12T07:20:30.6010985Z 2026-07-12 07:20:30,600 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+automation	Run due collection	2026-07-12T07:20:30.6012129Z 2026-07-12 07:20:30,600 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+automation	Run due collection	2026-07-12T07:20:30.6508088Z 2026-07-12 07:20:30,650 - glintory.services.scheduler_runner - INFO - operation=scheduler_start lease_name=default mode=once message="Starting scheduler in once mode."
+automation	Run due collection	2026-07-12T07:20:30.6828641Z 2026-07-12 07:20:30,682 - glintory.services.scheduler_service - INFO - operation=scheduler_tick due_schedule_count=0 claimed_execution_count=0 succeeded_count=0 partial_count=0 failed_count=0 skipped_busy_count=0 skipped_disabled_count=0 abandoned_count=0 duration_ms=5
+automation	Run due collection	2026-07-12T07:20:30.8642694Z {"exit_code": 0, "operational_status": "success", "tick": {"due_schedule_count": 0, "claimed_execution_count": 0, "succeeded_count": 0, "partial_count": 0, "failed_count": 0, "skipped_busy_count": 0, "skipped_disabled_count": 0, "abandoned_count": 0, "execution_ids": []}}
+automation	Discovery Model Migration if required	﻿2026-07-12T07:20:30.8837632Z ##[group]Run uv run python scripts/run_discovery_migration.py
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8838118Z ^[[36;1muv run python scripts/run_discovery_migration.py^[[0m
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8870605Z shell: /usr/bin/bash -e {0}
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8870867Z env:
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8871167Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8871647Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8872110Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8872511Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8872826Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8873140Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8873495Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8874069Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8874547Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8875462Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8875998Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8876325Z   LLAMA_CPP_VERSION: b5092
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8876736Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8877261Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8877767Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8878247Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8878653Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8879247Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8879936Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8880503Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8880950Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8881386Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8881779Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8882175Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8882578Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8883013Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Discovery Model Migration if required	2026-07-12T07:20:30.8883322Z ##[endgroup]
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2615499Z Connecting to database: sqlite:///.state/public-glintory.sqlite3
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2616066Z Current discovery_model_version marker: clustering-v2-gate-v3
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2616514Z Found 207 unmigrated opportunities. Re-triggering migration.
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2617008Z Triggering full Discovery Model Migration (clustering-v2-gate-v3)...
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2617404Z Rebuild success:
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2617632Z   Source Opportunities: 114
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2617891Z   Source Signals: 126
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2618135Z   Created v2 Opportunities: 0
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2618407Z   Updated v2 Opportunities: 31
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2618678Z   Gate Passed: 12, Rejected: 19
+automation	Discovery Model Migration if required	2026-07-12T07:20:35.2619047Z Discovery model migration completed and marker saved successfully.
+automation	Deterministic opportunity analysis and scoring	﻿2026-07-12T07:20:35.5352387Z ##[group]Run uv run glintory analyze --json
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5353009Z ^[[36;1muv run glintory analyze --json^[[0m
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5353594Z ^[[36;1muv run glintory score --score-version v2 --json^[[0m
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5400668Z shell: /usr/bin/bash -e {0}
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5401134Z env:
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5401650Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5402481Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5403308Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5404320Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5404858Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5405391Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5406008Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5406672Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5407470Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5408543Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5409449Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5409999Z   LLAMA_CPP_VERSION: b5092
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5410711Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5411594Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5412799Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5413642Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5414690Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5415728Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5416928Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5417921Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5418680Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5419437Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5420123Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5420817Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5421588Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5422316Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:35.5422850Z ##[endgroup]
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:36.3347896Z 2026-07-12 07:20:36,334 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:36.3349012Z 2026-07-12 07:20:36,334 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:37.6335188Z {"analyzed_signals_count": 95, "created_opportunities_count": 0, "linked_signals_count": 0, "dry_run": false}
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:38.7514334Z 2026-07-12 07:20:38,751 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:38.7515684Z 2026-07-12 07:20:38,751 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:38.9426120Z 2026-07-12 07:20:38,942 - glintory.services.opportunity_scoring_service - INFO - Opportunity scoring run complete. scoring_version=v2 as_of_date=2026-07-12 dry_run=no analyzed=31 scored=0 unchanged=31 skipped=0 snapshots_created=0 opportunities_updated=0 duration_ms=180
+automation	Deterministic opportunity analysis and scoring	2026-07-12T07:20:38.9524229Z {"scoring_version": "v2", "as_of_date": "2026-07-12", "dry_run": false, "analyzed_opportunity_count": 31, "scored_opportunity_count": 0, "unchanged_opportunity_count": 31, "skipped_opportunity_count": 0, "created_snapshot_count": 0, "updated_opportunity_count": 0, "scored_opportunity_ids": []}
+automation	Local LLM Enrichment	﻿2026-07-12T07:20:39.1325152Z ##[group]Run set +e
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1325465Z ^[[36;1mset +e^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1325805Z ^[[36;1muv run glintory enrich run --json > build/state/enrichment_metadata.json^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1326216Z ^[[36;1mcmd_exit_code=$?^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1326450Z ^[[36;1mset -e^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1326644Z ^[[36;1m^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1326902Z ^[[36;1mif [ ! -s build/state/enrichment_metadata.json ]; then^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1327767Z ^[[36;1m  echo "{\"operational_status\": \"failed\", \"selected_count\": 0, \"succeeded_count\": 0, \"failed_count\": 0, \"skipped_count\": 0, \"warning_codes\": [\"LLM_INFERENCE_FAILED\"]}" > build/state/enrichment_metadata.json^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1328570Z ^[[36;1mfi^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1328760Z ^[[36;1m^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1328985Z ^[[36;1mcat build/state/enrichment_metadata.json^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1329270Z ^[[36;1m^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1329581Z ^[[36;1mstatus=$(jq -r '.operational_status' build/state/enrichment_metadata.json)^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1330159Z ^[[36;1mselected=$(jq -r '.selected_count // 0' build/state/enrichment_metadata.json)^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1330691Z ^[[36;1msucceeded=$(jq -r '.succeeded_count // 0' build/state/enrichment_metadata.json)^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1331202Z ^[[36;1mfailed=$(jq -r '.failed_count // 0' build/state/enrichment_metadata.json)^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1331690Z ^[[36;1mskipped=$(jq -r '.skipped_count // 0' build/state/enrichment_metadata.json)^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1332214Z ^[[36;1mwarnings=$(jq -r '.warning_codes | join(", ")' build/state/enrichment_metadata.json)^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1332801Z ^[[36;1m^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1332977Z ^[[36;1m{^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1333210Z ^[[36;1m  echo "enrichment_status=$status"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1333516Z ^[[36;1m  echo "enrichment_selected=$selected"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1333832Z ^[[36;1m  echo "enrichment_succeeded=$succeeded"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1334338Z ^[[36;1m  echo "enrichment_failed=$failed"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1334635Z ^[[36;1m  echo "enrichment_skipped=$skipped"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1334943Z ^[[36;1m  echo "enrichment_warnings=$warnings"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1335224Z ^[[36;1m} >> "$GITHUB_OUTPUT"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1335450Z ^[[36;1m^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1335649Z ^[[36;1mif [ "$cmd_exit_code" = "0" ]; then^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1335909Z ^[[36;1m  exit 0^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1336098Z ^[[36;1melse^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1336383Z ^[[36;1m  echo "LLM Enrichment step failed with exit code $cmd_exit_code"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1336742Z ^[[36;1m  exit "$cmd_exit_code"^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1336988Z ^[[36;1mfi^[[0m
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1369438Z shell: /usr/bin/bash -e {0}
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1369694Z env:
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1369991Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1370454Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1370884Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1371262Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1371567Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1371871Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1372214Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1372576Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1373016Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1373592Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1374281Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1374587Z   LLAMA_CPP_VERSION: b5092
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1374978Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1375466Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1375940Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1376596Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1376981Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1377542Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1378190Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1378712Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1379142Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1379561Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1379936Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1380309Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1380687Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1381064Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Local LLM Enrichment	2026-07-12T07:20:39.1381364Z ##[endgroup]
+automation	Local LLM Enrichment	2026-07-12T07:20:39.9112798Z 2026-07-12 07:20:39,910 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+automation	Local LLM Enrichment	2026-07-12T07:20:39.9113825Z 2026-07-12 07:20:39,911 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+automation	Local LLM Enrichment	2026-07-12T07:20:42.0890498Z 2026-07-12 07:20:42,088 - glintory.services.opportunity_enrichment_service - WARNING - Skipping opportunity 81e7e4f3-aae2-4092-a7df-70dd7ffa7203 (LLM_NO_EVIDENCE).
+automation	Local LLM Enrichment	2026-07-12T07:20:42.0895131Z 2026-07-12 07:20:42,088 - glintory.services.opportunity_enrichment_service - WARNING - Skipping opportunity 409c3b3d-a3c9-4ee7-a240-b063e42afb6f (LLM_NO_EVIDENCE).
+automation	Local LLM Enrichment	2026-07-12T07:20:44.1309491Z 2026-07-12 07:20:44,130 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8088/health "HTTP/1.1 503 Service Unavailable"
+automation	Local LLM Enrichment	2026-07-12T07:20:44.6506117Z 2026-07-12 07:20:44,650 - httpx - INFO - HTTP Request: GET http://127.0.0.1:8088/health "HTTP/1.1 200 OK"
+automation	Local LLM Enrichment	2026-07-12T07:22:09.1841230Z 2026-07-12 07:22:09,183 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8088/v1/chat/completions "HTTP/1.1 200 OK"
+automation	Local LLM Enrichment	2026-07-12T07:23:27.3435799Z 2026-07-12 07:23:27,342 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8088/v1/chat/completions "HTTP/1.1 200 OK"
+automation	Local LLM Enrichment	2026-07-12T07:24:35.9380446Z 2026-07-12 07:24:35,937 - httpx - INFO - HTTP Request: POST http://127.0.0.1:8088/v1/chat/completions "HTTP/1.1 200 OK"
+automation	Local LLM Enrichment	2026-07-12T07:24:36.2549487Z {"operational_status": "success", "selected_count": 5, "succeeded_count": 3, "failed_count": 0, "skipped_count": 2, "warning_codes": ["LLM_NO_EVIDENCE"]}
+automation	Write Actions Summary	﻿2026-07-12T07:24:36.2755437Z ##[group]Run {
+automation	Write Actions Summary	2026-07-12T07:24:36.2755726Z ^[[36;1m{^[[0m
+automation	Write Actions Summary	2026-07-12T07:24:36.2755989Z ^[[36;1m  echo "### Glintory Scheduled Automation Summary"^[[0m
+automation	Write Actions Summary	2026-07-12T07:24:36.2756376Z ^[[36;1m  echo "- **Collection Status:** $COLLECTION_STATUS"^[[0m
+automation	Write Actions Summary	2026-07-12T07:24:36.2756773Z ^[[36;1m  echo "- **Collection Succeeded Count:** $SUCCEEDED_COUNT"^[[0m
+automation	Write Actions Summary	2026-07-12T07:24:36.2757165Z ^[[36;1m  echo "- **Collection Failed Count:** $FAILED_COUNT"^[[0m
+automation	Write Actions Summary	2026-07-12T07:24:36.2757495Z ^[[36;1m} >> "$GITHUB_STEP_SUMMARY"^[[0m
+automation	Write Actions Summary	2026-07-12T07:24:36.2790343Z shell: /usr/bin/bash -e {0}
+automation	Write Actions Summary	2026-07-12T07:24:36.2790605Z env:
+automation	Write Actions Summary	2026-07-12T07:24:36.2790901Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Write Actions Summary	2026-07-12T07:24:36.2791380Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Write Actions Summary	2026-07-12T07:24:36.2791836Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Write Actions Summary	2026-07-12T07:24:36.2792253Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Write Actions Summary	2026-07-12T07:24:36.2792551Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Write Actions Summary	2026-07-12T07:24:36.2792905Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Write Actions Summary	2026-07-12T07:24:36.2793248Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Write Actions Summary	2026-07-12T07:24:36.2793619Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Write Actions Summary	2026-07-12T07:24:36.2794326Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Write Actions Summary	2026-07-12T07:24:36.2794908Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Write Actions Summary	2026-07-12T07:24:36.2795417Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Write Actions Summary	2026-07-12T07:24:36.2795732Z   LLAMA_CPP_VERSION: b5092
+automation	Write Actions Summary	2026-07-12T07:24:36.2796129Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Write Actions Summary	2026-07-12T07:24:36.2796630Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Write Actions Summary	2026-07-12T07:24:36.2797116Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Write Actions Summary	2026-07-12T07:24:36.2797602Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Write Actions Summary	2026-07-12T07:24:36.2798011Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Write Actions Summary	2026-07-12T07:24:36.2798590Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Write Actions Summary	2026-07-12T07:24:36.2799251Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Write Actions Summary	2026-07-12T07:24:36.2799814Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write Actions Summary	2026-07-12T07:24:36.2800255Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Write Actions Summary	2026-07-12T07:24:36.2800680Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write Actions Summary	2026-07-12T07:24:36.2801054Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write Actions Summary	2026-07-12T07:24:36.2801433Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write Actions Summary	2026-07-12T07:24:36.2801826Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Write Actions Summary	2026-07-12T07:24:36.2802409Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Write Actions Summary	2026-07-12T07:24:36.2802725Z   COLLECTION_STATUS: success
+automation	Write Actions Summary	2026-07-12T07:24:36.2802963Z   SUCCEEDED_COUNT: 0
+automation	Write Actions Summary	2026-07-12T07:24:36.2803174Z   FAILED_COUNT: 0
+automation	Write Actions Summary	2026-07-12T07:24:36.2803375Z ##[endgroup]
+automation	Write LLM Enrichment Summary	﻿2026-07-12T07:24:36.2901508Z ##[group]Run {
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2901784Z ^[[36;1m{^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2902019Z ^[[36;1m  echo "- **LLM Enabled:** $LLM_ENABLED"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2902344Z ^[[36;1m  echo "- **LLM Model:** $LLM_MODEL"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2902660Z ^[[36;1m  echo "- **LLM Revision:** $LLM_REVISION"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2903018Z ^[[36;1m  echo "- **LLM Selected Count:** $ENRICHMENT_SELECTED"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2903417Z ^[[36;1m  echo "- **LLM Succeeded Count:** $ENRICHMENT_SUCCEEDED"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2903798Z ^[[36;1m  echo "- **LLM Failed Count:** $ENRICHMENT_FAILED"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2904459Z ^[[36;1m  echo "- **LLM Skipped Count:** $ENRICHMENT_SKIPPED"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2904877Z ^[[36;1m  echo "- **LLM Warning Codes:** $ENRICHMENT_WARNINGS"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2905207Z ^[[36;1m} >> "$GITHUB_STEP_SUMMARY"^[[0m
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2937481Z shell: /usr/bin/bash -e {0}
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2937743Z env:
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2938040Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2938538Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2938975Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2939352Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2939654Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2939953Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2940292Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2940655Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2941097Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2941700Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2954407Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2954761Z   LLAMA_CPP_VERSION: b5092
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2955170Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2955712Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2956285Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2956783Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2957174Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2957742Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2958389Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2958929Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2959359Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2959778Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2960160Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2960542Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2960924Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2961293Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2961594Z   LLM_ENABLED: true
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2961817Z   LLM_MODEL: Qwen3-1.7B-Q8_0.gguf
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2962115Z   LLM_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2962428Z   ENRICHMENT_SELECTED: 5
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2962661Z   ENRICHMENT_SUCCEEDED: 3
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2962896Z   ENRICHMENT_FAILED: 0
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2963417Z   ENRICHMENT_SKIPPED: 2
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2963653Z   ENRICHMENT_WARNINGS: LLM_NO_EVIDENCE
+automation	Write LLM Enrichment Summary	2026-07-12T07:24:36.2964186Z ##[endgroup]
+automation	Generate public static site	﻿2026-07-12T07:24:36.3052861Z ##[group]Run uv run glintory publish build \
+automation	Generate public static site	2026-07-12T07:24:36.3053237Z ^[[36;1muv run glintory publish build \^[[0m
+automation	Generate public static site	2026-07-12T07:24:36.3053531Z ^[[36;1m  --output-dir dist \^[[0m
+automation	Generate public static site	2026-07-12T07:24:36.3053797Z ^[[36;1m  --base-path /glintory \^[[0m
+automation	Generate public static site	2026-07-12T07:24:36.3054494Z ^[[36;1m  --site-url "$GLINTORY_PUBLIC_SITE_URL" \^[[0m
+automation	Generate public static site	2026-07-12T07:24:36.3054805Z ^[[36;1m  --json^[[0m
+automation	Generate public static site	2026-07-12T07:24:36.3086079Z shell: /usr/bin/bash -e {0}
+automation	Generate public static site	2026-07-12T07:24:36.3086332Z env:
+automation	Generate public static site	2026-07-12T07:24:36.3086630Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Generate public static site	2026-07-12T07:24:36.3087094Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Generate public static site	2026-07-12T07:24:36.3087542Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Generate public static site	2026-07-12T07:24:36.3087921Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Generate public static site	2026-07-12T07:24:36.3088238Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Generate public static site	2026-07-12T07:24:36.3088579Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Generate public static site	2026-07-12T07:24:36.3088918Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Generate public static site	2026-07-12T07:24:36.3089316Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Generate public static site	2026-07-12T07:24:36.3089764Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Generate public static site	2026-07-12T07:24:36.3090342Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Generate public static site	2026-07-12T07:24:36.3090848Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Generate public static site	2026-07-12T07:24:36.3091155Z   LLAMA_CPP_VERSION: b5092
+automation	Generate public static site	2026-07-12T07:24:36.3091544Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Generate public static site	2026-07-12T07:24:36.3092030Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Generate public static site	2026-07-12T07:24:36.3092503Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Generate public static site	2026-07-12T07:24:36.3092969Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Generate public static site	2026-07-12T07:24:36.3093353Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Generate public static site	2026-07-12T07:24:36.3094185Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Generate public static site	2026-07-12T07:24:36.3094869Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Generate public static site	2026-07-12T07:24:36.3095399Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Generate public static site	2026-07-12T07:24:36.3095819Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Generate public static site	2026-07-12T07:24:36.3096230Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Generate public static site	2026-07-12T07:24:36.3096603Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Generate public static site	2026-07-12T07:24:36.3096982Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Generate public static site	2026-07-12T07:24:36.3097359Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Generate public static site	2026-07-12T07:24:36.3097738Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Generate public static site	2026-07-12T07:24:36.3098043Z ##[endgroup]
+automation	Generate public static site	2026-07-12T07:24:37.0966885Z 2026-07-12 07:24:37,096 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+automation	Generate public static site	2026-07-12T07:24:37.0968026Z 2026-07-12 07:24:37,096 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+automation	Generate public static site	2026-07-12T07:24:42.6856939Z PAGES_BUILD_FAILED
+automation	Validate Public Data Contract	﻿2026-07-12T07:24:42.9127250Z ##[group]Run uv run glintory publish validate-contract --dir dist
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9127761Z ^[[36;1muv run glintory publish validate-contract --dir dist^[[0m
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9160319Z shell: /usr/bin/bash -e {0}
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9160574Z env:
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9160861Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9161316Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9161743Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9162115Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9162608Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9162902Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9163235Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9163590Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9164437Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9165089Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9165601Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9165910Z   LLAMA_CPP_VERSION: b5092
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9166298Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9166781Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9167249Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9167713Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9168096Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9168662Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9169311Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9169842Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9170261Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9170679Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9171049Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9171428Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9171805Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9172169Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Validate Public Data Contract	2026-07-12T07:24:42.9172470Z ##[endgroup]
+automation	Validate Public Data Contract	2026-07-12T07:24:43.6925282Z 2026-07-12 07:24:43,692 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+automation	Validate Public Data Contract	2026-07-12T07:24:43.6926369Z 2026-07-12 07:24:43,692 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+automation	Validate Public Data Contract	2026-07-12T07:24:43.7641189Z Validation error: Missing required contract file: manifest.json
+automation	Write JuryPress Feed Integration Summary	﻿2026-07-12T07:24:43.9459336Z ##[group]Run MANIFEST="dist/data/v1/manifest.json"
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9459755Z ^[[36;1mMANIFEST="dist/data/v1/manifest.json"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9460111Z ^[[36;1mSCHEMA_VER=$(jq -r '.schema_version' "$MANIFEST")^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9460484Z ^[[36;1mDATASET_HASH=$(jq -r '.content_hash' "$MANIFEST")^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9460898Z ^[[36;1mPUB_COUNT=$(jq -r '.counts.published_opportunities' "$MANIFEST")^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9461347Z ^[[36;1mREADY_COUNT=$(jq -r '.counts.jurypress_ready' "$MANIFEST")^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9461747Z ^[[36;1mMIN_SCORE="${GLINTORY_JURYPRESS_MIN_SCORE:-60}"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9462131Z ^[[36;1mCOMMIT_SHA=$(jq -r '.source_commit' "$MANIFEST")^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9462437Z ^[[36;1m^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9462625Z ^[[36;1m{^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9462891Z ^[[36;1m  echo "### Public Data Contract & JuryPress Integration"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9463295Z ^[[36;1m  echo "- **Public Contract Schema Version:** $SCHEMA_VER"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9463678Z ^[[36;1m  echo "- **Dataset Content Hash:** $DATASET_HASH"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9464476Z ^[[36;1m  echo "- **Published Opportunity Count:** $PUB_COUNT"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9464859Z ^[[36;1m  echo "- **JuryPress Ready Count:** $READY_COUNT"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9465206Z ^[[36;1m  echo "- **JuryPress Minimum Score:** $MIN_SCORE"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9465531Z ^[[36;1m  echo "- **Source Commit:** $COMMIT_SHA"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9465875Z ^[[36;1m  echo "- **Contract Validation Status:** Succeeded"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9466183Z ^[[36;1m  echo ""^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9466433Z ^[[36;1m  echo "#### JuryPress Feed Inspection Details"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9467009Z ^[[36;1m  uv run glintory publish inspect-jurypress-feed --dir dist^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9467362Z ^[[36;1m} >> "$GITHUB_STEP_SUMMARY"^[[0m
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9499679Z shell: /usr/bin/bash -e {0}
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9499925Z env:
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9500215Z   GLINTORY_DATABASE_URL: sqlite:///.state/public-glintory.sqlite3
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9500669Z   GLINTORY_PUBLIC_SITE_URL: https://yosuke1024.github.io/glintory
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9501103Z   GLINTORY_REPOSITORY_URL: https://github.com/yosuke1024/glintory
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9501486Z   GLINTORY_PIXAPPS_URL: https://pixapps.ai
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9501772Z   GLINTORY_LOCAL_LLM_ENABLED: true
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9502062Z   GLINTORY_LOCAL_LLM_MODEL_REPO: Qwen/Qwen3-1.7B-GGUF
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9502391Z   GLINTORY_LOCAL_LLM_MODEL_FILE: Qwen3-1.7B-Q8_0.gguf
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9502738Z   GLINTORY_LOCAL_LLM_MODEL_PATH: ./models/Qwen3-1.7B-Q8_0.gguf
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9503165Z   GLINTORY_LOCAL_LLM_MODEL_REVISION: 90862c4b9d2787eaed51d12237eafdfe7c5f6077
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9503731Z   GLINTORY_LOCAL_LLM_MODEL_SHA256: 061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9504620Z   GLINTORY_LOCAL_LLM_BINARY_PATH: ./bin/llama-server
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9504942Z   LLAMA_CPP_VERSION: b5092
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9505331Z   LLAMA_CPP_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9505824Z   LLAMA_CPP_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9506308Z   LLAMA_CPP_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9506761Z   GLINTORY_LOCAL_LLM_RUNTIME_VERSION: b5092
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9507146Z   GLINTORY_LOCAL_LLM_RUNTIME_COMMIT: d3bd7193ba66c15963fd1c59448f22019a8caf6e
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9507712Z   GLINTORY_LOCAL_LLM_BINARY_SHA256: f7396752344cc252f57339ad62912a79559b3dd8c80b0c2d49cce0a6fb6ca41e
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9508353Z   GLINTORY_LOCAL_LLM_ARCHIVE_SHA256: 36663ade5c921c51f95bb9bd4107752de8d036b24ffef482ac6507a4e1abf0e5
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9508880Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9509295Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9509712Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9510085Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9510663Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9511046Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9511409Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9511701Z ##[endgroup]
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9590216Z jq: error: Could not open file dist/data/v1/manifest.json: No such file or directory
+automation	Write JuryPress Feed Integration Summary	2026-07-12T07:24:43.9606347Z ##[error]Process completed with exit code 2.
+automation	Post Checkout codebase	﻿2026-07-12T07:24:43.9734179Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+automation	Post Checkout codebase	2026-07-12T07:24:43.9735549Z Post job cleanup.
+automation	Post Checkout codebase	2026-07-12T07:24:44.0623541Z [command]/usr/bin/git version
+automation	Post Checkout codebase	2026-07-12T07:24:44.0671218Z git version 2.54.0
+automation	Post Checkout codebase	2026-07-12T07:24:44.0713602Z Temporarily overriding HOME='/home/runner/work/_temp/c0e76c74-1b18-46d5-bec4-6daf02acad24' before making global git config changes
+automation	Post Checkout codebase	2026-07-12T07:24:44.0715455Z Adding repository directory to the temporary git global config as a safe directory
+automation	Post Checkout codebase	2026-07-12T07:24:44.0720930Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/glintory/glintory
+automation	Post Checkout codebase	2026-07-12T07:24:44.0771190Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+automation	Post Checkout codebase	2026-07-12T07:24:44.0843449Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+automation	Post Checkout codebase	2026-07-12T07:24:44.1111678Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+automation	Post Checkout codebase	2026-07-12T07:24:44.1149170Z http.https://github.com/.extraheader
+automation	Post Checkout codebase	2026-07-12T07:24:44.1165924Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+automation	Post Checkout codebase	2026-07-12T07:24:44.1216498Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+automation	Complete job	﻿2026-07-12T07:24:44.1723202Z Evaluate and set job outputs
+automation	Complete job	2026-07-12T07:24:44.1750226Z Set output 'collection_exit_code'
+automation	Complete job	2026-07-12T07:24:44.1752023Z Set output 'collection_status'
+automation	Complete job	2026-07-12T07:24:44.1752695Z Set output 'due_count'
+automation	Complete job	2026-07-12T07:24:44.1753020Z Set output 'succeeded_count'
+automation	Complete job	2026-07-12T07:24:44.1753348Z Set output 'partial_count'
+automation	Complete job	2026-07-12T07:24:44.1753691Z Set output 'failed_count'
+automation	Complete job	2026-07-12T07:24:44.1754294Z Set output 'restored_asset_id'
+automation	Complete job	2026-07-12T07:24:44.1754662Z Set output 'restored_asset_name'
+automation	Complete job	2026-07-12T07:24:44.1755002Z Set output 'started_at'
+automation	Complete job	2026-07-12T07:24:44.1755724Z Cleaning up orphan processes
+automation	Complete job	2026-07-12T07:24:44.2146880Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57, actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f, astral-sh/setup-uv@1edb52594c857e2b5b13128931090f0640537287. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -217,6 +217,7 @@ class OpportunityAnalysisService:
                             else:
                                 opp.status = OpportunityStatus.REJECTED
                         opp.evidence_updated_at = now
+                        opp.public_lifecycle = "active"
             else:
                 # Create a new opportunity
                 rep_signal = cluster["representative_signal"]

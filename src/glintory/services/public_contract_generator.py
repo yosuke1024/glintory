@@ -145,13 +145,23 @@ def evaluate_jurypress_readiness(
 
 def resolve_publication_lifecycle(session: Any, gen_time: datetime) -> None:
     from glintory.domain.enums import Confidence, OpportunityStatus
-    from glintory.domain.models import Opportunity
+    from glintory.domain.models import Opportunity, OpportunitySignal
 
     all_db_opps = session.query(Opportunity).all()
     for op in all_db_opps:
+        sig_count = (
+            session.query(OpportunitySignal)
+            .filter(
+                OpportunitySignal.opportunity_id == op.id,
+                OpportunitySignal.is_excluded.is_(False),
+            )
+            .count()
+        )
+
         is_active_candidate = (
             op.current_scoring_version == "v2"
-            and op.public_lifecycle != "merged"
+            and op.public_lifecycle not in ("merged", "retired")
+            and sig_count > 0
             and (
                 (
                     op.status == OpportunityStatus.INBOX
