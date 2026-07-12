@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from glintory.domain.clustering import OpportunityClusteringConfig
-from glintory.domain.enums import EvidenceRelationType, OpportunityStatus, SignalRole
+from glintory.domain.enums import EvidenceRelationType, OpportunityStatus
 from glintory.domain.models import AnalysisRun, Opportunity, OpportunitySignal, Signal
 from glintory.infrastructure.opportunity_clustering_repository import (
     OpportunityClusteringRepository,
@@ -185,7 +185,9 @@ class OpportunityAnalysisService:
                             for opp_sig, sig in all_links
                         ]
 
-                        from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+                        from glintory.services.gate_v3 import (
+                            calculate_metrics_and_gate_v3,
+                        )
                         metrics, gate_status_str, passed_published, reason = calculate_metrics_and_gate_v3(
                             ev_signals_input
                         )

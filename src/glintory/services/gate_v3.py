@@ -1,9 +1,10 @@
-import re
 import urllib.parse
 from typing import Any
-from glintory.domain.enums import SignalRole, SignalType
+
 from glintory.domain.clustering import calculate_evidence_origin
+from glintory.domain.enums import SignalRole, SignalType
 from glintory.services.signal_facets import extract_signal_facets
+
 
 def check_contextual_negative(text: str) -> dict[str, bool]:
     """Context-aware negative keyword matching to avoid false positives."""
@@ -36,27 +37,23 @@ def check_contextual_negative(text: str) -> dict[str, bool]:
 
     # Heavy Backend Check
     has_backend_word = any(w in text_lower for w in backend_words)
-    if has_backend_word:
-        if not any(is_in_negative_context(w) for w in backend_words if w in text_lower):
-            heavy_backend = True
+    if has_backend_word and not any(is_in_negative_context(w) for w in backend_words if w in text_lower):
+        heavy_backend = True
 
     # Enterprise Sales Check
     has_sales_word = any(w in text_lower for w in sales_words)
-    if has_sales_word:
-        if not any(is_in_negative_context(w) for w in sales_words if w in text_lower):
-            enterprise_sales = True
+    if has_sales_word and not any(is_in_negative_context(w) for w in sales_words if w in text_lower):
+        enterprise_sales = True
 
     # AI Cost Check
     has_ai_cost_word = any(w in text_lower for w in ai_cost_words)
-    if has_ai_cost_word:
-        if not any(is_in_negative_context(w) for w in ai_cost_words if w in text_lower):
-            recurring_ai_cost = True
+    if has_ai_cost_word and not any(is_in_negative_context(w) for w in ai_cost_words if w in text_lower):
+        recurring_ai_cost = True
 
     # Solo Unsuitable Check
     has_solo_word = any(w in text_lower for w in solo_unsuitable_words)
-    if has_solo_word:
-        if not any(is_in_negative_context(w) for w in solo_unsuitable_words if w in text_lower):
-            solo_unsuitable = True
+    if has_solo_word and not any(is_in_negative_context(w) for w in solo_unsuitable_words if w in text_lower):
+        solo_unsuitable = True
 
     return {
         "heavy_backend": heavy_backend,
@@ -99,7 +96,7 @@ def calculate_metrics_and_gate_v3(cluster_signals: list[dict[str, Any]]) -> tupl
 
     # Count unique demand evidence origins
     demand_count = 0
-    for origin, sigs_in_origin in origins.items():
+    for _origin, sigs_in_origin in origins.items():
         if any(sig.signal_role == SignalRole.DEMAND for sig in sigs_in_origin):
             demand_count += 1
 
@@ -179,11 +176,10 @@ def calculate_metrics_and_gate_v3(cluster_signals: list[dict[str, Any]]) -> tupl
 
     # 3. Check for Published Opportunity (Condition A or Condition B)
     # Condition A: Multiple independent evidences
-    if independent_count >= 2:
+    if independent_count >= 2 and demand_count >= 1:
         # Evidence must support the same problem concept (since they are in the same cluster, TF-IDF handles this,
         # but we also verify demand count >= 1 and no exclusion)
-        if demand_count >= 1:
-            return metrics, "passed", True, "Passed Condition A: Multiple independent evidences with demand."
+        return metrics, "passed", True, "Passed Condition A: Multiple independent evidences with demand."
 
     # Condition B: Strong Detailed Single Demand
     if independent_count == 1:

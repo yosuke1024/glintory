@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from glintory.config import settings
 from glintory.domain.enrichment_contract import PROMPT_VERSION, SCHEMA_VERSION
-from glintory.domain.enums import OpportunityStatus, SignalType, Confidence
+from glintory.domain.enums import OpportunityStatus, SignalType
 from glintory.domain.models import (
     Opportunity,
     OpportunitySignal,
@@ -766,7 +766,7 @@ def build_static_site(
             comb_e = " ".join((sig.excerpt or "") for sig, _ in opp_signals)
             facets = extract_signal_facets(comb_t, comb_e, "generic", SignalType.TREND)
             sc = facets["structural_completeness"]
-            for k in missing_facets_summary.keys():
+            for k in missing_facets_summary:
                 if sc.get(k) == "missing":
                     missing_facets_summary[k] += 1
 

@@ -1,13 +1,11 @@
-import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
 from glintory.domain.clustering import OpportunityClusteringConfig
-from glintory.domain.enums import EvidenceRelationType, OpportunityStatus, SignalRole
+from glintory.domain.enums import EvidenceRelationType, OpportunityStatus
 from glintory.domain.models import (
     AnalysisRun,
     Opportunity,

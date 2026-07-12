@@ -867,7 +867,10 @@ def test_rejected_status_merges_future_evidence(test_db):
     session.commit()
 
     repo = OpportunityClusteringRepository(session)
-    from glintory.services.opportunity_analysis import OpportunityClusteringEngine, OpportunityClusteringConfig
+    from glintory.services.opportunity_analysis import (
+        OpportunityClusteringConfig,
+        OpportunityClusteringEngine,
+    )
     config = OpportunityClusteringConfig(similarity_threshold=0.1)
     engine = OpportunityClusteringEngine(config)
     service = OpportunityAnalysisService(session, repo, engine, config)

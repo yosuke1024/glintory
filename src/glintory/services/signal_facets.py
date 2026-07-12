@@ -1,6 +1,8 @@
 import re
 from typing import Any
+
 from glintory.domain.enums import SignalRole, SignalType
+
 
 def extract_signal_facets(
     title: str,
@@ -108,7 +110,7 @@ def extract_signal_facets(
         "as", "from", "into", "through", "during", "before", "after", "above", "below"
     }
     raw_tokens = re.findall(r"\b[a-z0-9\-]{3,}\b", text_lower)
-    problem_concept_tokens = sorted(list(set(t for t in raw_tokens if t not in stop_words)))
+    problem_concept_tokens = sorted({t for t in raw_tokens if t not in stop_words})
 
     # Determine role based on classifications and text clues
     role = SignalRole.UNKNOWN

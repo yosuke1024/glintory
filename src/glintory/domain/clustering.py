@@ -18,7 +18,6 @@ def calculate_evidence_origin(source_type: str, canonical_url: str) -> str:
     - RSS pointing to HN: same "hackernews:item:<item_id>".
     - Generic Web: host + normalized path (removing tracking query parameters).
     """
-    import urllib.parse
     import re
 
     url = canonical_url or ""

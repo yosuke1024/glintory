@@ -594,7 +594,6 @@ class OpportunityScoringEngine:
         as_of_date: date,
     ) -> OpportunityScore:
         import re
-        from urllib.parse import urlparse
 
         from glintory.domain.enums import SignalRole
 
@@ -626,7 +625,7 @@ class OpportunityScoringEngine:
 
         independent_evidence_count = len(origins)
         demand_evidence_count = 0
-        for origin, sigs_in_origin in origins.items():
+        for _origin, sigs_in_origin in origins.items():
             if any(sig.signal_role == SignalRole.DEMAND for sig in sigs_in_origin):
                 demand_evidence_count += 1
 

@@ -1,11 +1,10 @@
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
-from glintory.domain.enums import SignalRole, SignalType, OpportunityStatus
-from glintory.domain.models import Signal, Source
 from glintory.domain.clustering import calculate_evidence_origin
-from glintory.services.gate_v3 import calculate_metrics_and_gate_v3, check_contextual_negative
+from glintory.domain.enums import SignalRole, SignalType
+from glintory.services.gate_v3 import calculate_metrics_and_gate_v3
+
 
 class DummySource:
     def __init__(self, source_type: str):
