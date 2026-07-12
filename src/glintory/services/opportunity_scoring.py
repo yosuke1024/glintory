@@ -621,7 +621,7 @@ class OpportunityScoringEngine:
         origins = {}
         for sig in positive_signals:
             origin = calculate_evidence_origin(
-                sig.source_type or "generic", sig.canonical_url
+                sig.source_type or "generic", sig.canonical_url or ""
             )
             origins.setdefault(origin, []).append(sig)
 

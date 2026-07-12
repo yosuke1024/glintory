@@ -20,7 +20,7 @@ class DummySignal:
         canonical_url: str,
         signal_role: SignalRole,
         signal_type: SignalType,
-        collected_at: datetime = None,
+        collected_at: datetime | None = None,
     ):
         self.title = title
         self.excerpt = excerpt
