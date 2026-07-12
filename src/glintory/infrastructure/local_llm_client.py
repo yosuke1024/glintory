@@ -489,8 +489,8 @@ class LocalLlmProvider:
 
                 try:
                     brief = BilingualOpportunityBrief.model_validate(data)
-                except Exception:
-                    logger.error("LLM_SCHEMA_VALIDATION_FAILED")
+                except Exception as e:
+                    logger.error("LLM_SCHEMA_VALIDATION_FAILED: BilingualOpportunityBrief validation failed. Error: %s, Raw content: %s", e, content)
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_SCHEMA_VALIDATION_FAILED",
@@ -501,14 +501,14 @@ class LocalLlmProvider:
                     input_evidence_ids = {e["id"] for e in request.evidence}
                     for ref in brief.evidence_refs:
                         if ref not in input_evidence_ids:
-                            logger.error("LLM_SCHEMA_VALIDATION_FAILED")
+                            logger.error("LLM_SCHEMA_VALIDATION_FAILED: evidence ref %s not in input evidence ids %s. Raw content: %s", ref, input_evidence_ids, content)
                             return OpportunityEnrichmentResponse(
                                 status="invalid_output",
                                 error_code="LLM_SCHEMA_VALIDATION_FAILED",
                                 duration_ms=duration_ms,
                             )
-                except Exception:
-                    logger.error("LLM_SCHEMA_VALIDATION_FAILED")
+                except Exception as e:
+                    logger.error("LLM_SCHEMA_VALIDATION_FAILED: evidence ref check failed. Error: %s, Raw content: %s", e, content)
                     return OpportunityEnrichmentResponse(
                         status="invalid_output",
                         error_code="LLM_SCHEMA_VALIDATION_FAILED",
