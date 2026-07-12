@@ -188,7 +188,6 @@ def main() -> None:
             ["uv", "run", "pytest"],
             cwd=temp_workspace,
             log_file="logs/pytest.log",
-            env=test_env,
         )
         quality_gates["pytest"] = res_pytest
         if res_pytest["status"] != "passed":
@@ -517,7 +516,6 @@ def main() -> None:
             ["uv", "run", "pytest"],
             cwd=temp_verify,
             log_file="logs/package_self_verification.log",
-            env=verify_env,
         )
         if res_v_pytest["status"] != "passed":
             raise ValueError("Self-verify pytest suite failed.")
