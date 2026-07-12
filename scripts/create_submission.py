@@ -198,6 +198,16 @@ def main() -> None:
     test_env = os.environ.copy()
     test_env["DATABASE_URL"] = f"sqlite:///{fixture_db_path}"
 
+    # Run migrations on default test database location so integration tests do not fail on missing tables
+    if gate_ok:
+        res_pre_mig = run_command_logged(
+            ["uv", "run", "alembic", "upgrade", "head"],
+            cwd=temp_workspace,
+            log_file="logs/pytest_migration.log",
+        )
+        if res_pre_mig["status"] != "passed":
+            gate_ok = False
+
     # 3B. pytest
     if gate_ok:
         res_pytest = run_command_logged(
@@ -527,6 +537,15 @@ def main() -> None:
         )
         if res_v_seed["status"] != "passed":
             raise ValueError("Self-verify database seeding failed.")
+
+        # Run migrations on default verify database location so integration tests pass
+        res_v_pre_mig = run_command_logged(
+            ["uv", "run", "alembic", "upgrade", "head"],
+            cwd=temp_verify,
+            log_file="logs/package_self_verification.log",
+        )
+        if res_v_pre_mig["status"] != "passed":
+            raise ValueError("Self-verify default database migration failed.")
 
         # Run Pytest in verify workspace
         res_v_pytest = run_command_logged(
