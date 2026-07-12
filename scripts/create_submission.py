@@ -194,9 +194,10 @@ def main() -> None:
     if os.path.exists(fixture_db_path):
         os.remove(fixture_db_path)
 
-    # Override DATABASE_URL for subsequent commands using absolute path to prevent duplication errors
+    # Override DATABASE_URL and GLINTORY_DATABASE_URL for subsequent commands using absolute path to prevent duplication errors
     test_env = os.environ.copy()
     test_env["DATABASE_URL"] = f"sqlite:///{os.path.abspath(fixture_db_path)}"
+    test_env["GLINTORY_DATABASE_URL"] = test_env["DATABASE_URL"]
 
     # Run migrations on default test database location so integration tests do not fail on missing tables
     if gate_ok:
@@ -586,6 +587,7 @@ def main() -> None:
         verify_db = os.path.join(temp_verify, "glintory_fixture.db")
         verify_env = os.environ.copy()
         verify_env["DATABASE_URL"] = f"sqlite:///{os.path.abspath(verify_db)}"
+        verify_env["GLINTORY_DATABASE_URL"] = verify_env["DATABASE_URL"]
 
         # Seed verify database
         res_v_seed = run_command_logged(
