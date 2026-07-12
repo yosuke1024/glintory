@@ -5,7 +5,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True, slots=True)
 class OpportunityClusteringConfig:
     similarity_threshold: float = 0.35
-    cluster_version: str = "v1"
+    cluster_version: str = "v2"
     min_signals_per_cluster: int = 1
 
 
@@ -41,7 +41,9 @@ def calculate_evidence_origin(source_type: str, canonical_url: str) -> str:
     normalized_url = urllib.parse.urlunparse(normalized_url_parsed)
 
     # 1. HN Item detection
-    hn_match = re.search(r"news\.ycombinator\.com/item\?id=(\d+)", normalized_url)
+    hn_match = re.search(
+        r"news\.ycombinator\.com/item\?(?:.*&)?id=(\d+)", normalized_url
+    )
     if hn_match:
         return f"hackernews:item:{hn_match.group(1)}"
 

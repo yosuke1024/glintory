@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analyze_parser.add_argument(
         "--cluster-version",
-        default="v1",
+        default="v2",
         help="Clustering algorithm version",
     )
     analyze_parser.add_argument(
@@ -415,12 +415,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="subcommand", required=True
     )
     rebuild_parser = opportunities_subparsers.add_parser(
-        "rebuild", help="Rebuild opportunities from v1 to v2"
+        "rebuild", help="Rebuild opportunities from v1/v2 to v2"
     )
     rebuild_parser.add_argument(
         "--from-score-version",
         required=True,
-        choices=["v1"],
+        choices=["v1", "v2"],
         help="Source scoring version to rebuild from",
     )
     rebuild_parser.add_argument(
@@ -428,6 +428,21 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         choices=["v2"],
         help="Target scoring version to rebuild to",
+    )
+    rebuild_parser.add_argument(
+        "--reclassify-signals",
+        action="store_true",
+        help="Reclassify all signals roles and types before clustering",
+    )
+    rebuild_parser.add_argument(
+        "--cluster-version",
+        default="v2",
+        help="Clustering version to write",
+    )
+    rebuild_parser.add_argument(
+        "--gate-version",
+        default="v3",
+        help="Gate version to write",
     )
     rebuild_parser.add_argument(
         "--json", action="store_true", help="Output in JSON format"
@@ -1769,7 +1784,11 @@ async def run_opportunities_command(args: argparse.Namespace, runtime: Any) -> i
 
             service = OpportunityRebuildService(session)
             result = service.rebuild_v2(
-                from_version=from_version, to_version=to_version
+                from_version=from_version,
+                to_version=to_version,
+                reclassify_signals=getattr(args, "reclassify_signals", False),
+                cluster_version=getattr(args, "cluster_version", None),
+                gate_version=getattr(args, "gate_version", None),
             )
 
             if args.json:

@@ -92,6 +92,7 @@ class JuryPressReadinessV1(BasePublicModel):
 class PublicOpportunitySummaryV1(BasePublicModel):
     public_id: str = Field(pattern=r"^opp_[0-9a-f]{32}$")
     public_lifecycle: Literal["active", "merged", "retired"] = "active"
+    stage: Literal["published", "research"] = "published"
     revision: int
     content_hash: str
     first_published_at: datetime | None = None
@@ -105,7 +106,7 @@ class PublicOpportunitySummaryV1(BasePublicModel):
 
 
 class PublicOpportunityListV1(BasePublicModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: Literal["1.1.0"] = "1.1.0"
     generated_at: datetime
     count: int
     items: list[PublicOpportunitySummaryV1]
@@ -131,15 +132,16 @@ class PublicOpportunityScoreDetailV1(BasePublicModel):
 
 
 class PublicOpportunityGateV1(BasePublicModel):
-    version: Literal["v2"] = "v2"
+    version: Literal["v2", "v3"] = "v3"
     status: Literal["passed", "rejected", "failed"]
     reason: str
 
 
 class PublicOpportunityDetailV1(BasePublicModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: Literal["1.1.0"] = "1.1.0"
     public_id: str = Field(pattern=r"^opp_[0-9a-f]{32}$")
     public_lifecycle: Literal["active", "merged", "retired"] = "active"
+    stage: Literal["published", "research"] = "published"
     revision: int
     content_hash: str
     first_published_at: datetime | None = None
@@ -173,7 +175,7 @@ class JuryPressFeedItemV1(BasePublicModel):
 
 
 class JuryPressFeedV1(BasePublicModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: Literal["1.1.0"] = "1.1.0"
     generated_at: datetime
     content_hash: str
     count: int
@@ -182,6 +184,7 @@ class JuryPressFeedV1(BasePublicModel):
 
 class PublicManifestCountsV1(BasePublicModel):
     published_opportunities: int
+    research_candidates: int
     jurypress_ready: int
 
 
@@ -192,7 +195,7 @@ class PublicManifestEndpointsV1(BasePublicModel):
 
 class PublicManifestV1(BasePublicModel):
     contract: Literal["glintory-public-data"] = "glintory-public-data"
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: Literal["1.1.0"] = "1.1.0"
     generated_at: datetime
     dataset_revision: str
     source_commit: str

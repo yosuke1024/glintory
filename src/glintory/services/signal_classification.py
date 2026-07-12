@@ -113,10 +113,11 @@ def classify_signal_role(
     signal_type: SignalType,
     title: str,
     excerpt: str | None,
+    canonical_url: str | None = None,
 ) -> SignalRole:
     from glintory.services.signal_facets import extract_signal_facets
 
-    facets = extract_signal_facets(title, excerpt, source_type, signal_type)
+    facets = extract_signal_facets(title, excerpt, source_type, signal_type, canonical_url)
     return facets["signal_role"]
 
 

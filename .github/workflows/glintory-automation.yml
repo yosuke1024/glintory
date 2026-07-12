@@ -199,6 +199,10 @@ jobs:
         env:
           GLINTORY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Discovery Model Migration if required
+        run: |
+          uv run python scripts/run_discovery_migration.py
+
       - name: Deterministic opportunity analysis and scoring
         run: |
           uv run glintory analyze --json

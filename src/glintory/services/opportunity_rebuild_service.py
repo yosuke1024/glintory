@@ -38,7 +38,12 @@ class OpportunityRebuildService:
         return metrics, passed_published, reason
 
     def rebuild_v2(
-        self, from_version: str = "v1", to_version: str = "v2"
+        self,
+        from_version: str = "v1",
+        to_version: str = "v2",
+        reclassify_signals: bool = False,
+        cluster_version: str = "v2",
+        gate_version: str = "v3",
     ) -> dict[str, Any]:
         """Perform a non-destructive rebuild of opportunities for version to_version."""
         now = datetime.now(UTC)
@@ -113,34 +118,47 @@ class OpportunityRebuildService:
                 "public_content_hash": opp.public_content_hash,
             }
 
-        # Reclassify from_version signals
+        # Get from_version opportunities to count them in result
         from_opps = (
             self.session.query(Opportunity)
             .filter(Opportunity.current_scoring_version == from_version)
             .all()
         )
-        from_opp_ids = [opp.id for opp in from_opps]
-        from_opp_sigs = (
-            self.session.query(OpportunitySignal)
-            .filter(OpportunitySignal.opportunity_id.in_(from_opp_ids))
-            .all()
-            if from_opp_ids
-            else []
-        )
-        from_sig_ids = list({osig.signal_id for osig in from_opp_sigs})
 
-        signals_to_reclassify = (
-            self.session.query(Signal).filter(Signal.id.in_(from_sig_ids)).all()
-            if from_sig_ids
-            else []
-        )
-        for sig in signals_to_reclassify:
-            src = sig.source
-            src_type = src.source_type if src else "unknown"
-            sig.signal_role = classify_signal_role(
-                src_type, sig.signal_type, sig.title, sig.excerpt
+        # Reclassify signals if requested
+        if reclassify_signals:
+            signals_to_reclassify = self.session.query(Signal).all()
+            for sig in signals_to_reclassify:
+                src = sig.source
+                src_type = src.source_type if src else "unknown"
+                sig.signal_role = classify_signal_role(
+                    src_type, sig.signal_type, sig.title, sig.excerpt, sig.canonical_url
+                )
+            self.session.flush()
+        else:
+            # Reclassify from_version signals
+            from_opp_ids = [opp.id for opp in from_opps]
+            from_opp_sigs = (
+                self.session.query(OpportunitySignal)
+                .filter(OpportunitySignal.opportunity_id.in_(from_opp_ids))
+                .all()
+                if from_opp_ids
+                else []
             )
-        self.session.flush()
+            from_sig_ids = list({osig.signal_id for osig in from_opp_sigs})
+
+            signals_to_reclassify = (
+                self.session.query(Signal).filter(Signal.id.in_(from_sig_ids)).all()
+                if from_sig_ids
+                else []
+            )
+            for sig in signals_to_reclassify:
+                src = sig.source
+                src_type = src.source_type if src else "unknown"
+                sig.signal_role = classify_signal_role(
+                    src_type, sig.signal_type, sig.title, sig.excerpt, sig.canonical_url
+                )
+            self.session.flush()
 
         # Clean existing links
         existing_opp_ids = [opp.id for opp in existing_opps]
@@ -237,7 +255,8 @@ class OpportunityRebuildService:
                     opp.demand_evidence_count = metrics["demand_evidence_count"]
                     opp.source_type_count = metrics["source_type_count"]
                     opp.source_domain_count = metrics["source_domain_count"]
-                    opp.gate_version = "v3"
+                    opp.gate_version = gate_version
+                    opp.cluster_version = cluster_version
                     opp.gate_status = gate_status_str
                     opp.gate_reason = reason
                     opp.gate_checked_at = now
@@ -266,7 +285,7 @@ class OpportunityRebuildService:
                     public_revision=1,
                     title=title,
                     generation_method="deterministic_cluster",
-                    cluster_version=config.cluster_version,
+                    cluster_version=cluster_version,
                     last_clustered_at=now,
                     status=final_status,
                     evidence_updated_at=now,
@@ -274,7 +293,7 @@ class OpportunityRebuildService:
                     demand_evidence_count=metrics["demand_evidence_count"],
                     source_type_count=metrics["source_type_count"],
                     source_domain_count=metrics["source_domain_count"],
-                    gate_version="v3",
+                    gate_version=gate_version,
                     gate_status=gate_status_str,
                     gate_reason=reason,
                     gate_checked_at=now,

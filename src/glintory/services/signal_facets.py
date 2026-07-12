@@ -9,6 +9,7 @@ def extract_signal_facets(
     excerpt: str | None,
     source_type: str,
     signal_type: SignalType,
+    canonical_url: str | None = None,
 ) -> dict[str, Any]:
     """Deterministically extract facets from a signal's text content.
 
@@ -293,12 +294,17 @@ def extract_signal_facets(
     # Determine role based on classifications and text clues
     role = SignalRole.UNKNOWN
     source_type_lower = (source_type or "").lower()
-    if source_type_lower == "hackernews":
-        if title.lower().startswith("show hn:") or signal_type == SignalType.LAUNCH:
+
+    url_lower = (canonical_url or "").lower()
+    is_hn_url = "news.ycombinator.com/item" in url_lower or "news.ycombinator.com/item" in title.lower()
+    is_show_hn = title.lower().startswith("show hn:") or "show hn:" in title.lower()
+    is_ask_hn = title.lower().startswith("ask hn:") or "ask hn:" in title.lower()
+
+    if source_type_lower == "hackernews" or is_hn_url:
+        if is_show_hn or signal_type == SignalType.LAUNCH:
             role = SignalRole.SUPPLY
         elif (
-            title.lower().startswith("ask hn:")
-            or "ask hn" in title.lower()
+            is_ask_hn
             or signal_type == SignalType.REQUEST
             or problem_terms
             or solution_request_markers
@@ -314,31 +320,36 @@ def extract_signal_facets(
         else:
             role = SignalRole.CONTEXT
     elif source_type_lower == "rss":
-        # Check RSS markers
-        supply_indicators = [
-            "announcing",
-            "introducing",
-            "released",
-            "launching",
-            "created a",
-            "showcase",
-            "my project",
-            "my tool",
-        ]
-        if any(has_word(kw) for kw in supply_indicators) or signal_type in (
-            SignalType.PROJECT,
-            SignalType.LAUNCH,
-            SignalType.HACKATHON_PROJECT,
-        ):
+        if is_show_hn:
             role = SignalRole.SUPPLY
-        elif (
-            signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT)
-            or problem_terms
-            or solution_request_markers
-        ):
+        elif is_ask_hn:
             role = SignalRole.DEMAND
         else:
-            role = SignalRole.CONTEXT
+            # Check RSS markers
+            supply_indicators = [
+                "announcing",
+                "introducing",
+                "released",
+                "launching",
+                "created a",
+                "showcase",
+                "my project",
+                "my tool",
+            ]
+            if any(has_word(kw) for kw in supply_indicators) or signal_type in (
+                SignalType.PROJECT,
+                SignalType.LAUNCH,
+                SignalType.HACKATHON_PROJECT,
+            ):
+                role = SignalRole.SUPPLY
+            elif (
+                signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT)
+                or problem_terms
+                or solution_request_markers
+            ):
+                role = SignalRole.DEMAND
+            else:
+                role = SignalRole.CONTEXT
 
     return {
         "signal_role": role,

@@ -477,9 +477,16 @@ def validate_public_contract(data_dir: str) -> list[str]:
             f"feeds/jurypress.json count mismatch: count field is {jurypress.count}, but items list length is {len(jurypress.items)}"
         )
 
-    if manifest.counts.published_opportunities != len(opp_list.items):
+    pub_count = len([x for x in opp_list.items if x.stage == "published"])
+    if manifest.counts.published_opportunities != pub_count:
         errors.append(
-            f"Manifest published_opportunities count mismatch: manifest says {manifest.counts.published_opportunities}, list has {len(opp_list.items)}"
+            f"Manifest published_opportunities count mismatch: manifest says {manifest.counts.published_opportunities}, list has {pub_count}"
+        )
+
+    res_count = len([x for x in opp_list.items if x.stage == "research"])
+    if manifest.counts.research_candidates != res_count:
+        errors.append(
+            f"Manifest research_candidates count mismatch: manifest says {manifest.counts.research_candidates}, list has {res_count}"
         )
 
     if manifest.counts.jurypress_ready != len(jurypress.items):
@@ -515,6 +522,7 @@ def validate_public_contract(data_dir: str) -> list[str]:
                 "revision": item.revision,
                 "content_hash": item.content_hash,
                 "public_lifecycle": item.public_lifecycle,
+                "stage": item.stage,
                 "jurypress_ready": item.jurypress.ready,
                 "jurypress_reasons": [str(r) for r in item.jurypress.reasons],
             }

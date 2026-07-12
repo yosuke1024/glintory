@@ -220,7 +220,7 @@ class SignalNormalizer:
                     )
 
                 signal_role = classify_signal_role(
-                    source_type, signal_type, item.title, item.excerpt
+                    source_type, signal_type, item.title, item.excerpt, item.url
                 )
 
                 tags, tag_warnings = normalize_string_list(tags_raw)

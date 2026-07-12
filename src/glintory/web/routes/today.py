@@ -47,7 +47,10 @@ async def read_today(request: Request, db: Session = Depends(get_db)):
     from glintory.domain.enums import CollectionRunStatus
     from glintory.domain.models import CollectionRun, Opportunity, Source
 
-    has_any_opp = db.query(Opportunity).first() is not None
+    has_any_opp = (
+        db.query(Opportunity).filter(Opportunity.last_scored_at.isnot(None)).first()
+        is not None
+    )
 
     # Calculate Source Operations Summary
     enabled_sources_count = db.query(Source).filter(Source.enabled).count()

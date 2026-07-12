@@ -362,11 +362,14 @@ def generate_public_contract(
         else:
             loc_en_status = "pending"
 
+        stage = "research" if op.status == OpportunityStatus.RESEARCH else "published"
+
         detail_model = PublicOpportunityDetailV1(
             public_id=op.public_id,
             public_lifecycle=cast(
                 Literal["active", "merged", "retired"], op.public_lifecycle
             ),
+            stage=cast(Literal["published", "research"], stage),
             revision=op.public_revision or 1,
             content_hash="",
             first_published_at=op.first_published_at,
@@ -421,7 +424,7 @@ def generate_public_contract(
             if op.public_lifecycle == "active"
             else None,
             gate=PublicOpportunityGateV1(
-                version="v2",
+                version=cast(Literal["v2", "v3"], op.gate_version or "v3"),
                 status=cast(
                     Literal["passed", "rejected", "failed"],
                     op.gate_status or "rejected",
@@ -478,6 +481,7 @@ def generate_public_contract(
                 public_lifecycle=cast(
                     Literal["active", "merged", "retired"], op.public_lifecycle
                 ),
+                stage=cast(Literal["published", "research"], stage),
                 revision=op.public_revision,
                 content_hash=op.public_content_hash,
                 first_published_at=op.first_published_at,
@@ -523,7 +527,7 @@ def generate_public_contract(
             summary_items.append(summary_model)
 
             # Feed list item for JuryPress
-            if ready:
+            if ready and stage == "published":
                 jurypress_ready_items.append(
                     JuryPressFeedItemV1(
                         public_id=op.public_id,
@@ -562,7 +566,7 @@ def generate_public_contract(
 
     # 5. Write List JSON
     list_model = PublicOpportunityListV1(
-        schema_version="1.0.0",
+        schema_version="1.1.0",
         generated_at=gen_time,
         count=len(summary_items),
         items=summary_items,
@@ -586,6 +590,7 @@ def generate_public_contract(
                 "revision": item.revision,
                 "content_hash": item.content_hash,
                 "public_lifecycle": item.public_lifecycle,
+                "stage": item.stage,
                 "jurypress_ready": item.jurypress.ready,
                 "jurypress_reasons": [str(r) for r in item.jurypress.reasons],
             }
@@ -640,7 +645,7 @@ def generate_public_contract(
 
     # 6. Write JuryPress Feed JSON
     feed_model = JuryPressFeedV1(
-        schema_version="1.0.0",
+        schema_version="1.1.0",
         generated_at=gen_time,
         content_hash=manifest_content_hash,
         count=len(sorted_jurypress_ready_items),
@@ -653,13 +658,18 @@ def generate_public_contract(
     git_commit = get_git_commit()
     manifest_model = PublicManifestV1(
         contract="glintory-public-data",
-        schema_version="1.0.0",
+        schema_version="1.1.0",
         generated_at=gen_time,
         dataset_revision=gen_time.strftime("%Y%m%dT%H%M%SZ"),
         source_commit=git_commit,
         content_hash=manifest_content_hash,
         counts=PublicManifestCountsV1(
-            published_opportunities=len(summary_items),
+            published_opportunities=len(
+                [x for x in summary_items if x.stage == "published"]
+            ),
+            research_candidates=len(
+                [x for x in summary_items if x.stage == "research"]
+            ),
             jurypress_ready=len(sorted_jurypress_ready_items),
         ),
         endpoints=PublicManifestEndpointsV1(
@@ -671,7 +681,12 @@ def generate_public_contract(
         f.write(manifest_model.model_dump_json(indent=2))
 
     return {
-        "published_opportunities": len(summary_items),
+        "published_opportunities": len(
+            [x for x in summary_items if x.stage == "published"]
+        ),
+        "research_candidates": len(
+            [x for x in summary_items if x.stage == "research"]
+        ),
         "jurypress_ready": len(sorted_jurypress_ready_items),
         "manifest_content_hash": manifest_content_hash,
     }
