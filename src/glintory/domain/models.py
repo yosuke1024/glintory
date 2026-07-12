@@ -358,6 +358,10 @@ class Opportunity(Base):
     evidence_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    retired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    retired_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     public_id: Mapped[str] = mapped_column(
         String(64),
         unique=True,

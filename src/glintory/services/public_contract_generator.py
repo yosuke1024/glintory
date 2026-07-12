@@ -208,6 +208,11 @@ def resolve_publication_lifecycle(session: Any, gen_time: datetime) -> None:
                         op.retired_reason = "STATUS_EXCLUDED"
                     else:
                         op.retired_reason = "CLUSTERING_EXCLUDED"
+                else:
+                    if op.retired_at is None:
+                        op.retired_at = op.updated_at or gen_time
+                    if op.retired_reason is None:
+                        op.retired_reason = "retired"
             elif op.public_lifecycle != "merged":
                 op.public_lifecycle = "unregistered"
     session.flush()
@@ -470,14 +475,8 @@ def generate_public_contract(
             translation_status=to_public_completion_status(op.translation_status)
             if op.public_lifecycle == "active"
             else None,
-            retired_at=(
-                op.retired_at
-                if op.public_lifecycle == "retired" and hasattr(op, "retired_at")
-                else (op.updated_at if op.public_lifecycle == "retired" else None)
-            ),
-            retired_reason=op.retired_reason
-            if op.public_lifecycle == "retired" and hasattr(op, "retired_reason")
-            else ("retired" if op.public_lifecycle == "retired" else None),
+            retired_at=op.retired_at if op.public_lifecycle == "retired" else None,
+            retired_reason=op.retired_reason if op.public_lifecycle == "retired" else None,
         )
 
         stable_hash = calculate_opportunity_detail_canonical_hash(detail_model)
@@ -652,12 +651,8 @@ def generate_public_contract(
                 "public_id": op.public_id,
                 "revision": op.public_revision,
                 "content_hash": op.public_content_hash,
-                "retired_at": format_datetime_canonical(
-                    op.retired_at if hasattr(op, "retired_at") else op.updated_at
-                ),
-                "retired_reason": op.retired_reason
-                if hasattr(op, "retired_reason")
-                else "retired",
+                "retired_at": format_datetime_canonical(op.retired_at),
+                "retired_reason": op.retired_reason,
             }
         )
 
