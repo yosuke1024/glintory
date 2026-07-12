@@ -1260,8 +1260,8 @@ def test_sanitize_brief_data():
 
     req = OpportunityEnrichmentRequest(
         opportunity_id="opp-123",
-        title="Default Title",
-        summary="Default Summary",
+        title="",
+        summary="",
         evidence_count=1,
         confidence="medium",
         evidence=[
@@ -1282,8 +1282,8 @@ def test_sanitize_brief_data():
     # 2. URLs should be replaced with [URL]
     assert sanitized["english"]["summary"] == "Summary with [URL] and some text."
 
-    # 3. Empty strings should fallback to default values from request
-    assert sanitized["japanese"]["summary"] == "Default Summary"
+    # 3. Empty strings should fallback to default values from request or placeholders
+    assert sanitized["japanese"]["summary"] == "No summary provided"
 
     # 4. Invalid evidence refs should be filtered out
     assert sanitized["evidence_refs"] == ["valid-id-1"]

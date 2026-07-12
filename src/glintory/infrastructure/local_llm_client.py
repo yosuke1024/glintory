@@ -290,9 +290,9 @@ def sanitize_brief_data(
         for f in fields:
             default = ""
             if f == "title":
-                default = request.title
+                default = request.title or "No Title"
             elif f == "summary":
-                default = request.summary
+                default = request.summary or "No summary provided"
             else:
                 default = f"N/A ({f})"
 
