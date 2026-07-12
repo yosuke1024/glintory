@@ -266,6 +266,9 @@ def validate_public_contract(data_dir: str) -> list[str]:
             if detail.enrichment_status not in ("completed", "succeeded"):
                 reasons_recalc.append("ENRICHMENT_MISSING")
 
+            if detail.jurypress.reasons and "ENRICHMENT_STALE" in detail.jurypress.reasons:
+                reasons_recalc.append("ENRICHMENT_STALE")
+
             # Check localizations
             if (
                 detail.translation_status != "completed"
