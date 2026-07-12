@@ -86,6 +86,14 @@ def main() -> None:
     zip_filename = "submission-glintory.zip"
     sha_filename = "submission-glintory.zip.sha256"
 
+    # Clean up local generated artifacts before checking git status
+    if os.path.exists("logs"):
+        shutil.rmtree("logs")
+    if os.path.exists(zip_filename):
+        os.remove(zip_filename)
+    if os.path.exists(sha_filename):
+        os.remove(sha_filename)
+
     # 1. Pre-flight Check: Git Status
     print("Checking Git status...")
     try:
