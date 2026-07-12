@@ -147,6 +147,7 @@ def main() -> None:
         with tarfile.open(tar_path) as tf:
             tf.extractall(path=temp_workspace)
         os.remove(tar_path)
+        os.makedirs(os.path.join(temp_workspace, "data"), exist_ok=True)
     except Exception as e:
         print(f"ERROR: Failed to extract Git HEAD: {e}", file=sys.stderr)
         shutil.rmtree(temp_workspace)
@@ -501,6 +502,7 @@ def main() -> None:
     try:
         with zipfile.ZipFile(zip_filename, "r") as zf:
             zf.extractall(path=temp_verify)
+        os.makedirs(os.path.join(temp_verify, "data"), exist_ok=True)
 
         # Run Verification command suite inside isolated env
         res_v_sync = run_command_logged(
