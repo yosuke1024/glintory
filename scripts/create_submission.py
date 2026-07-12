@@ -347,6 +347,11 @@ def main() -> None:
             "ERROR: Quality Gate validation checks failed. Submission ZIP cannot be generated.",
             file=sys.stderr,
         )
+        # Copy logs to parent logs/ directory for troubleshooting
+        if os.path.exists(logs_dir):
+            if os.path.exists("logs"):
+                shutil.rmtree("logs")
+            shutil.copytree(logs_dir, "logs")
         shutil.rmtree(temp_workspace)
         sys.exit(1)
 
