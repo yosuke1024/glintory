@@ -82,12 +82,15 @@ class MockRuntime:
 
 def link_dummy_signal(session, opp_id):
     import uuid
+
     src = session.query(Source).filter(Source.id == "dummy-src").first()
     if not src:
-        src = Source(id="dummy-src", name="Dummy", source_type="hackernews", enabled=True)
+        src = Source(
+            id="dummy-src", name="Dummy", source_type="hackernews", enabled=True
+        )
         session.add(src)
         session.flush()
-    
+
     sig_id = f"sig-dummy-{uuid.uuid4().hex}"
     sig = Signal(
         id=sig_id,
@@ -104,7 +107,7 @@ def link_dummy_signal(session, opp_id):
     )
     session.add(sig)
     session.flush()
-    
+
     opp_sig = OpportunitySignal(
         opportunity_id=opp_id,
         signal_id=sig_id,

@@ -2,7 +2,7 @@ import hashlib
 import json
 import os
 import subprocess
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
 
@@ -15,7 +15,7 @@ def format_datetime_canonical(dt: Any) -> str:
             s = s + "Z"
         return s
     if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        dt = dt.astimezone(UTC).replace(tzinfo=None)
     dt = dt.replace(microsecond=0)
     return dt.isoformat() + "Z"
 
@@ -477,11 +477,7 @@ def generate_public_contract(
             ),
             retired_reason=op.retired_reason
             if op.public_lifecycle == "retired" and hasattr(op, "retired_reason")
-            else (
-                "retired"
-                if op.public_lifecycle == "retired"
-                else None
-            ),
+            else ("retired" if op.public_lifecycle == "retired" else None),
         )
 
         stable_hash = calculate_opportunity_detail_canonical_hash(detail_model)
@@ -657,9 +653,7 @@ def generate_public_contract(
                 "revision": op.public_revision,
                 "content_hash": op.public_content_hash,
                 "retired_at": format_datetime_canonical(
-                    op.retired_at
-                    if hasattr(op, "retired_at")
-                    else op.updated_at
+                    op.retired_at if hasattr(op, "retired_at") else op.updated_at
                 ),
                 "retired_reason": op.retired_reason
                 if hasattr(op, "retired_reason")

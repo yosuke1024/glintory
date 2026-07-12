@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -16,7 +16,7 @@ def format_datetime_canonical(dt: Any) -> str:
             s = s + "Z"
         return s
     if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        dt = dt.astimezone(UTC).replace(tzinfo=None)
     dt = dt.replace(microsecond=0)
     return dt.isoformat() + "Z"
 
@@ -281,7 +281,10 @@ def validate_public_contract(data_dir: str) -> list[str]:
             if detail.enrichment_status not in ("completed", "succeeded"):
                 reasons_recalc.append("ENRICHMENT_MISSING")
 
-            if detail.jurypress.reasons and "ENRICHMENT_STALE" in detail.jurypress.reasons:
+            if (
+                detail.jurypress.reasons
+                and "ENRICHMENT_STALE" in detail.jurypress.reasons
+            ):
                 reasons_recalc.append("ENRICHMENT_STALE")
 
             # Check localizations
