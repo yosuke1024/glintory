@@ -1218,3 +1218,80 @@ def test_missing_summary_warning(db_session_factory):
     assert res.selected_count == 1
     assert res.succeeded_count == 0
     assert "LLM_MISSING_SUMMARY_WARNING" in res.warning_codes
+
+
+def test_sanitize_brief_data():
+    from glintory.infrastructure.local_llm_client import sanitize_brief_data
+
+    # Prepare raw dictionary data output with validation-breaking elements
+    raw_data = {
+        "english": {
+            "title": "A title containing <usd> and <test>",
+            "summary": "Summary with http://example.com/foo and some text.",
+            "target_user": "Target user",
+            "problem": "Problem",
+            "current_workaround": "Workaround",
+            "existing_solution_gap": "Gap",
+            "mvp_direction": "MVP",
+            "why_selected": "Why selected",
+            "risks": "Risks",
+        },
+        "japanese": {
+            "title": "日本語タイトル <invalid_tag>",
+            "summary": "",  # Empty summary
+            "target_user": "ターゲット",
+            "problem": "課題",
+            "current_workaround": "回避策",
+            "existing_solution_gap": "ギャップ",
+            "mvp_direction": "方向性",
+            "why_selected": "選定理由",
+            "risks": "リスク",
+        },
+        "evidence_refs": ["valid-id-1", "invalid-id-99"],
+        "evidence_summaries": [
+            {
+                "id": "valid-id-1",
+                "summary_en": "En summary with <tags>",
+                "summary_ja": "Ja summary with http://test.com",
+            }
+        ],
+        "confidence": "not-a-valid-confidence",
+    }
+
+    req = OpportunityEnrichmentRequest(
+        opportunity_id="opp-123",
+        title="Default Title",
+        summary="Default Summary",
+        evidence_count=1,
+        confidence="medium",
+        evidence=[
+            {
+                "id": "valid-id-1",
+                "title": "Evidence Title 1",
+                "content": "Evidence Content 1",
+            }
+        ],
+    )
+
+    sanitized = sanitize_brief_data(raw_data, req)
+
+    # 1. HTML tags should be replaced with brackets []
+    assert sanitized["english"]["title"] == "A title containing [usd] and [test]"
+    assert sanitized["japanese"]["title"] == "日本語タイトル [invalid_tag]"
+
+    # 2. URLs should be replaced with [URL]
+    assert sanitized["english"]["summary"] == "Summary with [URL] and some text."
+
+    # 3. Empty strings should fallback to default values from request
+    assert sanitized["japanese"]["summary"] == "Default Summary"
+
+    # 4. Invalid evidence refs should be filtered out
+    assert sanitized["evidence_refs"] == ["valid-id-1"]
+
+    # 5. Invalid confidence should fallback to request confidence
+    assert sanitized["confidence"] == "medium"
+
+    # 6. Check evidence_summaries sanitization
+    assert sanitized["evidence_summaries"][0]["id"] == "valid-id-1"
+    assert sanitized["evidence_summaries"][0]["summary_en"] == "En summary with [tags]"
+    assert sanitized["evidence_summaries"][0]["summary_ja"] == "Ja summary with [URL]"

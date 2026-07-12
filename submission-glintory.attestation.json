@@ -1,0 +1,10 @@
+{
+  "archive_sha256": "a04334822a80c66b981df3c712b2cfaeb22bc107e6631ed7579ca85133ccbfff",
+  "package_content_hash": "77a0d00ff0191936791f2b9668f1239ebb221419d4de79b25dc1142664c5c243",
+  "verified_at": "2026-07-12T06:51:24.811708Z",
+  "extracted_package_hash_matches": true,
+  "manifest_count": 1,
+  "contract_validation": "passed",
+  "jurypress_inspection": "passed",
+  "pytest": "passed"
+}
