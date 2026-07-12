@@ -30,7 +30,6 @@ def main():
     print(f"Initializing fixture DB at: {db_url}")
 
     engine = create_engine(db_url)
-    Base.metadata.create_all(engine)
 
     session_local = sessionmaker(bind=engine)
     session = session_local()
