@@ -1549,6 +1549,8 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
                 )
             return 0
         except Exception:
+            import traceback
+            traceback.print_exc()
             sys.stderr.write("PAGES_BUILD_FAILED\n")
             return 1
         finally:
