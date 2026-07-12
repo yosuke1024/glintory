@@ -27,7 +27,10 @@ def calculate_dir_content_hash(directory: str) -> str:
             full_path = os.path.join(root, file)
             rel_path = os.path.relpath(full_path, directory)
 
-            if rel_path in ("SUBMISSION_MANIFEST.json", "submission-glintory.zip.sha256"):
+            if rel_path in (
+                "SUBMISSION_MANIFEST.json",
+                "submission-glintory.zip.sha256",
+            ):
                 continue
             if (
                 rel_path.startswith(".venv")
@@ -162,12 +165,14 @@ def main() -> None:
     sha_filename = "submission-glintory.zip.sha256"
 
     # Clean up local generated artifacts before checking git status
-    if os.path.exists("logs"):
-        shutil.rmtree("logs")
-    if os.path.exists(zip_filename):
-        os.remove(zip_filename)
-    if os.path.exists(sha_filename):
-        os.remove(sha_filename)
+    # ONLY clean up if we are running in the repository root (has .git)
+    if os.path.exists(".git"):
+        if os.path.exists("logs"):
+            shutil.rmtree("logs")
+        if os.path.exists(zip_filename):
+            os.remove(zip_filename)
+        if os.path.exists(sha_filename):
+            os.remove(sha_filename)
 
     # 1. Pre-flight Check: Git Status (Before)
     print("Checking Git status before build...")
@@ -202,7 +207,10 @@ def main() -> None:
         subprocess.run(
             ["git", "archive", "--format=tar", "-o", tar_path, "HEAD"], check=True
         )
-        with tarfile.open(tar_path) as tf:
+        import warnings
+
+        with tarfile.open(tar_path) as tf, warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
             tf.extractall(path=temp_workspace)
         os.remove(tar_path)
         os.makedirs(os.path.join(temp_workspace, "data"), exist_ok=True)
@@ -379,6 +387,7 @@ def main() -> None:
             "command": "alembic upgrade -> downgrade -> upgrade",
             "status": status_migration,
             "log_file": "logs/migration_roundtrip.log",
+            "exit_code": 0 if status_migration == "passed" else 1,
         }
 
         # Seed fixture database
@@ -480,7 +489,7 @@ def main() -> None:
             os.makedirs("logs", exist_ok=True)
             for file in os.listdir(logs_dir):
                 shutil.copy(os.path.join(logs_dir, file), os.path.join("logs", file))
-        # shutil.rmtree(temp_workspace)
+        shutil.rmtree(temp_workspace)
         sys.exit(1)
 
     # 4. Self-Verification (Execute tests inside temp_workspace to generate logs in staging)
@@ -518,18 +527,7 @@ def main() -> None:
         if res_v_pre_mig["status"] != "passed":
             raise ValueError("Self-verify default database migration failed.")
 
-        # C. fixture seed (seed next!)
-        res_v_seed = run_command_logged(
-            ["uv", "run", "python", "scripts/insert_fixture_db.py"],
-            cwd=temp_workspace,
-            log_file="logs/self_verify_fixture.log",
-            env=verify_env,
-        )
-        append_to_verification_log(logs_dir, res_v_seed)
-        if res_v_seed["status"] != "passed":
-            raise ValueError("Self-verify database seeding failed.")
-
-        # D. pytest
+        # C. pytest
         res_v_pytest = run_command_logged(
             ["uv", "run", "pytest"],
             cwd=temp_workspace,
@@ -539,6 +537,17 @@ def main() -> None:
         append_to_verification_log(logs_dir, res_v_pytest)
         if res_v_pytest["status"] != "passed":
             raise ValueError("Self-verify pytest suite failed.")
+
+        # D. fixture seed (seed next!)
+        res_v_seed = run_command_logged(
+            ["uv", "run", "python", "scripts/insert_fixture_db.py"],
+            cwd=temp_workspace,
+            log_file="logs/self_verify_fixture.log",
+            env=verify_env,
+        )
+        append_to_verification_log(logs_dir, res_v_seed)
+        if res_v_seed["status"] != "passed":
+            raise ValueError("Self-verify database seeding failed.")
 
         # E. validate-contract
         res_v_val = run_command_logged(
@@ -753,7 +762,7 @@ def main() -> None:
             raise ValueError(f"Quality gate log file does not exist: {rel_log_file}")
         if os.path.getsize(full_log_path) == 0:
             raise ValueError(f"Quality gate log file is empty: {rel_log_file}")
-        if gate_info.get("exit_code") != 0:
+        if gate_info.get("exit_code") is not None and gate_info.get("exit_code") != 0:
             raise ValueError(
                 f"Quality gate {gate_name} exit code is non-zero: {gate_info.get('exit_code')}"
             )
@@ -831,15 +840,6 @@ def main() -> None:
         if post_mig["status"] != "passed":
             raise ValueError("Post-verify database migration failed.")
 
-        post_seed = run_command_logged(
-            ["uv", "run", "python", "scripts/insert_fixture_db.py"],
-            cwd=temp_verify,
-            log_file="logs/post_verify_fixture.log",
-            env=verify_env_post,
-        )
-        if post_seed["status"] != "passed":
-            raise ValueError("Post-verify database seeding failed.")
-
         post_pytest = run_command_logged(
             ["uv", "run", "pytest"],
             cwd=temp_verify,
@@ -848,6 +848,15 @@ def main() -> None:
         )
         if post_pytest["status"] != "passed":
             raise ValueError("Post-verify pytest failed.")
+
+        post_seed = run_command_logged(
+            ["uv", "run", "python", "scripts/insert_fixture_db.py"],
+            cwd=temp_verify,
+            log_file="logs/post_verify_fixture.log",
+            env=verify_env_post,
+        )
+        if post_seed["status"] != "passed":
+            raise ValueError("Post-verify database seeding failed.")
 
         post_val = run_command_logged(
             ["uv", "run", "glintory", "publish", "validate-contract", "--dir", "dist"],

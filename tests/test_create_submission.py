@@ -2,6 +2,7 @@ import json
 import os
 import pathlib
 import sys
+import tarfile
 import zipfile
 from unittest import mock
 
@@ -14,8 +15,8 @@ PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
-import create_submission
-import insert_fixture_db
+import create_submission  # type: ignore
+import insert_fixture_db  # type: ignore
 
 
 @pytest.fixture
@@ -96,7 +97,7 @@ def test_self_verification_logging_no_overwrite(tmp_path):
         "finished_at": "end1",
         "exit_code": 0,
         "status": "passed",
-        "log_file": "logs/self_verify_uv_sync.log"
+        "log_file": "logs/self_verify_uv_sync.log",
     }
     res2 = {
         "command": "cmd2",
@@ -104,7 +105,7 @@ def test_self_verification_logging_no_overwrite(tmp_path):
         "finished_at": "end2",
         "exit_code": 0,
         "status": "passed",
-        "log_file": "logs/self_verify_migration.log"
+        "log_file": "logs/self_verify_migration.log",
     }
 
     create_submission.append_to_verification_log(str(log_dir), res1)
@@ -153,7 +154,7 @@ def test_manifest_hash_tampering_detection(tmp_path):
         "git_commit_after": "hash",
         "working_tree_clean_before": True,
         "working_tree_clean_after": True,
-        "quality_gates": {}
+        "quality_gates": {},
     }
 
     with zipfile.ZipFile(zip_path, "w") as zf:
@@ -170,12 +171,14 @@ def test_working_tree_clean_after_check():
     # Verification 10: working_tree_clean_after is actually checked.
     # Mock git commands to simulate clean status
     with mock.patch("subprocess.check_output") as mock_git:
+
         def mock_git_call(cmd, *args, **kwargs):
             return {
                 ("git", "rev-parse", "HEAD"): b"commit_sha_123\n",
                 ("git", "status", "--porcelain"): b"M modified_file.py\n",  # Dirty!
                 ("git", "log", "-1", "--format=%T"): b"tree_sha_123\n",
             }[tuple(cmd)]
+
         mock_git.side_effect = mock_git_call
 
         with pytest.raises(SystemExit) as exit_info:
@@ -185,30 +188,77 @@ def test_working_tree_clean_after_check():
 
 def test_self_verification_failure_cleanup(tmp_path):
     # Verification 11 & 12: Cleanup ZIP and sidecar on self-verification failure
-    zip_path = Path("submission-glintory.zip")
-    sha_path = Path("submission-glintory.zip.sha256")
+    zip_path = pathlib.Path("submission-glintory.zip")
+    sha_path = pathlib.Path("submission-glintory.zip.sha256")
 
     # Create dummy files
     zip_path.write_text("zip")
     sha_path.write_text("sha")
 
     # Mock subprocess.run to fail during self-verification
-    with mock.patch("subprocess.check_output") as mock_git, \
-            mock.patch("subprocess.run") as mock_run:
+    with (
+        mock.patch("subprocess.check_output") as mock_git,
+        mock.patch("subprocess.run") as mock_run,
+    ):
 
         def mock_git_call(cmd, *args, **kwargs):
             return {
-                ("git", "rev-parse", "HEAD"): b"commit_sha_123\n",
-                ("git", "status", "--porcelain"): b"",  # Clean
-                ("git", "log", "-1", "--format=%T"): b"tree_sha_123\n",
-                ("git", "ls-files"): b"pyproject.toml\n"
+                ("git", "rev-parse", "HEAD"): "commit_sha_123\n",
+                ("git", "status", "--porcelain"): "",  # Clean
+                ("git", "log", "-1", "--format=%T"): "tree_sha_123\n",
+                ("git", "ls-files"): "pyproject.toml\n",
             }[tuple(cmd)]
+
         mock_git.side_effect = mock_git_call
 
-        # Simulate uv sync failing during the quality gate stage or self-verification stage
-        mock_run_ret = mock.Mock()
-        mock_run_ret.returncode = 1  # Fail
-        mock_run.return_value = mock_run_ret
+        def mock_run_side_effect(cmd, *args, **kwargs):
+            cwd = kwargs.get("cwd", "")
+            stdout = kwargs.get("stdout")
+            if stdout and hasattr(stdout, "write"):
+                stdout.write("mocked command output\n")
+                stdout.flush()
+
+            # If running inside verification directory, fail the command
+            if "temp_verify" in str(cwd) or "verify" in str(cwd):
+                ret = mock.Mock()
+                ret.returncode = 1
+                return ret
+
+            # If git archive, actually create a dummy tar file containing minimal files so main() can proceed
+            if "git" in cmd and "archive" in cmd:
+                tar_path = cmd[4]
+                with tarfile.open(tar_path, "w") as tar:
+                    tar.add(PROJECT_ROOT / "pyproject.toml", arcname="pyproject.toml")
+                    tar.add(
+                        PROJECT_ROOT / "scripts/create_submission.py",
+                        arcname="scripts/create_submission.py",
+                    )
+
+                # Create dummy dist assets inside .temp_extract so self-verification asset checks pass
+                dist_dir = os.path.join(".temp_extract", "dist")
+                os.makedirs(
+                    os.path.join(
+                        dist_dir,
+                        "opportunities/opp_f1111111111111111111111111111111/en",
+                    ),
+                    exist_ok=True,
+                )
+                for p in [
+                    "index.html",
+                    "opportunities/index.html",
+                    "opportunities/opp_f1111111111111111111111111111111/index.html",
+                    "opportunities/opp_f1111111111111111111111111111111/en/index.html",
+                ]:
+                    with open(os.path.join(dist_dir, p), "w") as f:
+                        f.write("dummy")
+                with open(os.path.join(dist_dir, "sitemap.xml"), "w") as f:
+                    f.write("opp_f1111111111111111111111111111111")
+
+            ret = mock.Mock()
+            ret.returncode = 0
+            return ret
+
+        mock_run.side_effect = mock_run_side_effect
 
         with pytest.raises(SystemExit) as exit_info:
             create_submission.main()
