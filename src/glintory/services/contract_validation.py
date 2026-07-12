@@ -580,6 +580,10 @@ def validate_public_contract(data_dir: str) -> list[str]:
             }
         )
 
+    # Write dataset to file for debugging mismatch
+    with open(os.path.join(data_dir, "dataset_validated.json"), "w") as f:
+        json.dump(dataset, f, indent=2, ensure_ascii=False)
+
     dataset_serialized = json.dumps(
         dataset, sort_keys=True, ensure_ascii=False, separators=(",", ":")
     )
@@ -591,6 +595,22 @@ def validate_public_contract(data_dir: str) -> list[str]:
         errors.append(
             f"Manifest dataset content_hash mismatch. Expected {expected_manifest_hash}, got {manifest.content_hash}"
         )
+        gen_path = os.path.join(data_dir, "dataset_generated.json")
+        val_path = os.path.join(data_dir, "dataset_validated.json")
+        if os.path.exists(gen_path) and os.path.exists(val_path):
+            import difflib
+            import sys
+            with open(gen_path, encoding="utf-8") as f1, open(val_path, encoding="utf-8") as f2:
+                diff = difflib.unified_diff(
+                    f1.readlines(),
+                    f2.readlines(),
+                    fromfile="dataset_generated.json",
+                    tofile="dataset_validated.json"
+                )
+                sys.stderr.write("=== Manifest Dataset Content Hash Mismatch Diff ===\n")
+                sys.stderr.writelines(diff)
+                sys.stderr.write("===================================================\n")
+
 
     if jurypress.content_hash != manifest.content_hash:
         errors.append(

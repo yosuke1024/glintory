@@ -669,6 +669,11 @@ def generate_public_contract(
         dataset_serialized.encode("utf-8")
     ).hexdigest()
 
+    # Write dataset to file for debugging mismatch
+    with open(os.path.join(data_v1_dir, "dataset_generated.json"), "w") as f:
+        json.dump(dataset, f, indent=2, ensure_ascii=False)
+
+
     # Sort JuryPress Feed items by score DESC, then public_id ASC for deterministic feed
     sorted_jurypress_ready_items = sorted(
         jurypress_ready_items, key=lambda item: (-item.score, item.public_id)
