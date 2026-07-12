@@ -61,7 +61,7 @@ def main():
             source_type_count=1,
             source_domain_count=1,
             enrichment_status="succeeded",
-            translation_status="succeeded",
+            translation_status="completed",
             enriched_at=datetime.now(UTC),
             evidence_updated_at=datetime.now(UTC) - timedelta(minutes=5),
             created_at=datetime.now(UTC),

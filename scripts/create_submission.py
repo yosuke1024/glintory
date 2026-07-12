@@ -630,6 +630,11 @@ def main() -> None:
             )
     except Exception as err:
         print(f"ERROR: Self-Verification failed: {err}", file=sys.stderr)
+        # Copy logs to parent logs/ directory for troubleshooting before cleanup
+        if os.path.exists(logs_dir):
+            os.makedirs("logs", exist_ok=True)
+            for file in os.listdir(logs_dir):
+                shutil.copy(os.path.join(logs_dir, file), os.path.join("logs", file))
         if os.path.exists(zip_filename):
             os.remove(zip_filename)
         shutil.rmtree(temp_workspace)
@@ -644,6 +649,12 @@ def main() -> None:
     with zipfile.ZipFile(zip_filename, "a") as zf:
         # Overwrite manifest in zip (write will append/overwrite)
         zf.write(manifest_path, "SUBMISSION_MANIFEST.json")
+
+    # Copy logs to parent logs/ directory before cleanup
+    if os.path.exists(logs_dir):
+        os.makedirs("logs", exist_ok=True)
+        for file in os.listdir(logs_dir):
+            shutil.copy(os.path.join(logs_dir, file), os.path.join("logs", file))
 
     # Clean up workspaces
     shutil.rmtree(temp_workspace)
