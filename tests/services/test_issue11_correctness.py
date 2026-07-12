@@ -80,6 +80,43 @@ class MockRuntime:
         self.session_factory = lambda: session
 
 
+def link_dummy_signal(session, opp_id):
+    import uuid
+    src = session.query(Source).filter(Source.id == "dummy-src").first()
+    if not src:
+        src = Source(id="dummy-src", name="Dummy", source_type="hackernews", enabled=True)
+        session.add(src)
+        session.flush()
+    
+    sig_id = f"sig-dummy-{uuid.uuid4().hex}"
+    sig = Signal(
+        id=sig_id,
+        source_id="dummy-src",
+        title="Dummy Signal",
+        excerpt="Dummy Excerpt",
+        canonical_url=f"https://example.com/{sig_id}",
+        signal_role=SignalRole.DEMAND,
+        signal_type=SignalType.PAIN,
+        collected_at=datetime.now(UTC),
+        content_hash=sig_id,
+        freshness_score=1.0,
+        source_quality_score=1.0,
+    )
+    session.add(sig)
+    session.flush()
+    
+    opp_sig = OpportunitySignal(
+        opportunity_id=opp_id,
+        signal_id=sig_id,
+        relation_type=EvidenceRelationType.SUPPORTING,
+        relevance_score=0.9,
+        association_source="manual",
+        is_excluded=False,
+    )
+    session.add(opp_sig)
+    session.flush()
+
+
 def test_v1_rebuild_to_v2(test_db):
     session = test_db
     # Create Sources
@@ -599,6 +636,8 @@ def test_low_confidence_excluded_from_publishing(test_db, tmp_path):
         current_scoring_version="v2",
     )
     session.add_all([low_opp, med_opp])
+    link_dummy_signal(session, low_opp.id)
+    link_dummy_signal(session, med_opp.id)
     session.commit()
 
     build_static_site(
@@ -638,6 +677,7 @@ def test_static_publishing_prefer_japanese(test_db, tmp_path):
         current_scoring_version="v2",
     )
     session.add(opp)
+    link_dummy_signal(session, opp.id)
     session.commit()
 
     build_static_site(
@@ -677,6 +717,7 @@ def test_fallback_warning_when_ja_translation_missing(test_db, tmp_path):
         summary_ja=None,
     )
     session.add(opp)
+    link_dummy_signal(session, opp.id)
     session.commit()
 
     build_static_site(
@@ -994,6 +1035,8 @@ def test_publishing_exclusion_rules(test_db, tmp_path):
         current_scoring_version="v2",
     )
     session.add_all([opp1, opp2])
+    link_dummy_signal(session, opp1.id)
+    link_dummy_signal(session, opp2.id)
     session.commit()
 
     build_static_site(
@@ -1033,6 +1076,7 @@ def test_bilingual_json_fields(test_db, tmp_path):
         translation_status="completed",
     )
     session.add(opp)
+    link_dummy_signal(session, opp.id)
     session.commit()
 
     build_static_site(
@@ -1066,6 +1110,7 @@ def test_sitemap_correctness_and_en_only(test_db, tmp_path):
         current_scoring_version="v2",
     )
     session.add(opp)
+    link_dummy_signal(session, opp.id)
     session.commit()
 
     build_static_site(

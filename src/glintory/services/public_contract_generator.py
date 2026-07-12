@@ -2,8 +2,23 @@ import hashlib
 import json
 import os
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone
 from typing import Any, Literal, cast
+
+
+def format_datetime_canonical(dt: Any) -> str:
+    if not isinstance(dt, datetime):
+        s = str(dt)
+        if s.endswith("+00:00"):
+            s = s[:-6] + "Z"
+        elif not s.endswith("Z"):
+            s = s + "Z"
+        return s
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    dt = dt.replace(microsecond=0)
+    return dt.isoformat() + "Z"
+
 
 from sqlalchemy import desc
 
@@ -641,14 +656,10 @@ def generate_public_contract(
                 "public_id": op.public_id,
                 "revision": op.public_revision,
                 "content_hash": op.public_content_hash,
-                "retired_at": (
-                    op.retired_at.isoformat()
-                    if hasattr(op, "retired_at") and isinstance(op.retired_at, datetime)
-                    else (
-                        op.updated_at.isoformat()
-                        if isinstance(op.updated_at, datetime)
-                        else str(op.updated_at)
-                    )
+                "retired_at": format_datetime_canonical(
+                    op.retired_at
+                    if hasattr(op, "retired_at")
+                    else op.updated_at
                 ),
                 "retired_reason": op.retired_reason
                 if hasattr(op, "retired_reason")

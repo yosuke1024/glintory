@@ -3,8 +3,23 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
+
+
+def format_datetime_canonical(dt: Any) -> str:
+    if not isinstance(dt, datetime):
+        s = str(dt)
+        if s.endswith("+00:00"):
+            s = s[:-6] + "Z"
+        elif not s.endswith("Z"):
+            s = s + "Z"
+        return s
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    dt = dt.replace(microsecond=0)
+    return dt.isoformat() + "Z"
+
 
 import jsonschema
 
@@ -557,9 +572,7 @@ def validate_public_contract(data_dir: str) -> list[str]:
                 "public_id": op.public_id,
                 "revision": op.revision,
                 "content_hash": op.content_hash,
-                "retired_at": op.retired_at.isoformat()
-                if isinstance(op.retired_at, datetime)
-                else str(op.retired_at),
+                "retired_at": format_datetime_canonical(op.retired_at),
                 "retired_reason": op.retired_reason,
             }
         )
