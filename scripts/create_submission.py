@@ -256,34 +256,54 @@ def main() -> None:
     if gate_ok:
         migration_log = os.path.join(logs_dir, "migration_roundtrip.log")
         os.makedirs(os.path.dirname(migration_log), exist_ok=True)
+        # Build isolated environment for sub-commands to avoid virtualenv path conflicts
+        run_env = test_env.copy()
+        abs_cwd = os.path.abspath(temp_workspace)
+        venv_path = os.path.join(abs_cwd, ".venv")
+        run_env["VIRTUAL_ENV"] = venv_path
+        venv_bin = os.path.join(venv_path, "bin")
+        current_path = run_env.get("PATH", "")
+        run_env["PATH"] = f"{venv_bin}{os.pathsep}{current_path}"
+
         with open(migration_log, "w", encoding="utf-8") as f:
             f.write("--- Migration Upgrade Head ---\n")
+            f.flush()
             res_up1 = subprocess.run(
                 ["uv", "run", "alembic", "upgrade", "head"],
                 cwd=temp_workspace,
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 check=False,
-                env=test_env,
+                env=run_env,
             )
+            f.write(f"\nExit Code: {res_up1.returncode}\n")
+            f.flush()
+
             f.write("\n--- Migration Downgrade -1 ---\n")
+            f.flush()
             res_down = subprocess.run(
                 ["uv", "run", "alembic", "downgrade", "-1"],
                 cwd=temp_workspace,
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 check=False,
-                env=test_env,
+                env=run_env,
             )
+            f.write(f"\nExit Code: {res_down.returncode}\n")
+            f.flush()
+
             f.write("\n--- Migration Upgrade Head (Again) ---\n")
+            f.flush()
             res_up2 = subprocess.run(
                 ["uv", "run", "alembic", "upgrade", "head"],
                 cwd=temp_workspace,
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 check=False,
-                env=test_env,
+                env=run_env,
             )
+            f.write(f"\nExit Code: {res_up2.returncode}\n")
+            f.flush()
 
         status_migration = "passed"
         if (
@@ -384,9 +404,9 @@ def main() -> None:
         )
         # Copy logs to parent logs/ directory for troubleshooting
         if os.path.exists(logs_dir):
-            if os.path.exists("logs"):
-                shutil.rmtree("logs")
-            shutil.copytree(logs_dir, "logs")
+            os.makedirs("logs", exist_ok=True)
+            for file in os.listdir(logs_dir):
+                shutil.copy(os.path.join(logs_dir, file), os.path.join("logs", file))
         shutil.rmtree(temp_workspace)
         sys.exit(1)
 
