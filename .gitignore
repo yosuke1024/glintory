@@ -43,4 +43,11 @@ build/
 run_logs/
 conformance-report-download/
 
+# Submission packaging artifacts
+logs/
+submission-glintory.zip
+submission-glintory.zip.sha256
+.temp_extract/
+.temp_verify/
+
 
