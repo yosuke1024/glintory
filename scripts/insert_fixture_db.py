@@ -16,7 +16,6 @@ from glintory.domain.enums import (
     SignalType,
 )
 from glintory.domain.models import (
-    Base,
     Opportunity,
     OpportunitySignal,
     ScoreSnapshot,

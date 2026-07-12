@@ -184,10 +184,6 @@ def main() -> None:
             print("ERROR: Working tree is dirty. Clean commit first.", file=sys.stderr)
             print(f"git status output:\n{status_before_raw}", file=sys.stderr)
             sys.exit(1)
-
-        tree_sha = subprocess.check_output(
-            ["git", "log", "-1", "--format=%T"], text=True
-        ).strip()
     except subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to run Git pre-flight check: {e}", file=sys.stderr)
         sys.exit(1)
@@ -765,7 +761,7 @@ def main() -> None:
             raise ValueError(
                 f"Quality gate {gate_name} status is not passed: {gate_info.get('status')}"
             )
-        with open(full_log_path, "r", encoding="utf-8", errors="ignore") as lf:
+        with open(full_log_path, encoding="utf-8", errors="ignore") as lf:
             log_text = lf.read()
             if "validation error" in log_text.lower():
                 raise ValueError(
@@ -895,7 +891,7 @@ def main() -> None:
 
         # Inspect JuryPress ready items in the generated dist
         sitemap_path = os.path.join(temp_verify, "dist/sitemap.xml")
-        with open(sitemap_path, "r", encoding="utf-8") as sf:
+        with open(sitemap_path, encoding="utf-8") as sf:
             sitemap_content = sf.read()
             if "opp_f1111111111111111111111111111111" not in sitemap_content:
                 raise ValueError("Sitemap does not contain the target Opportunity URL.")

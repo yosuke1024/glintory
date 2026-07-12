@@ -1,14 +1,13 @@
-import os
-import sys
-import pathlib
-import shutil
-import zipfile
-import hashlib
 import json
-import subprocess
+import os
+import pathlib
+import sys
+import zipfile
 from unittest import mock
+
+import alembic.command
+import alembic.config
 import pytest
-from pathlib import Path
 
 # Resolve sys.path so we can import modules in this project
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.resolve()
@@ -52,9 +51,6 @@ def test_migration_and_fixture_seeding_order(clean_db_file):
 
         # 2. Verification: Seeding after migration must succeed
         # Run alembic upgrade head using subprocess or alembic API
-        import alembic.config
-        import alembic.command
-
         alembic_cfg = alembic.config.Config(str(PROJECT_ROOT / "alembic.ini"))
         alembic.command.upgrade(alembic_cfg, "head")
 
@@ -174,11 +170,13 @@ def test_working_tree_clean_after_check():
     # Verification 10: working_tree_clean_after is actually checked.
     # Mock git commands to simulate clean status
     with mock.patch("subprocess.check_output") as mock_git:
-        mock_git.side_effect = lambda cmd, **kwargs: {
-            ("git", "rev-parse", "HEAD"): b"commit_sha_123\n",
-            ("git", "status", "--porcelain"): b"M modified_file.py\n",  # Dirty!
-            ("git", "log", "-1", "--format=%T"): b"tree_sha_123\n",
-        }[tuple(cmd)]
+        def mock_git_call(cmd, *args, **kwargs):
+            return {
+                ("git", "rev-parse", "HEAD"): b"commit_sha_123\n",
+                ("git", "status", "--porcelain"): b"M modified_file.py\n",  # Dirty!
+                ("git", "log", "-1", "--format=%T"): b"tree_sha_123\n",
+            }[tuple(cmd)]
+        mock_git.side_effect = mock_git_call
 
         with pytest.raises(SystemExit) as exit_info:
             create_submission.main()
@@ -198,12 +196,14 @@ def test_self_verification_failure_cleanup(tmp_path):
     with mock.patch("subprocess.check_output") as mock_git, \
             mock.patch("subprocess.run") as mock_run:
 
-        mock_git.side_effect = lambda cmd, **kwargs: {
-            ("git", "rev-parse", "HEAD"): b"commit_sha_123\n",
-            ("git", "status", "--porcelain"): b"",  # Clean
-            ("git", "log", "-1", "--format=%T"): b"tree_sha_123\n",
-            ("git", "ls-files"): b"pyproject.toml\n"
-        }[tuple(cmd)]
+        def mock_git_call(cmd, *args, **kwargs):
+            return {
+                ("git", "rev-parse", "HEAD"): b"commit_sha_123\n",
+                ("git", "status", "--porcelain"): b"",  # Clean
+                ("git", "log", "-1", "--format=%T"): b"tree_sha_123\n",
+                ("git", "ls-files"): b"pyproject.toml\n"
+            }[tuple(cmd)]
+        mock_git.side_effect = mock_git_call
 
         # Simulate uv sync failing during the quality gate stage or self-verification stage
         mock_run_ret = mock.Mock()
