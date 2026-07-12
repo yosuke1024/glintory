@@ -17,6 +17,7 @@ from glintory.main import app  # noqa: E402
 
 client = TestClient(app)
 
+
 @pytest.fixture
 def test_web_db(tmp_path):
     """Sets up temporary database for testing the web routing layer."""

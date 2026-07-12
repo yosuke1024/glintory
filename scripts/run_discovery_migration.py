@@ -14,7 +14,9 @@ from glintory.services.opportunity_rebuild_service import OpportunityRebuildServ
 
 
 def main():
-    db_url = os.environ.get("GLINTORY_DATABASE_URL", "sqlite:///.state/public-glintory.sqlite3")
+    db_url = os.environ.get(
+        "GLINTORY_DATABASE_URL", "sqlite:///.state/public-glintory.sqlite3"
+    )
     print(f"Connecting to database: {db_url}")
 
     if not db_url.startswith("sqlite:///"):
@@ -39,7 +41,10 @@ def main():
         conn.commit()
 
         # Check existing marker
-        cursor.execute("SELECT value FROM state_metadata WHERE key = ?", ("discovery_model_version",))
+        cursor.execute(
+            "SELECT value FROM state_metadata WHERE key = ?",
+            ("discovery_model_version",),
+        )
         row = cursor.fetchone()
         marker = row[0] if row else None
     finally:
@@ -60,11 +65,18 @@ def main():
             needs_migration = True
         else:
             # Dual check: are there any records that are NOT migrated?
-            unmigrated_opps_count = session.query(Opportunity).filter(
-                (Opportunity.gate_version != "v3") | (Opportunity.cluster_version != "v2")
-            ).count()
+            unmigrated_opps_count = (
+                session.query(Opportunity)
+                .filter(
+                    (Opportunity.gate_version != "v3")
+                    | (Opportunity.cluster_version != "v2")
+                )
+                .count()
+            )
             if unmigrated_opps_count > 0:
-                print(f"Found {unmigrated_opps_count} unmigrated opportunities. Re-triggering migration.")
+                print(
+                    f"Found {unmigrated_opps_count} unmigrated opportunities. Re-triggering migration."
+                )
                 needs_migration = True
 
         if not needs_migration:
@@ -72,33 +84,37 @@ def main():
             return
 
         print("Triggering full Discovery Model Migration (clustering-v2-gate-v3)...")
-        
+
         # Instantiate rebuild service
         service = OpportunityRebuildService(session)
-        
+
         # Execute non-destructive rebuild with signal reclassification
         result = service.rebuild_v2(
             from_version="v2",
             to_version="v2",
             reclassify_signals=True,
             cluster_version="v2",
-            gate_version="v3"
+            gate_version="v3",
         )
-        
+
         print("Rebuild success:")
         print(f"  Source Opportunities: {result['source_opportunities']}")
         print(f"  Source Signals: {result['source_signals']}")
         print(f"  Created v2 Opportunities: {result['created_v2_opportunities']}")
         print(f"  Updated v2 Opportunities: {result['updated_v2_opportunities']}")
-        print(f"  Gate Passed: {result['gate_passed']}, Rejected: {result['gate_rejected']}")
+        print(
+            f"  Gate Passed: {result['gate_passed']}, Rejected: {result['gate_rejected']}"
+        )
 
         # 3. Save migration marker in state_metadata
         # We use raw sql session execution to ensure it is committed in the same transaction
         session.execute(
-            text("INSERT OR REPLACE INTO state_metadata (key, value) VALUES (:key, :value)"),
-            {"key": "discovery_model_version", "value": "clustering-v2-gate-v3"}
+            text(
+                "INSERT OR REPLACE INTO state_metadata (key, value) VALUES (:key, :value)"
+            ),
+            {"key": "discovery_model_version", "value": "clustering-v2-gate-v3"},
         )
-        
+
         session.commit()
         print("Discovery model migration completed and marker saved successfully.")
 
@@ -106,10 +122,12 @@ def main():
         session.rollback()
         print(f"ERROR: Discovery model migration failed: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
     finally:
         session.close()
+
 
 if __name__ == "__main__":
     main()

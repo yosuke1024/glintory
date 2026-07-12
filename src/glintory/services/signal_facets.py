@@ -296,7 +296,10 @@ def extract_signal_facets(
     source_type_lower = (source_type or "").lower()
 
     url_lower = (canonical_url or "").lower()
-    is_hn_url = "news.ycombinator.com/item" in url_lower or "news.ycombinator.com/item" in title.lower()
+    is_hn_url = (
+        "news.ycombinator.com/item" in url_lower
+        or "news.ycombinator.com/item" in title.lower()
+    )
     is_show_hn = title.lower().startswith("show hn:") or "show hn:" in title.lower()
     is_ask_hn = title.lower().startswith("ask hn:") or "ask hn:" in title.lower()
 
@@ -343,7 +346,8 @@ def extract_signal_facets(
             ):
                 role = SignalRole.SUPPLY
             elif (
-                signal_type in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT)
+                signal_type
+                in (SignalType.REQUEST, SignalType.PAIN, SignalType.COMPLAINT)
                 or problem_terms
                 or solution_request_markers
             ):

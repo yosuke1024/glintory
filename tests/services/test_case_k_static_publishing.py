@@ -45,7 +45,7 @@ def test_case_k_static_publishing(memory_db, tmp_path):
 
     # We need 3 Research Candidates (gate_status='rejected', status=OpportunityStatus.RESEARCH)
     # 2 Rejected Opportunities (status=OpportunityStatus.REJECTED, public_lifecycle='unregistered')
-    
+
     # 3 Research Candidates
     for i in range(1, 4):
         opp = Opportunity(

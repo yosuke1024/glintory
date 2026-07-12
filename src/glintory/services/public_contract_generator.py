@@ -684,9 +684,7 @@ def generate_public_contract(
         "published_opportunities": len(
             [x for x in summary_items if x.stage == "published"]
         ),
-        "research_candidates": len(
-            [x for x in summary_items if x.stage == "research"]
-        ),
+        "research_candidates": len([x for x in summary_items if x.stage == "research"]),
         "jurypress_ready": len(sorted_jurypress_ready_items),
         "manifest_content_hash": manifest_content_hash,
     }

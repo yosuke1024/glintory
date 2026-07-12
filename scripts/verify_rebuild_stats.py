@@ -13,7 +13,7 @@ def main():
     cursor = conn.cursor()
 
     print("=== Database Verification ===")
-    
+
     # 1. Total Opportunities count by status
     print("\n[Opportunities Count by Status]")
     cursor.execute("SELECT status, COUNT(*) FROM opportunities GROUP BY status")
@@ -22,19 +22,25 @@ def main():
 
     # 2. Total Opportunities count by gate_status
     print("\n[Opportunities Count by Gate Status]")
-    cursor.execute("SELECT gate_status, COUNT(*) FROM opportunities GROUP BY gate_status")
+    cursor.execute(
+        "SELECT gate_status, COUNT(*) FROM opportunities GROUP BY gate_status"
+    )
     for gate, count in cursor.fetchall():
         print(f"  {gate}: {count}")
 
     # 3. Gate version counts
     print("\n[Opportunities Count by Gate Version]")
-    cursor.execute("SELECT gate_version, COUNT(*) FROM opportunities GROUP BY gate_version")
+    cursor.execute(
+        "SELECT gate_version, COUNT(*) FROM opportunities GROUP BY gate_version"
+    )
     for version, count in cursor.fetchall():
         print(f"  {version or 'NULL'}: {count}")
 
     # 4. Clustering version counts
     print("\n[Opportunities Count by Cluster Version]")
-    cursor.execute("SELECT cluster_version, COUNT(*) FROM opportunities GROUP BY cluster_version")
+    cursor.execute(
+        "SELECT cluster_version, COUNT(*) FROM opportunities GROUP BY cluster_version"
+    )
     for version, count in cursor.fetchall():
         print(f"  {version or 'NULL'}: {count}")
 
@@ -48,17 +54,22 @@ def main():
         LIMIT 10
     """)
     rows = cursor.fetchall()
-    print(f"{'Public ID':<35} | {'Title':<45} | {'Score':<5} | {'Status':<10} | {'Gate':<8}")
+    print(
+        f"{'Public ID':<35} | {'Title':<45} | {'Score':<5} | {'Status':<10} | {'Gate':<8}"
+    )
     print("-" * 115)
     for pub_id, title, score, status, gate, reason in rows:
         title_truncated = title[:45] if title else "None"
         gate_str = str(gate) if gate is not None else "None"
         score_str = str(score) if score is not None else "None"
-        print(f"{pub_id:<35} | {title_truncated:<45} | {score_str:<5} | {status:<10} | {gate_str:<8}")
+        print(
+            f"{pub_id:<35} | {title_truncated:<45} | {score_str:<5} | {status:<10} | {gate_str:<8}"
+        )
         print(f"    Reason: {reason}")
         print("-" * 115)
 
     conn.close()
+
 
 if __name__ == "__main__":
     main()
