@@ -1,0 +1,3 @@
+2026-07-12 09:27:32,321 - alembic.runtime.migration - INFO - Context impl SQLiteImpl.
+2026-07-12 09:27:32,321 - alembic.runtime.migration - INFO - Will assume non-transactional DDL.
+Validation error: Missing required contract file: manifest.json

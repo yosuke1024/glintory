@@ -57,7 +57,9 @@ def calculate_opportunity_detail_canonical_hash(
         data.pop(f, None)
 
     # Serialize to deterministic JSON (compact, sorted keys)
-    serialized = json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    serialized = json.dumps(
+        data, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
@@ -83,13 +85,13 @@ def calculate_opportunity_content_hash(
     sorted_ev = sorted(evidences, key=get_sort_key)
 
     from glintory.domain.public_contract import (
+        JuryPressReadinessV1,
         PublicEvidenceV1,
         PublicOpportunityDetailV1,
         PublicOpportunityGateV1,
         PublicOpportunityLocalizationDetailItemV1,
         PublicOpportunityLocalizationDetailV1,
         PublicOpportunityScoreDetailV1,
-        JuryPressReadinessV1,
     )
 
     mapped_ev = []
@@ -130,9 +132,10 @@ def calculate_opportunity_content_hash(
     loc_ja_status = "completed" if (opp.title_ja and opp.summary_ja) else "pending"
     loc_en_status = "completed" if (opp.title_en and opp.summary_en) else "pending"
 
-    lifecycle = getattr(opp, "public_lifecycle", "active") or "active"
-    if hasattr(lifecycle, "value"):
-        lifecycle = lifecycle.value
+    lifecycle_raw: Any = getattr(opp, "public_lifecycle", "active") or "active"
+    lifecycle = (
+        lifecycle_raw.value if hasattr(lifecycle_raw, "value") else str(lifecycle_raw)
+    )
 
     detail = PublicOpportunityDetailV1(
         public_id=opp.public_id

@@ -19,7 +19,6 @@ from glintory.domain.models import (
 from glintory.infrastructure.opportunity_scoring_repository import (
     OpportunityScoringRepository,
 )
-from glintory.services.content_hashing import calculate_opportunity_content_hash
 from glintory.services.opportunity_clustering import OpportunityClusteringEngine
 from glintory.services.opportunity_scoring import OpportunityScoringEngine
 from glintory.services.opportunity_scoring_service import OpportunityScoringService
@@ -600,53 +599,7 @@ class OpportunityRebuildService:
         scoring_run.status = "succeeded"
         self.session.flush()
 
-        # Revision & Hash verification
-        v2_opps = (
-            self.session.query(Opportunity)
-            .filter(Opportunity.current_scoring_version == to_version)
-            .all()
-        )
-
-        for opp in v2_opps:
-            links = (
-                self.session.query(OpportunitySignal, Signal)
-                .join(Signal, OpportunitySignal.signal_id == Signal.id)
-                .filter(
-                    OpportunitySignal.opportunity_id == opp.id,
-                    OpportunitySignal.is_excluded.is_(False),
-                )
-                .all()
-            )
-
-            ev_list = []
-            for opp_sig, sig in links:
-                ev_list.append(
-                    {
-                        "signal_id": sig.id,
-                        "role": sig.signal_role.value
-                        if hasattr(sig.signal_role, "value")
-                        else str(sig.signal_role),
-                        "title": sig.title,
-                        "url": sig.canonical_url,
-                        "published_at": sig.published_at,
-                        "relevance_score": opp_sig.relevance_score,
-                        "summary_ja": opp_sig.evidence_summary_ja,
-                        "summary_en": opp_sig.evidence_summary_en,
-                        "excerpt": sig.excerpt,
-                    }
-                )
-
-            new_hash = calculate_opportunity_content_hash(opp, ev_list)
-
-            if opp.public_content_hash is None:
-                opp.public_content_hash = new_hash
-                opp.public_revision = 1
-                opp.first_published_at = now
-                opp.last_published_at = now
-            elif opp.public_content_hash != new_hash:
-                opp.public_content_hash = new_hash
-                opp.public_revision += 1
-                opp.last_published_at = now
+        # Revision & Hash verification is handled solely during publish.
 
         self.session.commit()
 

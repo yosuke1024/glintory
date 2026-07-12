@@ -1557,8 +1557,15 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
     elif args.subcommand == "validate-contract":
         from glintory.services.contract_validation import validate_public_contract
 
-        data_dir = os.path.join(args.dir, "data", "v1")
-        errors = validate_public_contract(data_dir)
+        target_dir = args.dir
+        if not os.path.exists(os.path.join(target_dir, "opportunities.json")):
+            alt_dir = os.path.join(target_dir, "data", "v1")
+            if os.path.exists(os.path.join(alt_dir, "opportunities.json")):
+                target_dir = alt_dir
+            else:
+                target_dir = alt_dir
+
+        errors = validate_public_contract(target_dir)
         if errors:
             for err in errors:
                 sys.stderr.write(f"Validation error: {err}\n")
@@ -1569,8 +1576,15 @@ async def run_publish_command(args: argparse.Namespace, runtime: Any) -> int:
     elif args.subcommand == "inspect-jurypress-feed":
         from glintory.services.contract_validation import inspect_jurypress_feed
 
-        data_dir = os.path.join(args.dir, "data", "v1")
-        res = inspect_jurypress_feed(data_dir)
+        target_dir = args.dir
+        if not os.path.exists(os.path.join(target_dir, "opportunities.json")):
+            alt_dir = os.path.join(target_dir, "data", "v1")
+            if os.path.exists(os.path.join(alt_dir, "opportunities.json")):
+                target_dir = alt_dir
+            else:
+                target_dir = alt_dir
+
+        res = inspect_jurypress_feed(target_dir)
 
         print("=== JuryPress Ready Opportunities ===")
         for item in res["ready"]:

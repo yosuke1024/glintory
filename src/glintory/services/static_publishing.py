@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from glintory.config import settings
 from glintory.domain.enrichment_contract import PROMPT_VERSION, SCHEMA_VERSION
+from glintory.domain.enums import OpportunityStatus
 from glintory.domain.models import (
     Opportunity,
     OpportunitySignal,
@@ -137,11 +138,16 @@ def build_static_site(
     generated_at: datetime | None = None,
 ) -> dict:
     from glintory.domain.models import OpportunityPublicAlias, PublishingRun
-    from glintory.services.public_contract_generator import generate_public_contract
+    from glintory.services.public_contract_generator import (
+        generate_public_contract,
+        resolve_publication_lifecycle,
+        select_active_public_opportunities,
+    )
 
     valid_site_url = validate_site_url(site_url)
     gen_time = (generated_at or datetime.now(UTC)).replace(tzinfo=None)
     session.expire_all()
+    resolve_publication_lifecycle(session, gen_time)
 
     # 1. Start PublishingRun auditing
     pub_run = PublishingRun(
@@ -182,25 +188,7 @@ def build_static_site(
             .first()
         )
 
-        from glintory.domain.enums import Confidence, OpportunityStatus
-
-        opportunities = (
-            session.query(Opportunity)
-            .filter(
-                Opportunity.current_scoring_version == "v2",
-                Opportunity.gate_status == "passed",
-                Opportunity.status != OpportunityStatus.REJECTED,
-                Opportunity.status != OpportunityStatus.ARCHIVED,
-                Opportunity.confidence.in_([Confidence.MEDIUM, Confidence.HIGH]),
-                (Opportunity.public_lifecycle.is_(None) | (Opportunity.public_lifecycle == "active")),
-            )
-            .order_by(
-                Opportunity.total_score.desc(),
-                Opportunity.last_scored_at.desc(),
-                Opportunity.id.desc(),
-            )
-            .all()
-        )
+        opportunities = select_active_public_opportunities(session)
 
         signals_data = (
             session.query(Signal, Source.name, Source.source_type)
@@ -842,12 +830,14 @@ def build_static_site(
         if val_errors:
             raise ValueError(f"Contract Validation Failed: {val_errors}")
 
+        backup_dir = None
+        has_swapped = False
         if os.path.exists(output_dir):
             backup_dir = output_dir + f".bak-{uuid.uuid4().hex}"
             try:
                 os.rename(output_dir, backup_dir)
                 os.rename(temp_build_dir, output_dir)
-                shutil.rmtree(backup_dir)
+                has_swapped = True
             except Exception:
                 if os.path.exists(backup_dir) and not os.path.exists(output_dir):
                     os.rename(backup_dir, output_dir)
@@ -855,13 +845,27 @@ def build_static_site(
         else:
             os.rename(temp_build_dir, output_dir)
 
-        # Update PublishingRun auditing upon success
-        pub_run.published_count = contract_res["published_opportunities"]
-        pub_run.jurypress_ready_count = contract_res["jurypress_ready"]
-        pub_run.dataset_content_hash = contract_res["manifest_content_hash"]
-        pub_run.completed_at = datetime.now(UTC)
-        pub_run.status = "succeeded"
-        session.commit()
+        try:
+            # Update PublishingRun auditing upon success
+            pub_run.published_count = contract_res["published_opportunities"]
+            pub_run.jurypress_ready_count = contract_res["jurypress_ready"]
+            pub_run.dataset_content_hash = contract_res["manifest_content_hash"]
+            pub_run.completed_at = datetime.now(UTC)
+            pub_run.status = "succeeded"
+            session.commit()
+
+            # Clean backup only after successful commit
+            if backup_dir and os.path.exists(backup_dir):
+                shutil.rmtree(backup_dir)
+        except Exception as commit_err:
+            if has_swapped and backup_dir and os.path.exists(backup_dir):
+                if os.path.exists(output_dir):
+                    shutil.rmtree(output_dir)
+                os.rename(backup_dir, output_dir)
+            elif not has_swapped and not backup_dir:
+                if os.path.exists(output_dir):
+                    shutil.rmtree(output_dir)
+            raise commit_err
 
     except Exception as e:
         # DB Rollback

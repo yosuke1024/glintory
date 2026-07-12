@@ -57,7 +57,7 @@ class PublicOpportunityLocalizationDetailV1(BasePublicModel):
 class PublicOpportunityScoreListV1(BasePublicModel):
     total: int
     confidence: Literal["low", "medium", "high"]
-    version: str = "v2"
+    version: Literal["v2"] = "v2"
 
 
 class PublicOpportunityEvidenceMetricsV1(BasePublicModel):
@@ -105,7 +105,7 @@ class PublicOpportunitySummaryV1(BasePublicModel):
 
 
 class PublicOpportunityListV1(BasePublicModel):
-    schema_version: str = "1.0.0"
+    schema_version: Literal["1.0.0"] = "1.0.0"
     generated_at: datetime
     count: int
     items: list[PublicOpportunitySummaryV1]
@@ -124,7 +124,7 @@ class PublicOpportunityScoreDetailV1(BasePublicModel):
     feasibility: int
     penalty: int
     confidence: Literal["low", "medium", "high"]
-    version: str = "v2"
+    version: Literal["v2"] = "v2"
     components: list[ScoreComponentV1] = Field(default_factory=list)
     independent_evidence_count: int = 0
     demand_evidence_count: int = 0
@@ -137,7 +137,7 @@ class PublicOpportunityGateV1(BasePublicModel):
 
 
 class PublicOpportunityDetailV1(BasePublicModel):
-    schema_version: str = "1.0.0"
+    schema_version: Literal["1.0.0"] = "1.0.0"
     public_id: str = Field(pattern=r"^opp_[0-9a-f]{32}$")
     public_lifecycle: Literal["active", "merged", "retired"] = "active"
     revision: int
@@ -173,7 +173,7 @@ class JuryPressFeedItemV1(BasePublicModel):
 
 
 class JuryPressFeedV1(BasePublicModel):
-    schema_version: str = "1.0.0"
+    schema_version: Literal["1.0.0"] = "1.0.0"
     generated_at: datetime
     content_hash: str
     count: int
@@ -192,10 +192,20 @@ class PublicManifestEndpointsV1(BasePublicModel):
 
 class PublicManifestV1(BasePublicModel):
     contract: Literal["glintory-public-data"] = "glintory-public-data"
-    schema_version: str = "1.0.0"
+    schema_version: Literal["1.0.0"] = "1.0.0"
     generated_at: datetime
     dataset_revision: str
     source_commit: str
     content_hash: str
     counts: PublicManifestCountsV1
     endpoints: PublicManifestEndpointsV1
+
+
+def to_public_completion_status(
+    internal_status: str | None,
+) -> Literal["pending", "completed", "failed"]:
+    if internal_status in ("succeeded", "completed"):
+        return "completed"
+    if internal_status == "failed":
+        return "failed"
+    return "pending"

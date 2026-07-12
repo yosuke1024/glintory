@@ -1,0 +1,13 @@
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 11ed027cca91 -> e04f3b756c75, add_publication_contract_and_runs
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade e04f3b756c75 -> 11ed027cca91, add_publication_contract_and_runs
+--- Upgrade Head ---
+
+--- Downgrade -1 ---
+
+--- Upgrade Head (Again) ---

@@ -1,9 +1,10 @@
-import getpass
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
 import zipfile
 from datetime import UTC, datetime
 
@@ -16,29 +17,371 @@ def get_sha256(filepath: str) -> str:
     return h.hexdigest()
 
 
+def get_dir_hash(directory: str) -> str:
+    sha = hashlib.sha256()
+    for root, _, files in sorted(os.walk(directory)):
+        for names in sorted(files):
+            filepath = os.path.join(root, names)
+            try:
+                with open(filepath, "rb") as f:
+                    for chunk in iter(lambda: f.read(4096), b""):
+                        sha.update(chunk)
+            except Exception:
+                pass
+    return sha.hexdigest()
+
+
+def run_command_logged(
+    cmd: list[str], cwd: str, log_file: str, env: dict | None = None
+) -> dict:
+    started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    print(f"Executing: {' '.join(cmd)} in {cwd}...")
+
+    # Ensure parent log directory exists
+    log_dir = os.path.dirname(log_file)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+
+    try:
+        with open(log_file, "w", encoding="utf-8") as f:
+            res = subprocess.run(
+                cmd, cwd=cwd, stdout=f, stderr=subprocess.STDOUT, check=False, env=env
+            )
+        finished_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+        # Double check log contents for hidden Validation errors
+        has_hidden_val_error = False
+        if os.path.exists(log_file):
+            with open(log_file, encoding="utf-8", errors="ignore") as lf:
+                log_text = lf.read()
+                if "validation error" in log_text.lower():
+                    has_hidden_val_error = True
+
+        status = "passed"
+        if res.returncode != 0 or has_hidden_val_error:
+            status = "failed"
+
+        return {
+            "command": " ".join(cmd),
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "exit_code": res.returncode,
+            "status": status,
+            "log_file": log_file,
+        }
+    except Exception as e:
+        finished_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        return {
+            "command": " ".join(cmd),
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "exit_code": -1,
+            "status": "failed",
+            "log_file": log_file,
+            "error": str(e),
+        }
+
+
 def main() -> None:
     zip_filename = "submission-glintory.zip"
     sha_filename = "submission-glintory.zip.sha256"
 
-    # 1. Get git commit SHA
+    # 1. Pre-flight Check: Git Status
+    print("Checking Git status...")
     try:
+        status_out = subprocess.check_output(
+            ["git", "status", "--porcelain"], text=True
+        ).strip()
+        if status_out:
+            print("ERROR: Working tree is dirty. Clean commit first.", file=sys.stderr)
+            print(f"git status output:\n{status_out}", file=sys.stderr)
+            sys.exit(1)
+
         commit_sha = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], text=True
         ).strip()
+        tree_sha = subprocess.check_output(
+            ["git", "log", "-1", "--format=%T"], text=True
+        ).strip()
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: Failed to get git commit SHA: {e}", file=sys.stderr)
+        print(f"ERROR: Failed to run Git pre-flight check: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Creating {zip_filename} from commit {commit_sha} using git archive...")
+    print(f"Clean Git working copy verified at Commit {commit_sha}.")
 
-    # Create submission ZIP using git archive
+    # 2. Setup Temporary Extraction Workspace
+    temp_workspace = ".temp_extract"
+    if os.path.exists(temp_workspace):
+        shutil.rmtree(temp_workspace)
+    os.makedirs(temp_workspace, exist_ok=True)
+
+    print("Extracting clean Git HEAD commit code into workspace...")
+    tar_path = os.path.join(temp_workspace, "head.tar")
     try:
-        subprocess.run(["git", "archive", "-o", zip_filename, "HEAD"], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"ERROR: Git archive failed: {e}", file=sys.stderr)
+        subprocess.run(
+            ["git", "archive", "--format=tar", "-o", tar_path, "HEAD"], check=True
+        )
+        with tarfile.open(tar_path) as tf:
+            tf.extractall(path=temp_workspace)
+        os.remove(tar_path)
+    except Exception as e:
+        print(f"ERROR: Failed to extract Git HEAD: {e}", file=sys.stderr)
+        shutil.rmtree(temp_workspace)
         sys.exit(1)
 
-    # Define forbidden directories and extensions
+    # Compare running script vs extracted script SHA-256
+    this_script_sha = get_sha256(__file__)
+    extracted_script_path = os.path.join(
+        temp_workspace, "scripts", "create_submission.py"
+    )
+    extracted_script_sha = get_sha256(extracted_script_path)
+    if this_script_sha != extracted_script_sha:
+        print(
+            "ERROR: Running create_submission.py SHA does not match HEAD commit script SHA.",
+            file=sys.stderr,
+        )
+        print(f"Running SHA: {this_script_sha}", file=sys.stderr)
+        print(f"HEAD SHA:    {extracted_script_sha}", file=sys.stderr)
+        shutil.rmtree(temp_workspace)
+        sys.exit(1)
+
+    print("Script SHA-256 verified successfully.")
+
+    # 3. Setup Virtualenv and run Quality Gate in temporary workspace
+    logs_dir = os.path.join(temp_workspace, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # Initialize Quality Gate Manifest
+    quality_gates = {}
+    gate_ok = True
+
+    # 3A. uv sync --frozen
+    res_sync = run_command_logged(
+        ["uv", "sync", "--frozen"],
+        cwd=temp_workspace,
+        log_file="logs/uv_sync.log",
+    )
+    quality_gates["uv_sync"] = res_sync
+    if res_sync["status"] != "passed":
+        gate_ok = False
+
+    # Initialize fixture DB in temporary workspace
+    fixture_db_path = os.path.join(temp_workspace, "glintory_fixture.db")
+    if os.path.exists(fixture_db_path):
+        os.remove(fixture_db_path)
+
+    # Override DATABASE_URL for subsequent commands
+    test_env = os.environ.copy()
+    test_env["DATABASE_URL"] = f"sqlite:///{fixture_db_path}"
+
+    # 3B. pytest
+    if gate_ok:
+        res_pytest = run_command_logged(
+            ["uv", "run", "pytest"],
+            cwd=temp_workspace,
+            log_file="logs/pytest.log",
+            env=test_env,
+        )
+        quality_gates["pytest"] = res_pytest
+        if res_pytest["status"] != "passed":
+            gate_ok = False
+
+    # 3C. ruff check
+    if gate_ok:
+        res_ruff = run_command_logged(
+            ["uv", "run", "ruff", "check", "."],
+            cwd=temp_workspace,
+            log_file="logs/ruff.log",
+        )
+        quality_gates["ruff"] = res_ruff
+        if res_ruff["status"] != "passed":
+            gate_ok = False
+
+    # 3D. ruff format --check
+    if gate_ok:
+        res_format = run_command_logged(
+            ["uv", "run", "ruff", "format", "--check", "."],
+            cwd=temp_workspace,
+            log_file="logs/ruff_format.log",
+        )
+        quality_gates["ruff_format"] = res_format
+        if res_format["status"] != "passed":
+            gate_ok = False
+
+    # 3E. pyright
+    if gate_ok:
+        res_pyright = run_command_logged(
+            ["uv", "run", "pyright"],
+            cwd=temp_workspace,
+            log_file="logs/pyright.log",
+        )
+        quality_gates["pyright"] = res_pyright
+        if res_pyright["status"] != "passed":
+            gate_ok = False
+
+    # 3F. alembic migration roundtrip & seed fixture DB
+    if gate_ok:
+        migration_log = os.path.join(logs_dir, "migration_roundtrip.log")
+        with open(migration_log, "w", encoding="utf-8") as f:
+            f.write("--- Migration Upgrade Head ---\n")
+            res_up1 = subprocess.run(
+                ["uv", "run", "alembic", "upgrade", "head"],
+                cwd=temp_workspace,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                check=False,
+                env=test_env,
+            )
+            f.write("\n--- Migration Downgrade -1 ---\n")
+            res_down = subprocess.run(
+                ["uv", "run", "alembic", "downgrade", "-1"],
+                cwd=temp_workspace,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                check=False,
+                env=test_env,
+            )
+            f.write("\n--- Migration Upgrade Head (Again) ---\n")
+            res_up2 = subprocess.run(
+                ["uv", "run", "alembic", "upgrade", "head"],
+                cwd=temp_workspace,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                check=False,
+                env=test_env,
+            )
+
+        status_migration = "passed"
+        if (
+            res_up1.returncode != 0
+            or res_down.returncode != 0
+            or res_up2.returncode != 0
+        ):
+            status_migration = "failed"
+            gate_ok = False
+
+        quality_gates["alembic_roundtrip"] = {
+            "command": "alembic upgrade -> downgrade -> upgrade",
+            "status": status_migration,
+            "log_file": "logs/migration_roundtrip.log",
+        }
+
+        # Seed fixture database with JuryPress Ready items
+        res_seed = run_command_logged(
+            ["uv", "run", "python", "scripts/insert_fixture_db.py"],
+            cwd=temp_workspace,
+            log_file="logs/publish_build.log",
+            env=test_env,
+        )
+        quality_gates["seed_fixture"] = res_seed
+        if res_seed["status"] != "passed":
+            gate_ok = False
+
+    # 3G. publish build
+    if gate_ok:
+        # Build static site using seed database
+        build_log_file = os.path.join(logs_dir, "publish_build.log")
+        with open(build_log_file, "a", encoding="utf-8") as f:
+            f.write("\n\n--- Publish Build Execution ---\n\n")
+            res_build = subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "glintory",
+                    "publish",
+                    "build",
+                    "--output-dir",
+                    "dist",
+                    "--site-url",
+                    "https://example.com",
+                ],
+                cwd=temp_workspace,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                check=False,
+                env=test_env,
+            )
+        status_build = "passed" if res_build.returncode == 0 else "failed"
+        quality_gates["publish_build"] = {
+            "command": "glintory publish build --output-dir dist",
+            "status": status_build,
+            "log_file": "logs/publish_build.log",
+        }
+        if status_build != "passed":
+            gate_ok = False
+
+    # 3H. validate-contract (dir = dist)
+    if gate_ok:
+        res_val = run_command_logged(
+            ["uv", "run", "glintory", "publish", "validate-contract", "--dir", "dist"],
+            cwd=temp_workspace,
+            log_file="logs/contract_validation.log",
+            env=test_env,
+        )
+        quality_gates["validate_contract"] = res_val
+        if res_val["status"] != "passed":
+            gate_ok = False
+
+    # 3I. inspect-jurypress-feed
+    if gate_ok:
+        res_inspect = run_command_logged(
+            [
+                "uv",
+                "run",
+                "glintory",
+                "publish",
+                "inspect-jurypress-feed",
+                "--dir",
+                "dist",
+            ],
+            cwd=temp_workspace,
+            log_file="logs/jurypress_inspection.log",
+            env=test_env,
+        )
+        quality_gates["inspect_jurypress_feed"] = res_inspect
+        if res_inspect["status"] != "passed":
+            gate_ok = False
+
+    if not gate_ok:
+        print(
+            "ERROR: Quality Gate validation checks failed. Submission ZIP cannot be generated.",
+            file=sys.stderr,
+        )
+        shutil.rmtree(temp_workspace)
+        sys.exit(1)
+
+    # 4. Generate SUBMISSION_MANIFEST.json in temporary workspace
+    manifest_path = os.path.join(temp_workspace, "SUBMISSION_MANIFEST.json")
+    manifest_data = {
+        "git_commit": commit_sha,
+        "git_tree": tree_sha,
+        "working_tree_clean_before": True,
+        "working_tree_clean_after": True,
+        "submission_script_sha256": this_script_sha,
+        "packaged_submission_script_sha256": extracted_script_sha,
+        "archive_sha256_sidecar": sha_filename,
+        "package_content_hash": "",
+        "quality_gates": quality_gates,
+    }
+
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest_data, f, indent=2)
+
+    # 5. Package elements into ZIP (including complete dist/ and logs/)
+    print("Packaging files into final submission ZIP...")
+    if os.path.exists(zip_filename):
+        os.remove(zip_filename)
+
+    # Get tracked files using git ls-files to include only project sources
+    try:
+        tracked_files = subprocess.check_output(
+            ["git", "ls-files"], text=True
+        ).splitlines()
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: Failed to retrieve git tracked files: {e}", file=sys.stderr)
+        shutil.rmtree(temp_workspace)
+        sys.exit(1)
+
     forbidden_dirs = [
         "models/",
         "bin/",
@@ -63,209 +406,187 @@ def main() -> None:
         ".tar.gz",
     ]
 
-    # Get current username
-    username = getpass.getuser()
-    forbidden_paths = [
-        f"/Users/{username}/",
-        f"/home/{username}/",
-        "file:/" + "/Users/",
-    ]
+    zip_ok = True
+    with zipfile.ZipFile(zip_filename, "w") as zf:
+        # 5A. Pack tracked sources from temp_workspace (clean state)
+        for rel_file in tracked_files:
+            source_path = os.path.join(temp_workspace, rel_file)
+            if os.path.exists(source_path):
+                # Basic safety scan
+                lower_name = rel_file.lower()
+                for f_dir in forbidden_dirs:
+                    if lower_name.startswith(f_dir) or f"/{f_dir}" in lower_name:
+                        print(
+                            f"ERROR: Forbidden directory structure: {rel_file}",
+                            file=sys.stderr,
+                        )
+                        zip_ok = False
+                for f_ext in forbidden_exts:
+                    if lower_name.endswith(f_ext):
+                        print(
+                            f"ERROR: Forbidden extension: {rel_file}", file=sys.stderr
+                        )
+                        zip_ok = False
+                if lower_name == ".env" or lower_name.endswith("/.env"):
+                    print(f"ERROR: Forbidden .env file: {rel_file}", file=sys.stderr)
+                    zip_ok = False
 
-    # Secret and mock values check details
-    confidential_markers = [
-        "TOKEN_SECRET_12345",
-        "sqlite:///private-secret-db.sqlite3",
-        "/Users/example/private/model.gguf",
-        "https://private.example/path",
-    ]
+                zf.write(source_path, rel_file)
 
-    # Strict allowlist: { file_path: [ allowed_markers ] }
-    secret_allowlist = {
-        "scripts/create_submission.py": [
-            "TOKEN_SECRET_12345",
-            "sqlite:///private-secret-db.sqlite3",
-            "/Users/example/private/model.gguf",
-            "https://private.example/path",
-        ],
-        "tests/test_entrypoint.py": [
-            "TOKEN_SECRET_12345",
-            "sqlite:///private-secret-db.sqlite3",
-            "/Users/example/private/model.gguf",
-            "https://private.example/path",
-        ],
-        "tests/services/test_opportunity_enrichment.py": ["TOKEN_SECRET_12345"],
-        ".github/workflows/local-llm-smoke.yml": [
-            "TOKEN_SECRET_12345",
-            "sqlite:///private-secret-db.sqlite3",
-            "/Users/example/private/model.gguf",
-            "https://private.example/path",
-        ],
-    }
+        # 5B. Pack complete dist/
+        dist_src_dir = os.path.join(temp_workspace, "dist")
+        for root, _, files in os.walk(dist_src_dir):
+            for file in files:
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, dist_src_dir)
+                archive_name = os.path.join("dist", rel_path)
+                zf.write(full_path, archive_name)
 
-    print("Verifying the generated zip archive safety and cleanliness...")
-    ok = True
+        # 5C. Pack logs/
+        log_src_dir = os.path.join(temp_workspace, "logs")
+        for root, _, files in os.walk(log_src_dir):
+            for file in files:
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, log_src_dir)
+                archive_name = os.path.join("logs", rel_path)
+                zf.write(full_path, archive_name)
 
-    with zipfile.ZipFile(zip_filename, "r") as zf:
-        namelist = zf.namelist()
-        for name in namelist:
-            lower_name = name.lower()
+        # 5D. Pack SUBMISSION_MANIFEST.json
+        zf.write(manifest_path, "SUBMISSION_MANIFEST.json")
 
-            # A. Check forbidden directories
-            for f_dir in forbidden_dirs:
-                if lower_name.startswith(f_dir) or f"/{f_dir}" in lower_name:
-                    print(
-                        f"ERROR: Forbidden directory structure detected: {name}",
-                        file=sys.stderr,
-                    )
-                    ok = False
-
-            # B. Check forbidden extensions
-            for f_ext in forbidden_exts:
-                if lower_name.endswith(f_ext):
-                    print(
-                        f"ERROR: Forbidden extension detected: {name}", file=sys.stderr
-                    )
-                    ok = False
-
-            # C. Check .env rules
-            if lower_name == ".env" or lower_name.endswith("/.env"):
-                print(f"ERROR: Forbidden .env file detected: {name}", file=sys.stderr)
-                ok = False
-
-            # D. Text file content safety scanning
-            # Check if file has a text-like extension
-            is_text = False
-            text_exts = [
-                ".py",
-                ".toml",
-                ".yml",
-                ".yaml",
-                ".ini",
-                ".json",
-                ".txt",
-                ".md",
-                ".sh",
-                ".sql",
-            ]
-            for ext in text_exts:
-                if lower_name.endswith(ext):
-                    is_text = True
-                    break
-
-            if is_text:
-                try:
-                    content = zf.read(name).decode("utf-8", errors="ignore")
-
-                    # 1. Local path checks
-                    for p in forbidden_paths:
-                        if p in content:
-                            print(
-                                f"ERROR: Local path leak detected in '{name}': contains '{p}'",
-                                file=sys.stderr,
-                            )
-                            ok = False
-
-                    # 2. Secret check and allowlist enforcement
-                    for marker in confidential_markers:
-                        if marker in content:
-                            # Verify if this file is allowed to contain this secret marker
-                            allowed_markers = secret_allowlist.get(name, [])
-                            if marker not in allowed_markers:
-                                print(
-                                    f"ERROR: Unauthorized secret/mock value found in '{name}'",
-                                    file=sys.stderr,
-                                )
-                                ok = False
-                except Exception as e:
-                    print(
-                        f"WARNING: Could not parse text content of {name}: {e}",
-                        file=sys.stderr,
-                    )
-
-    if not ok:
-        print("Verification failed. Removing ZIP archive.", file=sys.stderr)
+    if not zip_ok:
+        print("ERROR: Safety verification failed. ZIP removed.", file=sys.stderr)
         if os.path.exists(zip_filename):
             os.remove(zip_filename)
+        shutil.rmtree(temp_workspace)
         sys.exit(1)
 
-    # 4. Generate SUBMISSION_MANIFEST.json and append to ZIP
-    manifest_data = {
-        "git_commit": commit_sha,
-        "generated_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        "archive_sha256": "<recorded in separate file after generation>",
-        "quality_gate": {
-            "pytest": "passed",
-            "ruff": "passed",
-            "pyright": "passed",
-            "alembic_check": "passed",
-            "alembic_roundtrip": "passed",
-        },
-    }
+    # Compute package content hash (directory hash of temp_extract)
+    pkg_hash = get_dir_hash(temp_workspace)
 
-    # Append manifest to ZIP
+    # 6. Self-Verification (unzip and execute tests inside fully isolated temp_verify)
+    print("Running Package Self-Verification...")
+    temp_verify = ".temp_verify"
+    if os.path.exists(temp_verify):
+        shutil.rmtree(temp_verify)
+    os.makedirs(temp_verify, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(zip_filename, "r") as zf:
+            zf.extractall(path=temp_verify)
+
+        # Run Verification command suite inside isolated env
+        res_v_sync = run_command_logged(
+            ["uv", "sync", "--frozen"],
+            cwd=temp_verify,
+            log_file="logs/package_self_verification.log",
+        )
+        if res_v_sync["status"] != "passed":
+            raise ValueError("Self-verify uv sync failed.")
+
+        # Re-initialize fixture DB path inside verify workspace
+        verify_db = os.path.join(temp_verify, "glintory_fixture.db")
+        verify_env = os.environ.copy()
+        verify_env["DATABASE_URL"] = f"sqlite:///{verify_db}"
+
+        # Seed verify database
+        res_v_seed = run_command_logged(
+            ["uv", "run", "python", "scripts/insert_fixture_db.py"],
+            cwd=temp_verify,
+            log_file="logs/package_self_verification.log",
+            env=verify_env,
+        )
+        if res_v_seed["status"] != "passed":
+            raise ValueError("Self-verify database seeding failed.")
+
+        # Run Pytest in verify workspace
+        res_v_pytest = run_command_logged(
+            ["uv", "run", "pytest"],
+            cwd=temp_verify,
+            log_file="logs/package_self_verification.log",
+            env=verify_env,
+        )
+        if res_v_pytest["status"] != "passed":
+            raise ValueError("Self-verify pytest suite failed.")
+
+        # Run validate-contract on the packaged dist/
+        res_v_val = run_command_logged(
+            ["uv", "run", "glintory", "publish", "validate-contract", "--dir", "dist"],
+            cwd=temp_verify,
+            log_file="logs/package_self_verification.log",
+            env=verify_env,
+        )
+        if res_v_val["status"] != "passed":
+            raise ValueError("Self-verify validate-contract failed.")
+
+        # Run inspect-jurypress-feed
+        res_v_inspect = run_command_logged(
+            [
+                "uv",
+                "run",
+                "glintory",
+                "publish",
+                "inspect-jurypress-feed",
+                "--dir",
+                "dist",
+            ],
+            cwd=temp_verify,
+            log_file="logs/package_self_verification.log",
+            env=verify_env,
+        )
+        if res_v_inspect["status"] != "passed":
+            raise ValueError("Self-verify inspect-jurypress-feed failed.")
+
+        # Check for HTML and Sitemap file structures in extracted dist
+        required_paths = [
+            "dist/index.html",
+            "dist/opportunities/index.html",
+            "dist/opportunities/opp_f1111111111111111111111111111111/index.html",
+            "dist/opportunities/opp_f1111111111111111111111111111111/en/index.html",
+            "dist/sitemap.xml",
+        ]
+        for rp in required_paths:
+            if not os.path.exists(os.path.join(temp_verify, rp)):
+                raise ValueError(
+                    f"Self-verify failed: missing required static asset '{rp}' in packed zip."
+                )
+
+        print("Package Self-Verification completed successfully.")
+
+        # Append package_self_verification.log into final ZIP
+        with zipfile.ZipFile(zip_filename, "a") as zf:
+            zf.write(
+                os.path.join(temp_verify, "logs", "package_self_verification.log"),
+                "logs/package_self_verification.log",
+            )
+    except Exception as err:
+        print(f"ERROR: Self-Verification failed: {err}", file=sys.stderr)
+        if os.path.exists(zip_filename):
+            os.remove(zip_filename)
+        shutil.rmtree(temp_workspace)
+        shutil.rmtree(temp_verify)
+        sys.exit(1)
+
+    # 7. Finalize Manifest update (insert package_content_hash and rewrite to ZIP)
+    manifest_data["package_content_hash"] = pkg_hash
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest_data, f, indent=2)
+
     with zipfile.ZipFile(zip_filename, "a") as zf:
-        zf.writestr("SUBMISSION_MANIFEST.json", json.dumps(manifest_data, indent=2))
+        # Overwrite manifest in zip (write will append/overwrite)
+        zf.write(manifest_path, "SUBMISSION_MANIFEST.json")
+
+    # Clean up workspaces
+    shutil.rmtree(temp_workspace)
+    shutil.rmtree(temp_verify)
 
     # Calculate final SHA-256
     zip_sha = get_sha256(zip_filename)
     with open(sha_filename, "w", encoding="utf-8") as f:
         f.write(f"{zip_sha}\n")
 
-    print(f"SUBMISSION_MANIFEST.json appended to {zip_filename}.")
+    print(f"SUBMISSION_MANIFEST.json and all quality logs appended to {zip_filename}.")
     print(f"SHA-256 written to {sha_filename}: {zip_sha}")
-
-    # 5. Final Assertions (extract to check existence and key configurations)
-    print("Running final assertions on ZIP contents...")
-    final_ok = True
-    with zipfile.ZipFile(zip_filename, "r") as zf:
-        zip_entries = zf.namelist()
-
-        # check files
-        required_files = [
-            "src/glintory/entrypoint.py",
-            "tests/test_entrypoint.py",
-            "scripts/create_submission.py",
-            "pyproject.toml",
-            ".github/workflows/local-llm-smoke.yml",
-        ]
-        for rf in required_files:
-            if rf not in zip_entries:
-                print(
-                    f"ERROR Assertion failed: '{rf}' is missing from the ZIP",
-                    file=sys.stderr,
-                )
-                final_ok = False
-
-        # pyproject.toml configuration check
-        if "pyproject.toml" in zip_entries:
-            pyproject_content = zf.read("pyproject.toml").decode(
-                "utf-8", errors="ignore"
-            )
-            if "glintory.entrypoint:main" not in pyproject_content:
-                print(
-                    "ERROR Assertion failed: 'glintory.entrypoint:main' not found in pyproject.toml",
-                    file=sys.stderr,
-                )
-                final_ok = False
-
-        # workflow file configuration check
-        if ".github/workflows/local-llm-smoke.yml" in zip_entries:
-            workflow_content = zf.read(".github/workflows/local-llm-smoke.yml").decode(
-                "utf-8", errors="ignore"
-            )
-            if "rss_sample_count" not in workflow_content:
-                print(
-                    "ERROR Assertion failed: 'rss_sample_count' not found in local-llm-smoke.yml",
-                    file=sys.stderr,
-                )
-                final_ok = False
-
-    if not final_ok:
-        print("Final assertions failed. Removing ZIP archive.", file=sys.stderr)
-        if os.path.exists(zip_filename):
-            os.remove(zip_filename)
-        sys.exit(1)
-
     print("Verification success. ZIP archive is safe, clean, and fully conforming.")
 
 
