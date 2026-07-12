@@ -664,7 +664,7 @@ def main() -> None:
         # Append package_self_verification.log into final ZIP
         with zipfile.ZipFile(zip_filename, "a") as zf:
             zf.write(
-                os.path.join(temp_verify, "logs", "package_self_verification.log"),
+                os.path.join("logs", "package_self_verification.log"),
                 "logs/package_self_verification.log",
             )
     except Exception as err:
