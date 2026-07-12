@@ -455,10 +455,18 @@ def generate_public_contract(
             translation_status=to_public_completion_status(op.translation_status)
             if op.public_lifecycle == "active"
             else None,
-            retired_at=op.retired_at if op.public_lifecycle == "retired" else None,
+            retired_at=(
+                op.retired_at
+                if op.public_lifecycle == "retired" and hasattr(op, "retired_at")
+                else (op.updated_at if op.public_lifecycle == "retired" else None)
+            ),
             retired_reason=op.retired_reason
-            if op.public_lifecycle == "retired"
-            else None,
+            if op.public_lifecycle == "retired" and hasattr(op, "retired_reason")
+            else (
+                "retired"
+                if op.public_lifecycle == "retired"
+                else None
+            ),
         )
 
         stable_hash = calculate_opportunity_detail_canonical_hash(detail_model)
@@ -633,10 +641,18 @@ def generate_public_contract(
                 "public_id": op.public_id,
                 "revision": op.public_revision,
                 "content_hash": op.public_content_hash,
-                "retired_at": op.retired_at.isoformat()
-                if isinstance(op.retired_at, datetime)
-                else str(op.retired_at),
-                "retired_reason": op.retired_reason,
+                "retired_at": (
+                    op.retired_at.isoformat()
+                    if hasattr(op, "retired_at") and isinstance(op.retired_at, datetime)
+                    else (
+                        op.updated_at.isoformat()
+                        if isinstance(op.updated_at, datetime)
+                        else str(op.updated_at)
+                    )
+                ),
+                "retired_reason": op.retired_reason
+                if hasattr(op, "retired_reason")
+                else "retired",
             }
         )
 
