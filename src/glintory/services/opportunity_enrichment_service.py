@@ -104,13 +104,38 @@ class OpportunityEnrichmentService:
 
         if not selected_opps:
             logger.info("No opportunities selected for LLM enrichment.")
+            warns = []
+            session = self.session_factory()
+            try:
+                missing_summary_opps = (
+                    session.query(Opportunity)
+                    .filter(
+                        Opportunity.status.in_(
+                            [OpportunityStatus.INBOX, OpportunityStatus.RESEARCH]
+                        ),
+                        (Opportunity.title_ja.is_(None))
+                        | (Opportunity.summary_ja.is_(None)),
+                    )
+                    .count()
+                )
+                if missing_summary_opps > 0:
+                    logger.warning(
+                        f"Warning: There are {missing_summary_opps} active opportunities missing Japanese summaries, "
+                        f"but selected_count is 0. Check if they have evidence or if LLM config is correct."
+                    )
+                    warns.append("LLM_MISSING_SUMMARY_WARNING")
+            except Exception as e:
+                logger.error(f"Failed to check for missing summaries: {e}")
+            finally:
+                session.close()
+
             return OpportunityEnrichmentRunResult(
                 operational_status="success",
                 selected_count=0,
                 succeeded_count=0,
                 failed_count=0,
                 skipped_count=0,
-                warning_codes=(),
+                warning_codes=tuple(warns),
             )
 
         # 3. Build requests and manage state records before LLM execution
@@ -241,6 +266,33 @@ class OpportunityEnrichmentService:
             for w in warning_codes:
                 if w not in final_warnings:
                     final_warnings.append(w)
+
+            # Check for missing summaries after execution
+            session = self.session_factory()
+            try:
+                missing_summary_opps = (
+                    session.query(Opportunity)
+                    .filter(
+                        Opportunity.status.in_(
+                            [OpportunityStatus.INBOX, OpportunityStatus.RESEARCH]
+                        ),
+                        (Opportunity.title_ja.is_(None))
+                        | (Opportunity.summary_ja.is_(None)),
+                    )
+                    .count()
+                )
+                if missing_summary_opps > 0:
+                    logger.warning(
+                        f"Warning: There are {missing_summary_opps} active opportunities missing Japanese summaries, "
+                        f"but succeeded_count is 0 in this enrichment run."
+                    )
+                    if "LLM_MISSING_SUMMARY_WARNING" not in final_warnings:
+                        final_warnings.append("LLM_MISSING_SUMMARY_WARNING")
+            except Exception as e:
+                logger.error(f"Failed to check for missing summaries: {e}")
+            finally:
+                session.close()
+
             return OpportunityEnrichmentRunResult(
                 operational_status="success",
                 selected_count=len(selected_opps),
@@ -418,6 +470,32 @@ class OpportunityEnrichmentService:
             if w not in final_warnings:
                 final_warnings.append(w)
 
+        # Check for missing summaries after execution
+        session = self.session_factory()
+        try:
+            missing_summary_opps = (
+                session.query(Opportunity)
+                .filter(
+                    Opportunity.status.in_(
+                        [OpportunityStatus.INBOX, OpportunityStatus.RESEARCH]
+                    ),
+                    (Opportunity.title_ja.is_(None))
+                    | (Opportunity.summary_ja.is_(None)),
+                )
+                .count()
+            )
+            if missing_summary_opps > 0 and succeeded_count == 0:
+                logger.warning(
+                    f"Warning: There are {missing_summary_opps} active opportunities missing Japanese summaries, "
+                    f"but succeeded_count is 0 in this enrichment run."
+                )
+                if "LLM_MISSING_SUMMARY_WARNING" not in final_warnings:
+                    final_warnings.append("LLM_MISSING_SUMMARY_WARNING")
+        except Exception as e:
+            logger.error(f"Failed to check for missing summaries: {e}")
+        finally:
+            session.close()
+
         return OpportunityEnrichmentRunResult(
             operational_status="success",
             selected_count=len(selected_opps),
@@ -541,12 +619,10 @@ class OpportunityEnrichmentService:
             query = query.filter(Opportunity.id == opportunity_id)
         else:
             query = query.filter(
-                Opportunity.status.in_(
+                Opportunity.status.notin_(
                     [
-                        OpportunityStatus.INBOX,
-                        OpportunityStatus.WATCH,
-                        OpportunityStatus.VALIDATE,
-                        OpportunityStatus.BUILD,
+                        OpportunityStatus.REJECTED,
+                        OpportunityStatus.ARCHIVED,
                     ]
                 )
             )

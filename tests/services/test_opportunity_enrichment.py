@@ -1073,3 +1073,148 @@ def test_runtime_start_failure_leaves_no_running_records(
     )
     assert enrich is None or enrich.status != "running"
     session.close()
+
+
+def test_research_candidate_is_enriched(db_session_factory):
+    # Setup test with a RESEARCH status opportunity
+    session = db_session_factory()
+    source = Source(name="Test Source", source_type="github", enabled=True)
+    session.add(source)
+    session.flush()
+
+    signal = Signal(
+        source_id=source.id,
+        canonical_url="https://github.com/foo/bar",
+        title="Test Signal Title",
+        excerpt="This is a test signal excerpt containing some feedback.",
+        signal_type=SignalType.PAIN,
+        content_hash="hash123",
+        freshness_score=1.0,
+        source_quality_score=1.0,
+    )
+    session.add(signal)
+    session.flush()
+
+    opp = Opportunity(
+        title="Research Opportunity",
+        proposed_solution="Needs validation",
+        title_ja=None,  # missing summary initially
+        summary_ja=None,
+        confidence=Confidence.LOW,
+        status=OpportunityStatus.RESEARCH,
+        current_scoring_version="v2",
+        gate_status="rejected",  # Research Candidates are rejected by gate v3
+    )
+    session.add(opp)
+    session.flush()
+
+    opp_sig = OpportunitySignal(
+        opportunity_id=opp.id,
+        signal_id=signal.id,
+        relation_type=EvidenceRelationType.SUPPORTING,
+        relevance_score=0.9,
+    )
+    session.add(opp_sig)
+
+    snapshot = ScoreSnapshot(
+        opportunity_id=opp.id,
+        evidence_score=10,
+        feasibility_score=10,
+        penalty_score=0,
+        total_score=20,
+        confidence=Confidence.LOW,
+        scoring_version="v2",
+        input_hash="snap_hash_123",
+    )
+    session.add(snapshot)
+    session.commit()
+    opp_id = opp.id
+    signal_id = signal.id
+    session.close()
+
+    english_brief = EnglishBrief(
+        title="Enriched English Title",
+        summary="Enriched English Summary",
+        target_user="Users",
+        problem="Problem details",
+        current_workaround="None",
+        existing_solution_gap="Gap",
+        mvp_direction="Go",
+        why_selected="Selected",
+        risks="Risks",
+    )
+    japanese_brief = JapaneseBrief(
+        title="日本語タイトル",
+        summary="日本語の要約内容",
+        target_user="ユーザー",
+        problem="課題の詳細",
+        current_workaround="なし",
+        existing_solution_gap="ギャップ",
+        mvp_direction="進め",
+        why_selected="選定理由",
+        risks="リスク",
+    )
+    resp = OpportunityEnrichmentResponse(
+        status="succeeded",
+        english=english_brief,
+        japanese=japanese_brief,
+        evidence_refs=[signal_id],
+        llm_confidence="high",
+        duration_ms=50,
+    )
+    provider = FakeEnrichmentProvider(resp)
+    service = OpportunityEnrichmentService(db_session_factory, provider)
+
+    # 1. Run enrichment: RESEARCH opportunity should be selected and successfully enriched
+    res = service.run_enrichment(affected_opportunity_ids=[opp_id])
+    assert res.selected_count == 1
+    assert res.succeeded_count == 1
+    assert "LLM_MISSING_SUMMARY_WARNING" not in res.warning_codes
+
+    # Verify DB state has updated summaries
+    session = db_session_factory()
+    updated_opp = session.get(Opportunity, opp_id)
+    assert updated_opp is not None
+    assert updated_opp.title_ja == "日本語タイトル"
+    assert updated_opp.summary_ja == "日本語の要約内容"
+    assert updated_opp.enrichment_status == "succeeded"
+    session.close()
+
+    # 2. Run enrichment again: should be skipped since it's already enriched (matching hash)
+    # Since there are now no missing summaries, there should be no LLM_MISSING_SUMMARY_WARNING
+    res2 = service.run_enrichment(affected_opportunity_ids=[opp_id])
+    assert res2.selected_count == 1
+    assert res2.succeeded_count == 0
+    assert res2.skipped_count == 1
+    assert "LLM_MISSING_SUMMARY_WARNING" not in res2.warning_codes
+
+
+def test_missing_summary_warning(db_session_factory):
+    # Setup test with an active opportunity missing Japanese summaries, but no evidence
+    session = db_session_factory()
+    opp = Opportunity(
+        title="Opportunity Missing Summary",
+        proposed_solution="No summary ja",
+        title_ja=None,
+        summary_ja=None,
+        status=OpportunityStatus.INBOX,
+        current_scoring_version="v2",
+    )
+    session.add(opp)
+    session.commit()
+    session.close()
+
+    resp = OpportunityEnrichmentResponse(
+        status="succeeded",
+        duration_ms=10,
+    )
+    provider = FakeEnrichmentProvider(resp)
+    service = OpportunityEnrichmentService(db_session_factory, provider)
+
+    # 1. Run enrichment: selected_count will be 1 because it's selected from DB.
+    # It should trigger LLM_MISSING_SUMMARY_WARNING warning because title_ja/summary_ja is missing,
+    # but skipped because there is no evidence (succeeded_count == 0).
+    res = service.run_enrichment()
+    assert res.selected_count == 1
+    assert res.succeeded_count == 0
+    assert "LLM_MISSING_SUMMARY_WARNING" in res.warning_codes
