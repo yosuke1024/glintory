@@ -75,7 +75,8 @@ CREATE TABLE raw_items (
   r2_key         TEXT,                            -- 元データの R2 キー(null 可)
   body_text      TEXT,                            -- 正規化済み本文(抽出の入力。削除対象)
   status         TEXT NOT NULL DEFAULT 'collected'
-                 CHECK (status IN ('collected','normalized','deduped','extracted','rejected')),
+                 CHECK (status IN ('collected','normalized','deduped','screened',
+                                   'screened_out','extracted','rejected')),
   status_detail  TEXT,
   last_used_at   TEXT,
   expires_at     TEXT NOT NULL,
@@ -161,8 +162,9 @@ CREATE TABLE runs (
 ### 3.1 ステータス遷移
 
 ```text
-raw_items: collected → normalized → deduped → extracted
-                     ↘ rejected (取得不能・本文空・規約除外)
+raw_items: collected → normalized → deduped → screened → extracted
+                     ↘ rejected      (取得不能・本文空)
+                                   ↘ screened_out (§5.3 の選別で除外)
 facts:     extracted → verified   (出典スパン検証 合格)
                      ↘ rejected   (検証不合格。reject_reason 必須)
 ```
@@ -172,13 +174,16 @@ facts:     extracted → verified   (出典スパン検証 合格)
 
 ### 3.2 TTL 規則
 
-唯一の計算式:
+Issue の保持方針(未採用 30〜90日 / 採用済み 公開後90日)に基づき、2段階とする:
 
 ```text
-expires_at = max(collected_at, last_used_at, article_published_at) + 90 days
+未採用 (last_used_at IS NULL):  expires_at = collected_at + 30 days
+採用済み:                        expires_at = max(collected_at, last_used_at, article_published_at) + 90 days
 ```
 
-- 行の生成時は `collected_at + 90 days`(facts は evidence 元 raw_item の collected_at を基準)。
+未採用を 30 日にするのは、高頻度メディア(日数百本)を情報源とするため総量を抑える必要があるため。採用済みは Issue の規定どおり 90 日。
+
+**本文の早期破棄**: `body_text` は容量の大半を占めるため、Screen で除外された時点、または Extract 完了時点で **即座に NULL にする**。dedupe に必要な `content_hash` / `url_normalized` は行に残るため、本文を消しても重複検知は機能し続ける。再処理が必要な場合は R2 の元データ(90日保持)から復元する。
 - article_usages の書き戻し時、参照された fact とその evidence raw_item の `last_used_at` を更新し、`expires_at` を再計算する。
 - article_usages と published_provenance(Git)は削除対象外(永続)。ただし article_usages が参照する fact が期限切れ削除された後も article_usages 行は残す(FK は削除時に検査せず、provenance が監査の正となる)。
 - R2 オブジェクトはアップロード時に 90 日のライフサイクルルールで自動削除し、Retention ジョブでも raw_item 削除時に対応オブジェクトを削除する(二重保証)。
@@ -204,13 +209,17 @@ expires_at = max(collected_at, last_used_at, article_published_at) + 90 days
       "license_note": "政府標準利用規約2.0 (CC BY 4.0互換)",
       "reliability": "official",
       "interval_minutes": 1440,
-      "enabled": true
+      "enabled": true,
+      "exclude_patterns": ["決算", "人事", "^お知らせ$"],
+      "include_keywords": [],
+      "default_topic": "culture"
     }
   ]
 }
 ```
 
 - `license_note` が空の source は Preflight で fail-closed とする。
+- `exclude_patterns` / `include_keywords` は Screen(§5.3)が使う。`include_keywords` が空配列なら全件通過(専門メディア向け)、非空なら一致するもののみ通過(全件フィード向け)。
 - 初期情報源リストは `glintory_v2_sources.md` で確定する。
 
 ## 5. パイプライン仕様
@@ -224,7 +233,8 @@ expires_at = max(collected_at, last_used_at, article_published_at) + 90 days
 | 3 | Collect | due な sources → raw_items(collected)+ R2 | 源単位で継続。全滅なら FAILED、一部なら PARTIAL |
 | 4 | Normalize | collected → normalized(本文抽出・正規化・hash) | アイテム単位で rejected に落とし継続 |
 | 5 | Dedupe | normalized → deduped(クラスタ化) | abort(決定論的処理の失敗は設計バグ) |
-| 6 | Extract | deduped → facts(extracted → verified/rejected) | バジェット超過は持ち越し。API 障害は未処理のまま継続 |
+| 5.5 | Screen | deduped → screened / screened_out(§5.3 の決定論的選別) | abort |
+| 6 | Extract | screened → facts(extracted → verified/rejected) | バジェット超過は持ち越し。API 障害は未処理のまま継続 |
 | 7 | Offer | verified facts → editorial_candidates | abort |
 | 8 | Feedback | article_usages 読取 → last_used_at/expires_at 更新、provenance を Git へ書き出し | abort |
 | 9 | Retention | expires_at < now の行と R2 オブジェクトを削除 | abort |
@@ -248,6 +258,21 @@ expires_at = max(collected_at, last_used_at, article_published_at) + 90 days
 - 第2判定: `url_normalized` 一致 → 同一クラスタ。
 - 第3判定: タイトルの正規化編集距離 + 本文の SimHash/MinHash 類似(しきい値は実装時に fixture で較正)→ 同一クラスタ。
 - クラスタ代表は最も reliability が高く、それが同じなら published_at が最古のもの。
+
+### 5.3 Screen(抽出前の選別)
+
+情報源は日数百本規模の高頻度メディアを含むため、**全件を Gemini に投げない**。LLM を使わない決定論的な選別で抽出対象を絞る。
+
+除外(`screened_out`)の判定順:
+
+1. **source 固有の除外ルール**: manifest の `exclude_patterns`(正規表現)に一致するタイトル。企業リリースの「決算」「人事異動」「IR」等、読者価値のない定型を落とす。
+2. **本文長**: 正規化本文が短すぎる(既定 200 文字未満)= 実質中身がない。
+3. **topic キーワード**: manifest の `include_keywords` が設定された source では、タイトル+本文がいずれかに一致しないものを落とす(PR TIMES 等の全件フィード向け)。
+4. **鮮度**: `published_at` が既定 14 日より古いものを落とす(初回収集時のバックログ流入を防ぐ)。
+
+除外理由は `status_detail` に記録し、Summary に理由別件数を出す。**除外率が高すぎる(既定 95% 超)source は、フィード選択かルールが誤っている可能性があるため警告する。**
+
+選別後の残数が抽出バジェット(§6.4)を超える場合は、`reliability` と `published_at` の新しさで優先順位を付け、残りは次回へ持ち越す。
 
 ## 6. Gemini 事実抽出仕様
 

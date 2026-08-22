@@ -42,7 +42,6 @@ CREATE VIEW v_editorial_candidates AS
 SELECT ec.id, ec.schema_version, ec.fact_id, ec.media, ec.topic,
        ec.score_hint, ec.offered_at, ec.consumed_at, ec.expires_at,
        f.statement, f.entities, f.region, f.language, f.reliability,
-       f.evidence_span,
        r.url  AS source_url,
        r.title AS source_title,
        r.published_at AS source_published_at,
@@ -56,9 +55,14 @@ JOIN raw_items r  ON r.id = f.evidence_raw_item_id
 JOIN sources s    ON s.id = r.source_id;
 ```
 
+> [!IMPORTANT]
+> **`evidence_span`(原文からの逐語引用)は意図的に契約ビューから除外している。** これは Glintory 内部の出典検証専用データであり、Loka に渡さない。日本の著作権法が保護するのは事実ではなく表現であるため、Loka が記事化の材料にしてよいのは Glintory が中立に言い換えた `statement` と出典リンクのみとする。原文の表現を writer に見せないことで、逐語翻訳・表現の模倣を構造的に防ぐ。
+
 ### Loka 側の遵守事項
 
-- 記事に使う全ての事実について `source_url` を出典として明示すること。
+- 記事に使う全ての事実について `source_url` と `source_name` を出典として明示すること。
+- **原文の見出し・リード文の逐語翻訳を禁止する。** 記事は `statement` の事実に基づく独自の表現で書くこと。
+- **出典サイトの画像を取得・再利用しないこと。** 写真は明確な著作物である。記事画像は自前で調達する(生成画像、ライセンスの明確な素材、または公式が配布条件を明示したプレス素材のみ)。
 - `expires_at` を過ぎた候補を参照し続けないこと(記事生成は候補の取得と同一実行内で完結させる)。
 - `license_note` に転載制限がある源の候補は、制限に従うこと。
 
