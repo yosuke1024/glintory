@@ -1,0 +1,179 @@
+{
+  "comment": "Phase 0 candidate sites for feed discovery. Selection is decided by measured volume and sample headlines (scripts/discover_feeds.py), not by this list. feed_url is a hint when research surfaced one; sites without it are probed via <link rel=alternate> and common paths.",
+  "candidates": [
+    {
+      "name": "コミックナタリー",
+      "url": "https://natalie.mu/comic",
+      "category": "anime-manga"
+    },
+    {
+      "name": "音楽ナタリー",
+      "url": "https://natalie.mu/music",
+      "category": "entertainment"
+    },
+    {
+      "name": "映画ナタリー",
+      "url": "https://natalie.mu/eiga",
+      "category": "entertainment"
+    },
+    {
+      "name": "アニメ!アニメ!",
+      "url": "https://animeanime.jp/",
+      "feed_url": "https://animeanime.jp/rss/index.rdf",
+      "category": "anime-manga"
+    },
+    {
+      "name": "アニメイトタイムズ",
+      "url": "https://www.animatetimes.com/",
+      "category": "anime-manga"
+    },
+    {
+      "name": "アキバ総研",
+      "url": "https://akiba-souken.com/",
+      "category": "anime-manga"
+    },
+    {
+      "name": "4Gamer.net",
+      "url": "https://www.4gamer.net/",
+      "feed_url": "https://www.4gamer.net/rss/index.xml",
+      "category": "game"
+    },
+    {
+      "name": "Game*Spark",
+      "url": "https://www.gamespark.jp/",
+      "feed_url": "https://www.gamespark.jp/rss/index.rdf",
+      "category": "game"
+    },
+    {
+      "name": "インサイド",
+      "url": "https://www.inside-games.jp/",
+      "category": "game"
+    },
+    {
+      "name": "電ファミニコゲーマー",
+      "url": "https://news.denfaminicogamer.jp/",
+      "category": "game"
+    },
+    {
+      "name": "ファミ通.com",
+      "url": "https://www.famitsu.com/",
+      "category": "game",
+      "note": "RSS reported dead since 2024 - probe confirms or drops it"
+    },
+    {
+      "name": "任天堂 更新情報",
+      "url": "https://www.nintendo.co.jp/",
+      "feed_url": "https://www.nintendo.co.jp/news/whatsnew.xml",
+      "category": "corporate-official"
+    },
+    {
+      "name": "ORICON NEWS",
+      "url": "https://www.oricon.co.jp/",
+      "category": "entertainment"
+    },
+    {
+      "name": "モデルプレス",
+      "url": "https://mdpr.jp/",
+      "category": "entertainment"
+    },
+    {
+      "name": "ねとらぼ",
+      "url": "https://nlab.itmedia.co.jp/",
+      "feed_url": "https://rss.itmedia.co.jp/rss/2.0/netlab.xml",
+      "category": "lifestyle-trend"
+    },
+    {
+      "name": "GIGAZINE",
+      "url": "https://gigazine.net/",
+      "feed_url": "https://gigazine.net/news/rss_2.0/",
+      "category": "lifestyle-trend"
+    },
+    {
+      "name": "ロケットニュース24",
+      "url": "https://rocketnews24.com/",
+      "category": "lifestyle-trend"
+    },
+    {
+      "name": "Jタウンネット",
+      "url": "https://j-town.net/",
+      "category": "lifestyle-trend"
+    },
+    {
+      "name": "grape",
+      "url": "https://grapee.jp/",
+      "category": "lifestyle-trend"
+    },
+    {
+      "name": "macaroni",
+      "url": "https://macaro-ni.jp/",
+      "category": "food-product"
+    },
+    {
+      "name": "食べログマガジン",
+      "url": "https://magazine.tabelog.com/",
+      "category": "food-product"
+    },
+    {
+      "name": "ウォーカープラス",
+      "url": "https://www.walkerplus.com/",
+      "category": "travel-season"
+    },
+    {
+      "name": "じゃらんニュース",
+      "url": "https://www.jalan.net/news/",
+      "category": "travel-season"
+    },
+    {
+      "name": "ことりっぷ",
+      "url": "https://co-trip.jp/",
+      "category": "travel-season"
+    },
+    {
+      "name": "tenki.jp",
+      "url": "https://tenki.jp/",
+      "category": "travel-season",
+      "note": "sakura and autumn-foliage forecasts are high-demand seasonal content"
+    },
+    {
+      "name": "東京ディズニーリゾート",
+      "url": "https://www.tokyodisneyresort.jp/",
+      "category": "travel-season"
+    },
+    {
+      "name": "ユニバーサル・スタジオ・ジャパン",
+      "url": "https://www.usj.co.jp/",
+      "category": "travel-season"
+    },
+    {
+      "name": "@cosme",
+      "url": "https://www.cosme.net/",
+      "category": "beauty"
+    },
+    {
+      "name": "美的.com",
+      "url": "https://www.biteki.com/",
+      "category": "beauty"
+    },
+    {
+      "name": "PR TIMES",
+      "url": "https://prtimes.jp/",
+      "feed_url": "https://prtimes.jp/index.rdf",
+      "category": "corporate-official"
+    },
+    {
+      "name": "セブン-イレブン",
+      "url": "https://www.sej.co.jp/",
+      "category": "corporate-official"
+    },
+    {
+      "name": "ローソン",
+      "url": "https://www.lawson.co.jp/",
+      "category": "corporate-official"
+    },
+    {
+      "name": "ファミリーマート",
+      "url": "https://www.family.co.jp/",
+      "category": "corporate-official"
+    }
+  ]
+}

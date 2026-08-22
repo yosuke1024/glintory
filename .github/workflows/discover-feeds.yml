@@ -1,0 +1,52 @@
+name: Discover Feeds
+
+# Phase 0 tool: measures what candidate sites actually publish. Runs here
+# because GitHub-hosted runners have unrestricted egress, unlike the
+# environments where the source research was done.
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidates:
+        description: Candidates file to probe
+        default: config/feed_candidates.json
+  push:
+    paths:
+      - "config/feed_candidates*.json"
+      - "scripts/discover_feeds.py"
+      - ".github/workflows/discover-feeds.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        candidates:
+          - config/feed_candidates.json
+          - config/feed_candidates_round2.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Probe candidate feeds
+        run: python scripts/discover_feeds.py "${{ matrix.candidates }}"
+
+      - name: Publish results to job summary
+        if: always()
+        run: cat feed_discovery.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: feed-discovery-${{ strategy.job-index }}
+          path: |
+            feed_discovery.json
+            feed_discovery.md
