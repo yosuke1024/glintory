@@ -1,6 +1,6 @@
 # Glintory ↔ Loka 供給契約 v1
 
-ステータス: Phase 0 ドラフト(レビュー後に確定)/ `schema_version = 1`
+ステータス: Phase 0 ドラフト。**2026-08-22に保留**([意思決定記録](glintory_v2_decision_log.md))/ `schema_version = 1`
 
 本書は Glintory(共通情報基盤)と Loka(編集プロダクト)の間のデータ契約を定義する。両者は同一 Cloudflare アカウントの D1 データベースを共有し、本契約に列挙されたテーブル以外への相互アクセスを禁止する。
 

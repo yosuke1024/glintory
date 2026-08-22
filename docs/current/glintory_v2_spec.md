@@ -3,7 +3,7 @@
 対象Issue: [pixapps_strategy#22](https://github.com/yosuke1024/pixapps_strategy/issues/22)
 関連文書: [実行計画](glintory_v2_execution_plan.md) / [Loka供給契約 v1](glintory_v2_loka_contract_v1.md) / [ADR-0001 実装スタック](adr/0001-implementation-stack.md)
 
-ステータス: Phase 0 ドラフト(レビュー後に確定)
+ステータス: Phase 0 ドラフト。**2026-08-22に保留**([意思決定記録](glintory_v2_decision_log.md))
 
 本書は Glintory v2 実装の唯一の情報源(SSOT)である。実装サブエージェントは本書の該当節のみを正とし、v1 のコード・スキーマを設計の参照にしてはならない。
 
