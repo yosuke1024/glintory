@@ -6,9 +6,13 @@ name: Discover Feeds
 
 on:
   workflow_dispatch:
+    inputs:
+      candidates:
+        description: Candidates file to probe
+        default: config/feed_candidates.json
   push:
     paths:
-      - "config/feed_candidates.json"
+      - "config/feed_candidates*.json"
       - "scripts/discover_feeds.py"
       - ".github/workflows/discover-feeds.yml"
 
@@ -18,7 +22,13 @@ permissions:
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        candidates:
+          - config/feed_candidates.json
+          - config/feed_candidates_round2.json
     steps:
       - uses: actions/checkout@v4
 
@@ -27,7 +37,7 @@ jobs:
           python-version: "3.12"
 
       - name: Probe candidate feeds
-        run: python scripts/discover_feeds.py config/feed_candidates.json
+        run: python scripts/discover_feeds.py "${{ matrix.candidates }}"
 
       - name: Publish results to job summary
         if: always()
@@ -36,7 +46,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: feed-discovery
+          name: feed-discovery-${{ strategy.job-index }}
           path: |
             feed_discovery.json
             feed_discovery.md

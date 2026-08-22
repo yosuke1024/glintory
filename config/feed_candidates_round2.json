@@ -1,0 +1,185 @@
+{
+  "comment": "Round 2: the 16 sites where round 1 found no feed, retried with publisher-specific path guesses and RSS-index-page anchor following. Also re-probes the three sites whose round-1 timestamps looked wrong, to capture raw date strings.",
+  "candidates": [
+    {
+      "name": "コミックナタリー",
+      "url": "https://natalie.mu/comic",
+      "category": "anime-manga",
+      "extra_paths": [
+        "https://natalie.mu/comic/feed/news",
+        "https://natalie.mu/comic/feed",
+        "https://natalie.mu/comic/rss/news",
+        "https://natalie.mu/rss/comic.rdf",
+        "https://natalie.mu/comic/news.rdf"
+      ]
+    },
+    {
+      "name": "音楽ナタリー",
+      "url": "https://natalie.mu/music",
+      "category": "entertainment",
+      "extra_paths": [
+        "https://natalie.mu/music/feed/news",
+        "https://natalie.mu/music/feed",
+        "https://natalie.mu/music/rss/news",
+        "https://natalie.mu/rss/music.rdf"
+      ]
+    },
+    {
+      "name": "映画ナタリー",
+      "url": "https://natalie.mu/eiga",
+      "category": "entertainment",
+      "extra_paths": [
+        "https://natalie.mu/eiga/feed/news",
+        "https://natalie.mu/eiga/feed",
+        "https://natalie.mu/eiga/rss/news"
+      ]
+    },
+    {
+      "name": "アニメイトタイムズ",
+      "url": "https://www.animatetimes.com/",
+      "category": "anime-manga",
+      "extra_paths": [
+        "https://www.animatetimes.com/rss.xml",
+        "https://www.animatetimes.com/rss/",
+        "https://www.animatetimes.com/news/rss.xml"
+      ]
+    },
+    {
+      "name": "アキバ総研",
+      "url": "https://akiba-souken.com/",
+      "category": "anime-manga",
+      "extra_paths": [
+        "https://akiba-souken.com/rss/anime/",
+        "https://akiba-souken.com/rss/news/",
+        "https://akiba-souken.com/rss.xml"
+      ]
+    },
+    {
+      "name": "ファミ通.com",
+      "url": "https://www.famitsu.com/",
+      "category": "game",
+      "extra_paths": [
+        "https://www.famitsu.com/rss/fcom_all.rdf",
+        "https://www.famitsu.com/rss/fcom_news.rdf",
+        "https://www.famitsu.com/feed/"
+      ]
+    },
+    {
+      "name": "ORICON NEWS",
+      "url": "https://www.oricon.co.jp/",
+      "category": "entertainment",
+      "extra_paths": [
+        "https://www.oricon.co.jp/rss/news/",
+        "https://www.oricon.co.jp/rss/news.xml",
+        "https://www.oricon.co.jp/rss/single.rdf"
+      ]
+    },
+    {
+      "name": "モデルプレス",
+      "url": "https://mdpr.jp/rss",
+      "category": "entertainment",
+      "extra_paths": [
+        "https://mdpr.jp/rss/latest",
+        "https://mdpr.jp/rss/news",
+        "https://mdpr.jp/rss/index.xml"
+      ]
+    },
+    {
+      "name": "tenki.jp",
+      "url": "https://tenki.jp/",
+      "category": "travel-season",
+      "extra_paths": [
+        "https://tenki.jp/rss/",
+        "https://tenki.jp/rss/index.rdf",
+        "https://tenki.jp/forecaster/rss/"
+      ]
+    },
+    {
+      "name": "東京ディズニーリゾート",
+      "url": "https://www.tokyodisneyresort.jp/",
+      "category": "travel-season",
+      "extra_paths": [
+        "https://www.tokyodisneyresort.jp/rss/tdr_information.xml",
+        "https://www.tokyodisneyresort.jp/treasure/rss.xml"
+      ]
+    },
+    {
+      "name": "ユニバーサル・スタジオ・ジャパン",
+      "url": "https://www.usj.co.jp/",
+      "category": "travel-season",
+      "extra_paths": ["https://www.usj.co.jp/rss/news.xml"]
+    },
+    {
+      "name": "@cosme",
+      "url": "https://www.cosme.net/",
+      "category": "beauty",
+      "extra_paths": [
+        "https://www.cosme.net/rss/",
+        "https://www.cosme.net/news/rss.xml"
+      ]
+    },
+    {
+      "name": "美的.com",
+      "url": "https://www.biteki.com/",
+      "category": "beauty",
+      "extra_paths": ["https://www.biteki.com/feed", "https://www.biteki.com/rss"]
+    },
+    {
+      "name": "セブン-イレブン RSS一覧",
+      "url": "https://www.sej.co.jp/rss.html",
+      "category": "corporate-official",
+      "extra_paths": [
+        "https://www.sej.co.jp/rss/index.rdf",
+        "https://www.sej.co.jp/rss/newrelease.rdf",
+        "https://www.sej.co.jp/rss/products.rdf"
+      ]
+    },
+    {
+      "name": "ローソン",
+      "url": "https://www.lawson.co.jp/company/news/",
+      "category": "corporate-official",
+      "extra_paths": [
+        "https://www.lawson.co.jp/company/ir/topics/rss/ja.xml",
+        "https://www.lawson.co.jp/rss/news.xml"
+      ]
+    },
+    {
+      "name": "ファミリーマート",
+      "url": "https://www.family.co.jp/company/news_releases.html",
+      "category": "corporate-official",
+      "extra_paths": ["https://www.family.co.jp/rss/news.xml"]
+    },
+    {
+      "name": "ねとらぼ 日付再確認",
+      "url": "https://nlab.itmedia.co.jp/",
+      "feed_url": "https://rss.itmedia.co.jp/rss/2.0/netlab.xml",
+      "category": "diagnostic",
+      "note": "round 1 reported newest item ~453 days old while volume looked healthy"
+    },
+    {
+      "name": "grape 日付再確認",
+      "url": "https://grapee.jp/",
+      "feed_url": "https://grapee.jp/feed",
+      "category": "diagnostic",
+      "note": "round 1 reported 0.4 items/day from 100 items - implausible"
+    },
+    {
+      "name": "macaroni 日付再確認",
+      "url": "https://macaro-ni.jp/",
+      "feed_url": "https://macaro-ni.jp/rss/pickup.rss",
+      "category": "diagnostic",
+      "note": "round 1 could not compute a rate and newest item was 9 days old"
+    },
+    {
+      "name": "ウォーカープラス イベント",
+      "url": "https://www.walkerplus.com/event/",
+      "category": "travel-season",
+      "extra_paths": [
+        "https://www.walkerplus.com/event/rss",
+        "https://www.walkerplus.com/news/rss",
+        "https://www.walkerplus.com/top/rss"
+      ],
+      "note": "round 1 main feed turned out to be web-manga essays, not events"
+    }
+  ]
+}

@@ -40,23 +40,33 @@ COMMON_FEED_PATHS = (
 SAMPLE_TITLES = 6
 
 
+FEEDY_HREF = re.compile(r"(\.(xml|rdf|rss)$|/(rss|feed|atom)(/|$))", re.I)
+
+
 class FeedLinkParser(HTMLParser):
-    """Collect <link rel=alternate type=application/rss+xml> hrefs."""
+    """Collect feed URLs from <link rel=alternate> and feed-looking <a href>.
+
+    Several Japanese publishers advertise their feeds only on a human-facing
+    "RSS一覧" page, so anchors matter as much as head links.
+    """
 
     def __init__(self) -> None:
         super().__init__()
         self.links: list[str] = []
+        self.anchors: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag != "link":
-            return
         a = {k.lower(): (v or "") for k, v in attrs}
-        if "alternate" not in a.get("rel", "").lower():
+        href = a.get("href", "")
+        if not href:
             return
-        if not any(t in a.get("type", "").lower() for t in ("rss", "atom", "rdf")):
-            return
-        if a.get("href"):
-            self.links.append(a["href"])
+        if tag == "link":
+            if "alternate" not in a.get("rel", "").lower():
+                return
+            if any(t in a.get("type", "").lower() for t in ("rss", "atom", "rdf")):
+                self.links.append(href)
+        elif tag == "a" and FEEDY_HREF.search(href) and href not in self.anchors:
+            self.anchors.append(href)
 
 
 def fetch(url: str) -> bytes | None:
@@ -113,14 +123,15 @@ def parse_feed(body: bytes) -> dict | None:
     for el in root.iter():
         if local(el.tag) != item_tag:
             continue
-        title, published = "", None
+        title, published, raw_date = "", None, ""
         for child in el:
             name = local(child.tag)
             if name == "title" and child.text:
                 title = " ".join(child.text.split())
             elif name in ("pubDate", "date", "published", "updated") and child.text:
+                raw_date = raw_date or child.text.strip()
                 published = published or parse_date(child.text)
-        entries.append({"title": title, "published": published})
+        entries.append({"title": title, "published": published, "raw_date": raw_date})
 
     return {"format": kind, "entries": entries} if entries else None
 
@@ -149,6 +160,7 @@ def discover(site: dict) -> list[dict]:
     candidates: list[str] = []
     if site.get("feed_url"):
         candidates.append(site["feed_url"])
+    candidates += site.get("extra_paths", [])
 
     if not site.get("feed_url") or site.get("probe_anyway"):
         html = fetch(url)
@@ -158,8 +170,13 @@ def discover(site: dict) -> list[dict]:
                 parser.feed(html.decode("utf-8", errors="replace"))
             except Exception as exc:  # malformed markup should not kill the run
                 print(f"    html parse failed: {exc}", file=sys.stderr)
-            candidates += [urljoin(url, href) for href in parser.links]
-            print(f"    <link> tags: {len(parser.links)}")
+            host = urlparse(url).netloc
+            anchors = [
+                a for a in (urljoin(url, h) for h in parser.anchors)
+                if urlparse(a).netloc == host
+            ]
+            candidates += [urljoin(url, href) for href in parser.links] + anchors[:12]
+            print(f"    <link>: {len(parser.links)}  feed-ish <a>: {len(anchors)}")
         time.sleep(POLITE_DELAY)
         candidates += [urljoin(url, p) for p in COMMON_FEED_PATHS]
 
@@ -186,11 +203,15 @@ def discover(site: dict) -> list[dict]:
             "samples": [e["title"] for e in entries[:SAMPLE_TITLES] if e["title"]],
             **measure(entries),
         }
+        row["raw_date_sample"] = next(
+            (e["raw_date"] for e in entries if e.get("raw_date")), ""
+        )
         results.append(row)
         print(
             f"    FOUND {feed_url} [{row['format']}] "
             f"items={row['items']} per_day={row['per_day']} "
-            f"newest_age_h={row.get('newest_age_hours')}"
+            f"newest_age_h={row.get('newest_age_hours')} "
+            f"raw_date={row['raw_date_sample']!r}"
         )
         for title in row["samples"][:3]:
             print(f"      - {title}")
